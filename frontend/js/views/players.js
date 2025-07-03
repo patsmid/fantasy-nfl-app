@@ -1,14 +1,11 @@
-export default async function renderPlayers() {
-  const response = await fetch('/players');
-  const data = await response.json();
-
-  const container = document.getElementById('main-content');
+export async function renderPlayers() {
+  const container = document.getElementById('content');
   container.innerHTML = `
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Jugadores</h2>
-      <button class="btn btn-primary" id="btnActualizar">Actualizar</button>
+      <button id="btn-update-players" class="btn btn-primary">Actualizar</button>
     </div>
-    <table id="playersTable" class="table table-striped w-100">
+    <table id="players-table" class="table table-striped" style="width:100%">
       <thead>
         <tr>
           <th>ID</th>
@@ -16,36 +13,35 @@ export default async function renderPlayers() {
           <th>Posición</th>
           <th>Equipo</th>
           <th>Status</th>
-          <th>Injury</th>
-          <th>Experiencia</th>
+          <th>Lesión</th>
+          <th>Años Exp</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   `;
 
-  const tableBody = container.querySelector('#playersTable tbody');
-  data.forEach(player => {
-    tableBody.innerHTML += `
-      <tr>
-        <td>${player.id}</td>
-        <td>${player.full_name}</td>
-        <td>${player.position || '-'}</td>
-        <td>${player.team || '-'}</td>
-        <td>${player.status || '-'}</td>
-        <td>${player.injury_status || '-'}</td>
-        <td>${player.years_exp ?? '-'}</td>
-      </tr>
-    `;
+  document.getElementById('btn-update-players').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/players');
+      const text = await res.text();
+      console.log("📦 Respuesta cruda:", text);
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        console.error("❌ Error parseando JSON:", e.message);
+        alert("Error procesando respuesta del servidor. Revisa la consola.");
+        return;
+      }
+
+      alert(`Se actualizaron ${result.updated} jugadores`);
+    } catch (error) {
+      console.error('❌ Error al actualizar jugadores:', error.message || error);
+      alert("Error de red al llamar /update-players");
+    }
   });
 
-  // Inicializar DataTables
-  new DataTable('#playersTable');
-
-  // Botón actualizar
-  document.getElementById('btnActualizar').addEventListener('click', async () => {
-    const res = await fetch('/update-players');
-    const result = await res.json();
-    alert(`Se actualizaron ${result.updated} jugadores`);
-  });
+  loadPlayersTable();
 }
