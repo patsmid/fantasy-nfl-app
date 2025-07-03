@@ -1,22 +1,21 @@
 async function loadSidebar() {
   const sidebar = document.getElementById('sidebar');
-  const response = await fetch('/components/sidebar.html');
-  sidebar.innerHTML = await response.text();
-
-  document.querySelectorAll('[data-view]').forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const view = link.getAttribute('data-view');
-      loadView(view);
-    });
+  sidebar.innerHTML = await (await fetch('/components/sidebar.html')).text();
+  $('.nav-sidebar').on('click','a[data-view]', function(e) {
+    e.preventDefault();
+    $('.nav-link').removeClass('active');
+    $(this).addClass('active');
+    const view = this.dataset.view;
+    loadView(view);
   });
-
   loadView('players');
 }
 
-async function loadView(viewName) {
-  const viewModule = await import(`./views/${viewName}.js`);
-  viewModule.default();
+async function loadView(view) {
+  const module = await import(`./views/${view}.js`);
+  module.default();
 }
 
-loadSidebar();
+$(function() {
+  loadSidebar();
+});

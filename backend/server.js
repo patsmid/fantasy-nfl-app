@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { getPlayers, updatePlayers } from './players.js';
+import { getPlayersRAW, getPlayers, updatePlayers } from './players.js';
 import { updateNFLState } from './updateNFLState.js';
 
 const app = express();
@@ -12,7 +12,9 @@ app.use(express.static('frontend'));
 app.use(express.json());
 
 // Ruta para obtener los jugadores y enviarlos al frontend
-app.get('/players', getPlayers);
+app.get('/playersRAW', getPlayersRAW);
+
+app.get('/getPlayers', getPlayers);
 
 app.get('/update-nfl-state', async (req, res) => {
   try {

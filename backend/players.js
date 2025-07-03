@@ -3,10 +3,39 @@ import { supabase } from './supabaseClient.js';
 
 export async function getPlayers(req, res) {
   try {
+    const start = parseInt(req.query.start) || 0;
+    const length = parseInt(req.query.length) || 10;
+
+    const from = start;
+    const to = start + length - 1;
+
+    const { data, count, error } = await supabase
+      .from('players')
+      .select('*', { count: 'exact' }) // Total de registros
+      .range(from, to)
+      .order('full_name');
+
+    if (error) throw error;
+
+    res.json({
+      draw: parseInt(req.query.draw) || 1,
+      recordsTotal: count,
+      recordsFiltered: count,
+      data,
+    });
+  } catch (err) {
+    console.error('❌ Error en getPlayers:', err.message || err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function getPlayersRAW(req, res) {
+  try {
     const { data, error } = await supabase
       .from('players')
       .select('*')
-      .order('full_name');
+      .order('full_name')
+      .range(0, 14999);
 
     if (error) throw error;
 
@@ -16,6 +45,7 @@ export async function getPlayers(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
+
 
 function chunkArray(array, size) {
   const result = [];
