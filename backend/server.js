@@ -49,32 +49,53 @@ app.listen(3000, () => {
 });
 
 export async function updateNFLState() {
-  try {
-    const response = await fetch('https://api.sleeper.app/v1/state/nfl');
-    const data = await response.json();
+  const apiUrl = 'https://api.sleeper.app/v1/state/nfl';
+  const allowedFields = [
+    'week',
+    'season_type',
+    'season_start_date',
+    'season',
+    'previous_season',
+    'leg',
+    'league_season',
+    'league_create_season',
+    'display_week',
+  ];
 
-    const { error: existingError, data: existing } = await supabase
+  try {
+    const response = await fetch(apiUrl);
+    const rawData = await response.json();
+
+    // Filtramos solo campos válidos
+    const filteredData = {};
+    for (const field of allowedFields) {
+      if (field in rawData) filteredData[field] = rawData[field];
+    }
+    filteredData.updated_at = new Date().toISOString();
+
+    const { data: existing, error: fetchError } = await supabase
       .from('nfl_state')
-      .select('*')
+      .select('id')
       .limit(1)
       .maybeSingle();
+
+    if (fetchError) throw fetchError;
 
     if (existing) {
       const { error: updateError } = await supabase
         .from('nfl_state')
-        .update({ ...data, updated_at: new Date().toISOString() })
+        .update(filteredData)
         .eq('id', existing.id);
       if (updateError) throw updateError;
-      console.log('Registro actualizado en nfl_state');
+      console.log('✅ Registro actualizado en nfl_state');
     } else {
       const { error: insertError } = await supabase
         .from('nfl_state')
-        .insert([{ ...data, updated_at: new Date().toISOString() }]);
+        .insert([filteredData]);
       if (insertError) throw insertError;
-      console.log('Registro insertado en nfl_state');
+      console.log('✅ Registro insertado en nfl_state');
     }
-
   } catch (err) {
-    console.error('Error actualizando nfl_state:', err.message);
+    console.error('❌ Error en updateNFLState:', err.message || err);
   }
 }
