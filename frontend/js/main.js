@@ -16,7 +16,6 @@ async function loadSidebar() {
 
 async function loadView(viewName) {
   const viewModule = await import(`./views/${viewName}.js`);
-	console.log(viewModule);
   viewModule.default();
 }
 

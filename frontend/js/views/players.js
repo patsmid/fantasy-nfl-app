@@ -34,7 +34,7 @@ export default async function renderPlayersView() {
 
 async function loadPlayersTable() {
   const data = await fetchPlayers();
-
+	console.log(data);
   const tableBody = document.querySelector('#players-table tbody');
   tableBody.innerHTML = '';
 
