@@ -24,18 +24,19 @@ app.get('/update-players', async (req, res) => {
       injury_status: player.injury_status,
       years_exp: player.years_exp
     })).filter(p => p.player_id);
-
+		console.log(data);
     for (const player of data) {
       await supabase.from('players').upsert(player, { onConflict: 'player_id' });
     }
 
     res.json({ success: true, updated: data.length });
   } catch (error) {
+		console.log("error");
     console.error(error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.listen(3000, () => {
-  console.log('Server is running on port 3000');
+  console.log('Server is running on port 3000, testeando');
 });
