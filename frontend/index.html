@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fantasy NFL App</title>
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.3.2/css/dataTables.dataTables.min.css">
+</head>
+<body>
+  <h1>Jugadores NFL</h1>
+  <button id="updateBtn">Actualizar</button>
+  <table id="playersTable" class="display" style="width:100%">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Posición</th>
+        <th>Equipo</th>
+        <th>Status</th>
+        <th>Lesión</th>
+        <th>Experiencia</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <script src="https://cdn.datatables.net/2.3.2/js/dataTables.min.js" type="module"></script>
+  <script type="module">
+    async function loadPlayers() {
+      const res = await fetch('https://cdmesdcgkcvogbgzqobt.supabase.co/rest/v1/players?select=*', {
+        headers: {
+          apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8'
+        }
+      });
+      const players = await res.json();
+      const tbody = document.querySelector("#playersTable tbody");
+      tbody.innerHTML = "";
+      players.forEach(p => {
+        const row = `<tr>
+          <td>${p.full_name || ''}</td>
+          <td>${p.position || ''}</td>
+          <td>${p.team || ''}</td>
+          <td>${p.status || ''}</td>
+          <td>${p.injury_status || ''}</td>
+          <td>${p.years_exp || ''}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+      new DataTable("#playersTable");
+    }
+
+    document.getElementById("updateBtn").addEventListener("click", async () => {
+      await fetch("https://fantasy-nfl-backend.onrender.com/update-players");
+      await loadPlayers();
+    });
+
+    loadPlayers();
+  </script>
+</body>
+</html>
