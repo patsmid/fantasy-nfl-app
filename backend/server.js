@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { updatePlayers } from './updatePlayers.js';
+import { getPlayers, updatePlayers } from './players.js';
 import { updateNFLState } from './updateNFLState.js';
 
 const app = express();
@@ -8,24 +8,11 @@ const PORT = process.env.PORT || 3000;
 
 // Configura CORS para permitir acceso desde cualquier origen
 app.use(cors());
+app.use(express.static('frontend'));
 app.use(express.json());
 
 // Ruta para obtener los jugadores y enviarlos al frontend
-app.get('/players', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .order('full_name');
-
-    if (error) throw error;
-
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en /players:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+app.get('/players', getPlayers);
 
 app.get('/update-nfl-state', async (req, res) => {
   try {

@@ -1,6 +1,22 @@
 import fetch from 'node-fetch';
 import { supabase } from './supabaseClient.js';
 
+export async function getPlayers(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .order('full_name');
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ Error en getPlayers:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 function chunkArray(array, size) {
   const result = [];
   for (let i = 0; i < array.length; i += size)
