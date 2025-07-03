@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jugadores NFL</title>
+  <title>Fantasy NFL Players</title>
   <link rel="stylesheet" href="https://cdn.datatables.net/2.3.2/css/dataTables.dataTables.min.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Jugadores NFL</h1>
-  <table id="playersTable" class="display">
+  <h1>Jugadores NFL desde Sleeper API</h1>
+  <table id="playersTable" class="display" style="width:100%">
     <thead>
       <tr>
         <th>ID</th>
@@ -17,13 +18,12 @@
         <th>Equipo</th>
         <th>Estatus</th>
         <th>Lesión</th>
-        <th>Años de Exp.</th>
+        <th>Años de Exp</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
-  <script type="module" src="./app.js"></script>
-  <script src="https://cdn.datatables.net/2.3.2/js/dataTables.min.mjs" type="module"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
