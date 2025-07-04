@@ -12,6 +12,8 @@ import {
   deleteExpert
 } from './experts.js';
 import { getSleeperADP, getLatestADPDate, getADPTypes, updateSleeperADP, getUniqueSleeperADPValues  } from './utils/sleeper.js';
+import { updateNFLState } from './updateNFLState.js';
+import draftRouter from './draft.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -68,6 +70,8 @@ app.get('/sleeperADP/latest-date', getLatestADPDate); // fecha más reciente
 app.get('/sleeperADP/types', getADPTypes);            // tipos de ADP únicos
 app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
+
+app.use('/api', draftRouter);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///FUNCIONES DEL SERVIDOR
