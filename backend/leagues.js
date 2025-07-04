@@ -6,13 +6,13 @@ export async function updateLeagues(req, res) {
     const { data: config, error: configError } = await supabase
       .from('config')
       .select('key, value')
-      .in('key', ['main_user_id', 'Año']);
+      .in('key', ['main_user_id', 'año']);
 
     if (configError) throw configError;
 
     const configMap = Object.fromEntries(config.map(c => [c.key, c.value]));
     const userId = configMap.main_user_id;
-    const season = configMap['Año'];
+    const season = configMap['año'];
 
     if (!userId || !season) {
       return res.status(400).json({ success: false, error: 'Faltan main_user_id o Año en config' });
@@ -74,13 +74,13 @@ export async function getLeagues(req, res) {
     const { data: config, error: configError } = await supabase
       .from('config')
       .select('key, value')
-      .in('key', ['main_user_id', 'Año']);
+      .in('key', ['main_user_id', 'año']);
 
     if (configError) throw configError;
 
     const configMap = Object.fromEntries(config.map(c => [c.key, c.value]));
     const userId = configMap.main_user_id;
-    const season = configMap['Año'];
+    const season = configMap['año'];
 
     if (!userId || !season) {
       return res.status(400).json({ success: false, error: 'Faltan main_user_id o Año en config' });
