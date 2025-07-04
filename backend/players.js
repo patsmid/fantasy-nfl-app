@@ -11,7 +11,7 @@ export async function getPlayers(req, res) {
     const to = start + length - 1;
 
     // Columnas esperadas en el orden de la tabla
-    const columns = ['id', 'full_name', 'position', 'team', 'status'];
+    const columns = ['id', 'player_id', 'first_name','last_name', 'full_name' 'position', 'team', 'status','injury_status', 'years_exp'];
 
     // Construir filtros dinámicos
     let query = supabase.from('players').select('*', { count: 'exact' });
@@ -46,7 +46,6 @@ export async function getPlayers(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
-
 
 export async function getPlayersRAW(req, res) {
   try {
