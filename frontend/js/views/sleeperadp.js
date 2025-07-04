@@ -48,7 +48,7 @@ export default async function renderADPView() {
     processing: true,
     serverSide: true,
     ajax: {
-      url: `${API_BASE}/sleeperADP`,
+      url: `https://fantasy-nfl-backend.onrender.com/sleeperADP`,
       dataSrc: 'data',
       data: function (d) {
         // Pasar filtros tipo select al backend
