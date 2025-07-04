@@ -3,14 +3,29 @@ async function loadSidebar() {
   const response = await fetch('/components/sidebar.html');
   sidebar.innerHTML = await response.text();
 
+  // Activar links de vista
   document.querySelectorAll('[data-view]').forEach(link => {
-    link.addEventListener('click', (e) => {
+    link.addEventListener('click', async (e) => {
       e.preventDefault();
       const view = link.getAttribute('data-view');
-      loadView(view);
+      await loadView(view);
+
+      // Si estamos en móvil, ocultamos la sidebar al hacer clic en un enlace
+      if (window.innerWidth < 992) {
+        sidebar.classList.remove('show');
+      }
     });
   });
 
+  // Activar botón ☰ para mostrar u ocultar sidebar (mobile)
+  const toggleBtn = document.getElementById('toggle-sidebar');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('show');
+    });
+  }
+
+  // Carga inicial
   loadView('players');
 }
 
@@ -19,4 +34,4 @@ async function loadView(viewName) {
   viewModule.default();
 }
 
-loadSidebar();
+document.addEventListener('DOMContentLoaded', loadSidebar);

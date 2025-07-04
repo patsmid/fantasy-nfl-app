@@ -10,11 +10,27 @@
   <link href="css/flock-theme.css" rel="stylesheet">
 </head>
 <body>
-  <div class="d-flex">
-    <div id="sidebar"></div>
-    <main class="flex-grow-1 p-4">
-      <div id="main-content"></div>
-    </main>
+  <div class="d-flex flex-column flex-lg-row" id="app">
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar bg-dark text-white collapse d-lg-block">
+      <div class="p-3">
+        <h4 class="text-center">🏈 Fantasy App</h4>
+        <ul class="nav flex-column" id="menu-container"></ul>
+      </div>
+    </nav>
+    <!-- Main content -->
+    <div class="flex-grow-1">
+      <!-- Topbar -->
+      <nav class="navbar navbar-light bg-light">
+        <div class="container-fluid">
+          <button class="btn btn-outline-secondary d-lg-none" id="toggle-sidebar">☰</button>
+          <span class="navbar-brand mb-0 h1">Fantasy NFL</span>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <main class="p-4" id="content-container"></main>
+    </div>
   </div>
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js" integrity="sha384-VFQrHzqBh5qiJIU0uGU5CIW3+OWpdGGJM9LBnGbuIH2mkICcFZ7lPd/AAtI7SNf7" crossorigin="anonymous"></script>
