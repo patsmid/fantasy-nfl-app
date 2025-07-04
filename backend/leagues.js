@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient.js';
+
 export async function updateLeagues(req, res) {
   try {
     // 1. Leer main_user_id y Año desde config
