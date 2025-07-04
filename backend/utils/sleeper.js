@@ -2,7 +2,7 @@ import { supabase } from '../supabaseClient.js';
 
 export async function getSleeperADP(req, res) {
   try {
-    // Parámetros de DataTables
+    // Parámetros DataTables
     const draw = parseInt(req.query.draw) || 1;
     const start = parseInt(req.query.start) || 0;
     const length = parseInt(req.query.length) || 10;
@@ -11,46 +11,80 @@ export async function getSleeperADP(req, res) {
     const orderColIndex = req.query['order[0][column]'];
     const orderDir = req.query['order[0][dir]'] || 'asc';
 
-    // Columnas (debe coincidir con las que usa DataTables)
-    const columns = ['id', 'adp_type', 'sleeper_player_id', 'adp_value', 'adp_value_prev', 'date'];
+    // Columnas para filtrado y orden - considera las nuevas columnas join
+    const columns = [
+      'id',
+      'adp_type',
+      'sleeper_player_id',
+      'adp_value',
+      'adp_value_prev',
+      'date',
+      'players.full_name',
+      'players.position',
+      'players.team'
+    ];
 
-    const orderCol = columns[orderColIndex] || 'adp_value';
+    // Para orden, solo usa columnas simples (de sleeper_adp_data)
+    const simpleColumns = ['id', 'adp_type', 'sleeper_player_id', 'adp_value', 'adp_value_prev', 'date'];
+    const orderCol = simpleColumns[orderColIndex] || 'adp_value';
 
-    // Filtros por columna
+    // Filtros por columna solo para sleeper_adp_data campos
     let queryFilters = {};
-    columns.forEach((col, idx) => {
+    simpleColumns.forEach((col, idx) => {
       const filter = req.query[`filter_col_${idx}`];
       if (filter) {
-        // Para filtros básicos con contains insensible (ajusta según tu base)
         queryFilters[col] = filter;
       }
     });
 
-    // Construir query Supabase
-    let query = supabase.from('sleeper_adp_data').select('*', { count: 'exact' });
+    // Construir query con join a players
+    let query = supabase
+      .from('sleeper_adp_data')
+      .select(`
+        *,
+        players:players!sleeper_player_id (
+          full_name,
+          position,
+          team
+        )
+      `, { count: 'exact' });
 
-    // Aplicar filtros
+    // Aplicar filtros a sleeper_adp_data
     for (const [col, val] of Object.entries(queryFilters)) {
       query = query.ilike(col, `%${val}%`);
     }
 
-    // Obtener total sin filtros para recordsTotal
+    // Total sin filtros
     const { count: totalCount } = await supabase
       .from('sleeper_adp_data')
       .select('id', { count: 'exact', head: true });
 
-    // Obtener total con filtros para recordsFiltered y datos paginados
+    // Datos paginados con filtros y orden
     const { data, count: filteredCount, error } = await query
       .order(orderCol, { ascending: orderDir === 'asc' })
       .range(start, start + length - 1);
 
     if (error) throw error;
 
+    // Ajustar el formato para que frontend tenga las columnas directas
+    // mapear data para aplanar la info de players
+    const mappedData = data.map(row => ({
+      id: row.id,
+      adp_type: row.adp_type,
+      sleeper_player_id: row.sleeper_player_id,
+      adp_value: row.adp_value,
+      adp_value_prev: row.adp_value_prev,
+      date: row.date,
+      full_name: row.players?.full_name || null,
+      position: row.players?.position || null,
+      team: row.players?.team || null,
+    }));
+
     res.json({
       draw,
       recordsTotal: totalCount,
       recordsFiltered: filteredCount,
-      data,
+      data: mappedData,
     });
   } catch (err) {
     console.error('❌ Error en /sleeperADP:', err.message || err);

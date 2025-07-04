@@ -103,7 +103,6 @@ async function loadExperts() {
     `;
     tbody.appendChild(tr);
   });
-}
 
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {
