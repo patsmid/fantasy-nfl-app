@@ -123,6 +123,18 @@ export async function updatePlayers() {
       }
     }
 
+    // ✅ Actualizar fecha en config si todo fue bien
+    const now = new Date().toISOString();
+    const { error: configError } = await supabase
+      .from('config')
+      .upsert({ key: 'playerDB_updated', value: now }, { onConflict: 'key' });
+
+    if (configError) {
+      console.warn('⚠️ No se pudo actualizar playerDB_updated:', configError.message);
+    } else {
+      console.log(`🕒 Actualización registrada en config: ${now}`);
+    }
+
     console.log('🎉 Todos los jugadores fueron procesados');
   } catch (err) {
     console.error('❌ Error en updatePlayers:', err.message || err);
