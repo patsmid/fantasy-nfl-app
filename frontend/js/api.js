@@ -62,3 +62,38 @@ export async function updateLeaguesDynasty(id, dynasty) {
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
+
+//EXPERTOS
+export async function fetchExperts() {
+  const res = await fetch(`${API_BASE}/experts`);
+  const json = await res.json();
+  return json.data;
+}
+
+export async function createExpert(data) {
+  const res = await fetch(`${API_BASE}/experts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error);
+}
+
+export async function updateExpert(id, data) {
+  const res = await fetch(`${API_BASE}/experts/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error);
+}
+
+export async function deleteExpert(id) {
+  const res = await fetch(`${API_BASE}/experts/${id}`, {
+    method: 'DELETE'
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error);
+}

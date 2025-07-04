@@ -4,6 +4,13 @@ import { getPlayersRAW, getPlayers, updatePlayers } from './players.js';
 import { updateNFLState } from './updateNFLState.js';
 import { getAllConfig, getConfig, setConfig } from './configController.js';
 import { getLeagues, getLeaguesFromDB, updateLeagues, getLeagueById, updateLeagueDynasty } from './leagues.js';
+import {
+  getAllExperts,
+  getExpertById,
+  createExpert,
+  updateExpert,
+  deleteExpert
+} from './experts.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +53,13 @@ app.get('/leagues', getLeaguesFromDB);           // desde base de datos
 app.get('/update-leagues', updateLeagues);       // Actualiza desde API → Supabase
 app.get('/leagues/:id', getLeagueById); // 🆕 Consultar una liga por ID
 app.patch('/leagues/:id/dynasty', updateLeagueDynasty); // 🆕 Actualizar campo dynasty
+
+// Rutas de expertos
+app.get('/experts', getAllExperts);
+app.get('/experts/:id', getExpertById);
+app.post('/experts', createExpert);
+app.put('/experts/:id', updateExpert);
+app.delete('/experts/:id', deleteExpert);
 
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);
