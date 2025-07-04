@@ -94,10 +94,10 @@ async function loadExperts() {
       <td>${e.experto}</td>
       <td>
         <button class="btn btn-sm btn-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}">
-          <i class="fas fa-edit"></i>
+          <i class="fa-solid fa-pen-to-square"></i>
         </button>
         <button class="btn btn-sm btn-danger btn-delete" data-id="${e.id}">
-          <i class="fas fa-trash-alt"></i>
+          <i class="fa-solid fa-trash-can"></i>
         </button>
       </td>
     `;

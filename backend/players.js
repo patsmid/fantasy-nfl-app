@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { supabase } from './supabaseClient.js';
+import { getMexicoCityISOString } from './utils/helpers.js';
 
 export async function getPlayers(req, res) {
   try {
@@ -124,7 +125,7 @@ export async function updatePlayers() {
     }
 
     // ✅ Actualizar fecha en config si todo fue bien
-    const now = new Date().toISOString();
+    const now = getMexicoCityISOString();
     const { error: configError } = await supabase
       .from('config')
       .upsert({ key: 'playerDB_updated', value: now }, { onConflict: 'key' });

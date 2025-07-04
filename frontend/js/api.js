@@ -7,12 +7,17 @@ export async function fetchPlayers() {
 }
 
 export async function updatePlayers() {
-  const res = await fetch(`${API_BASE}/update-players`);
-  const json = await res.json();
-  if (json.success) {
-    alert(`Jugadores actualizados: ${json.message}`);
-  } else {
-    alert(`Error al actualizar: ${json.error}`);
+  try {
+    const res = await fetch(`${API_BASE}/update-players`);
+    const json = await res.json();
+
+    if (json.success) {
+      showSuccess(${json.message});
+    } else {
+      showError(`Error al actualizar: ${json.error}`);
+    }
+  } catch (err) {
+    showError(`Error de conexión: ${err.message}`);
   }
 }
 
@@ -43,12 +48,17 @@ export async function fetchLeagues() {
 }
 
 export async function updateLeagues() {
-  const res = await fetch(`${API_BASE}/update-leagues`);
-  const json = await res.json();
-  if (json.success) {
-    alert(`Ligas actualizadas: ${json.message}`);
-  } else {
-    alert(`Error al actualizar ligas: ${json.error}`);
+	try {
+		const res = await fetch(`${API_BASE}/update-leagues`);
+	  const json = await res.json();
+
+    if (json.success) {
+      showSuccess(`Ligas actualizadas: ${json.message}`);
+    } else {
+      showError(`Error al actualizar ligas: ${json.error}`);
+    }
+  } catch (err) {
+    showError(`Error de conexión: ${err.message}`);
   }
 }
 
