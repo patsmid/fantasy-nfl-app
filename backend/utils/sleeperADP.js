@@ -15,6 +15,10 @@ function getSheetList() {
           if (!match) throw new Error('No se encontró JSON válido');
 
           const matches = rawData.match(/sheetId":\s*(\d+),\s*"title":\s*"([^"]+)"/g);
+          if (!matches || matches.length === 0) {
+            throw new Error('No se encontraron hojas en el documento');
+          }
+
           const sheets = matches.map((line) => {
             const gid = line.match(/sheetId":\s*(\d+)/)[1];
             const name = line.match(/"title":\s*"([^"]+)"/)[1];
@@ -29,6 +33,7 @@ function getSheetList() {
     }).on('error', reject);
   });
 }
+
 
 // Descarga CSV y lo convierte a JSON con encabezados
 function getSheetJSON(gid) {
