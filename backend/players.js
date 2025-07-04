@@ -10,27 +10,37 @@ export async function getPlayers(req, res) {
     const from = start;
     const to = start + length - 1;
 
-    // Columnas esperadas en el orden de la tabla
-    const columns = ['id', 'player_id', 'first_name','last_name', 'full_name', 'position', 'team', 'status','injury_status', 'years_exp'];
+    // Columnas reales de la tabla
+    const columns = [
+      'id',
+      'player_id',
+      'first_name',
+      'last_name',
+      'full_name',
+      'position',
+      'team',
+      'status',
+      'injury_status',
+      'years_exp'
+    ];
 
-    // Construir filtros dinámicos
+    // Construir query base
     let query = supabase.from('players').select('*', { count: 'exact' });
 
+    // Aplicar filtros si existen
     columns.forEach((col, index) => {
       const filterValue = req.query[`filter_col_${index}`];
       if (filterValue) {
-        // Buscar de forma parcial (ilike es case-insensitive)
         query = query.ilike(col, `%${filterValue}%`);
       }
     });
 
-    // Orden descendente por id
+    // Orden descendente por ID
     query = query.order('id', { ascending: false });
 
-    // Paginación
+    // Aplicar paginación
     query = query.range(from, to);
 
-    // Ejecutar consulta
     const { data, count, error } = await query;
 
     if (error) throw error;
@@ -46,6 +56,7 @@ export async function getPlayers(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+
 
 export async function getPlayersRAW(req, res) {
   try {
