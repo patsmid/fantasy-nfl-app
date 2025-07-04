@@ -1,6 +1,6 @@
 // routes/draft.js
 import express from 'express';
-import { supabase } from '../utils/supabaseClient.js';
+import { supabase } from './supabaseClient.js';
 import fetch from 'node-fetch';
 
 const router = express.Router();
