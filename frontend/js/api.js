@@ -15,3 +15,22 @@ export async function updatePlayers() {
     alert(`Error al actualizar: ${json.error}`);
   }
 }
+
+// --- Configuración ---
+export async function fetchConfig() {
+  const res = await fetch(`${API_BASE}/config`);
+  if (!res.ok) throw new Error('Error al obtener configuración');
+  return await res.json();
+}
+
+export async function updateConfig(id, newValue) {
+  const res = await fetch(`${API_BASE}/config/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: newValue })
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Error al actualizar configuración');
+  return json;
+}

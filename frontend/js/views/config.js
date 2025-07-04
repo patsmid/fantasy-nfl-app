@@ -1,3 +1,5 @@
+import { fetchConfig, updateConfig } from '../api.js';
+
 export default async function () {
   const content = document.getElementById('content-container');
   content.innerHTML = `
@@ -28,6 +30,7 @@ export default async function () {
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <input type="hidden" id="configId" />
             <div class="mb-3">
               <label for="configKey" class="form-label">Clave</label>
               <input type="text" class="form-control" id="configKey" name="key" required />
@@ -46,37 +49,46 @@ export default async function () {
     </div>
   `;
 
-  loadConfig();
+  const modal = new bootstrap.Modal(document.getElementById('configModal'));
 
   document.getElementById('btn-add-config').addEventListener('click', () => {
     document.getElementById('configForm').reset();
+    document.getElementById('configId').value = '';
     document.getElementById('configKey').readOnly = false;
-    new bootstrap.Modal(document.getElementById('configModal')).show();
+    modal.show();
   });
 
   document.getElementById('configForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const id = document.getElementById('configId').value;
     const key = document.getElementById('configKey').value.trim();
     const value = document.getElementById('configValue').value.trim();
 
-    const res = await fetch('/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value })
-    });
+    try {
+      if (id) {
+        await updateConfig(id, value);
+      } else {
+        const res = await fetch('https://fantasy-nfl-backend.onrender.com/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value })
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+      }
 
-    const json = await res.json();
-    if (json.success) {
-      bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+      modal.hide();
       loadConfig();
-    } else {
-      alert('Error: ' + json.error);
+    } catch (err) {
+      alert('Error: ' + err.message);
     }
   });
+
+  await loadConfig();
 }
 
 async function loadConfig() {
-  const res = await fetch('/config');
+  const res = await fetch('https://fantasy-nfl-backend.onrender.com/config');
   const json = await res.json();
   const tbody = document.querySelector('#configTable tbody');
   tbody.innerHTML = '';
@@ -88,25 +100,34 @@ async function loadConfig() {
       <td>${row.value || ''}</td>
       <td>${new Date(row.updated_at).toLocaleString()}</td>
       <td>
-        <button class="btn btn-sm btn-outline-primary btn-edit" data-key="${row.key}">Editar</button>
+        <button class="btn btn-sm btn-outline-primary btn-edit"
+                data-id="${row.id}"
+                data-key="${row.key}"
+                data-value="${row.value}">
+          Editar
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const key = btn.dataset.key;
-      const res = await fetch(`/config/${key}`);
-      const json = await res.json();
-      if (json.success) {
-        document.getElementById('configKey').value = key;
-        document.getElementById('configKey').readOnly = true;
-        document.getElementById('configValue').value = json.value;
-        new bootstrap.Modal(document.getElementById('configModal')).show();
-      } else {
-        alert('Error: ' + json.error);
+  // Inicializa DataTables (si aún no está inicializado)
+  if (!$.fn.DataTable.isDataTable('#configTable')) {
+    $('#configTable').DataTable({
+      pageLength: 10,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
       }
+    });
+  }
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('configId').value = btn.dataset.id;
+      document.getElementById('configKey').value = btn.dataset.key;
+      document.getElementById('configKey').readOnly = true;
+      document.getElementById('configValue').value = btn.dataset.value || '';
+      new bootstrap.Modal(document.getElementById('configModal')).show();
     });
   });
 }

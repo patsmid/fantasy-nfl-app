@@ -40,7 +40,6 @@ app.get('/config', getAllConfig);
 app.get('/config/:key', getConfig);
 app.post('/config', setConfig);
 
-
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);
 });
