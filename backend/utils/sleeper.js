@@ -168,3 +168,45 @@ export async function getADPTypes(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
+
+export async function getUniqueSleeperADPValues(req, res) {
+  try {
+    const { column } = req.query;
+
+    if (!column) return res.status(400).json({ error: 'Falta parámetro column' });
+
+    let data = [];
+    if (['adp_type', 'date'].includes(column)) {
+      // Valores únicos directos en sleeper_adp_data
+      const { data: rows, error } = await supabase
+        .from('sleeper_adp_data')
+        .select(column)
+        .neq(column, null)
+        .neq(column, '')
+        .order(column, { ascending: true });
+
+      if (error) throw error;
+
+      data = [...new Set(rows.map(r => r[column]))];
+    } else if (['full_name', 'position', 'team'].includes(column)) {
+      // Valores únicos de players
+      const { data: rows, error } = await supabase
+        .from('players')
+        .select(column)
+        .neq(column, null)
+        .neq(column, '')
+        .order(column, { ascending: true });
+
+      if (error) throw error;
+
+      data = [...new Set(rows.map(r => r[column]))];
+    } else {
+      return res.status(400).json({ error: 'Columna no soportada para filtro' });
+    }
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ Error en /sleeperADP/unique-values:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}

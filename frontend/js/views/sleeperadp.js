@@ -1,4 +1,4 @@
-import { fetchSleeperADP, updateSleeperADP } from '../api.js';
+import { fetchUniqueSleeperADPValues, updateSleeperADP } from '../api.js';
 
 export default async function renderADPView() {
   const container = document.getElementById('content-container');
@@ -6,8 +6,8 @@ export default async function renderADPView() {
     <div class="container mt-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">ADP Sleeper</h2>
-        <button id="update-btn" class="btn btn-primary">
-          <i class="fas fa-sync-alt"></i> Actualizar ADP
+        <button id="update-adp-btn" class="btn btn-primary">
+          <i class="bi bi-arrow-repeat"></i> Actualizar ADP
         </button>
       </div>
 
@@ -17,20 +17,26 @@ export default async function renderADPView() {
             <tr>
               <th>ID</th>
               <th>Tipo ADP</th>
-              <th>ID Jugador Sleeper</th>
+              <th>Player ID</th>
               <th>Valor ADP</th>
-              <th>Valor ADP previo</th>
+              <th>Valor ADP Prev</th>
               <th>Fecha</th>
+              <th>Nombre</th>
+              <th>Posición</th>
+              <th>Equipo</th>
             </tr>
           </thead>
           <tfoot>
             <tr>
-              <th>ID</th>
-              <th>Tipo ADP</th>
-              <th>ID Jugador Sleeper</th>
-              <th>Valor ADP</th>
-              <th>Valor ADP previo</th>
-              <th>Fecha</th>
+              <th></th>  <!-- No filtro para ID -->
+              <th></th>  <!-- Tipo ADP con select -->
+              <th></th>  <!-- No filtro para Player ID -->
+              <th></th>  <!-- No filtro para Valor ADP -->
+              <th></th>  <!-- No filtro para Valor ADP Prev -->
+              <th></th>  <!-- Fecha con select -->
+              <th></th>  <!-- Nombre con select -->
+              <th></th>  <!-- Posición con select -->
+              <th></th>  <!-- Equipo con select -->
             </tr>
           </tfoot>
         </table>
@@ -38,23 +44,18 @@ export default async function renderADPView() {
     </div>
   `;
 
-  // Agrega inputs de filtro en cada columna del footer
-  $('#adp-table tfoot th').each(function () {
-    const title = $(this).text();
-    $(this).html(`<input type="text" class="form-control form-control-sm" placeholder="Filtrar ${title}" />`);
-  });
-
   const table = $('#adp-table').DataTable({
     processing: true,
     serverSide: true,
     ajax: {
-      url: 'https://fantasy-nfl-backend.onrender.com/sleeperADP',
+      url: `${API_BASE}/sleeperADP`,
       dataSrc: 'data',
       data: function (d) {
-        $('#adp-table tfoot input').each(function (index) {
-          const value = this.value;
-          if (value) {
-            d[`filter_col_${index}`] = value;
+        // Pasar filtros tipo select al backend
+        $('#adp-table tfoot select').each(function (index) {
+          const val = this.value;
+          if (val && val !== '') {
+            d[`filter_col_${index}`] = val;
           }
         });
       }
@@ -65,25 +66,52 @@ export default async function renderADPView() {
       { data: 'sleeper_player_id' },
       { data: 'adp_value' },
       { data: 'adp_value_prev' },
-      { data: 'date' }
+      { data: 'date' },
+      { data: 'full_name' },
+      { data: 'position' },
+      { data: 'team' }
     ],
+    order: [[3, 'asc']],
     pageLength: 10,
     lengthMenu: [10, 25, 50, 100],
     language: {
       url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+    },
+    initComplete: function () {
+      const api = this.api();
+
+      // Columnas con filtro select y nombres para fetch
+      const selectCols = [
+        { index: 1, column: 'adp_type' },
+        { index: 5, column: 'date' },
+        { index: 6, column: 'full_name' },
+        { index: 7, column: 'position' },
+        { index: 8, column: 'team' }
+      ];
+
+      selectCols.forEach(async ({ index, column }) => {
+        const columnDT = api.column(index);
+        const select = $('<select class="form-select form-select-sm"><option value="">Todos</option></select>')
+          .appendTo($(columnDT.footer()).empty())
+          .on('change', function () {
+            api.ajax.reload();
+          });
+
+        const options = await fetchUniqueSleeperADPValues(column);
+        options.forEach(opt => {
+          select.append(`<option value="${opt}">${opt}</option>`);
+        });
+      });
     }
   });
 
-  $('#adp-table tfoot input').on('keyup change', function () {
-    table.ajax.reload();
-  });
-
-  const updateBtn = document.getElementById('update-btn');
+  // Botón actualizar ADP
+  const updateBtn = document.getElementById('update-adp-btn');
   updateBtn.addEventListener('click', async () => {
     updateBtn.disabled = true;
     updateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Actualizando...';
     await updateSleeperADP();
-    updateBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar ADP';
+    updateBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar ADP';
     updateBtn.disabled = false;
     table.ajax.reload();
   });

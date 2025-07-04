@@ -135,3 +135,16 @@ export async function deleteExpert(id) {
   const json = await res.json();
   if (!res.ok) throw new Error(json.error);
 }
+
+
+export async function fetchUniqueSleeperADPValues(column) {
+  try {
+    const res = await fetch(`${API_BASE}/sleeperADP/unique-values?column=${encodeURIComponent(column)}`);
+    const json = await res.json();
+    if (json.success) return json.data;
+    else throw new Error(json.error || 'Error al obtener valores únicos');
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
