@@ -113,3 +113,22 @@ export async function getLeagueById(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
+
+export async function updateLeagueDynasty(req, res) {
+  try {
+    const { id } = req.params;
+    const { dynasty } = req.body;
+
+    const { error } = await supabase
+      .from('leagues')
+      .update({ dynasty, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Error en updateLeagueDynasty:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
