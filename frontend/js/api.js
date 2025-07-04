@@ -12,7 +12,7 @@ export async function updatePlayers() {
     const json = await res.json();
 
     if (json.success) {
-      showSuccess(${json.message});
+      showSuccess(`Éxito: ${json.message}`);
     } else {
       showError(`Error al actualizar: ${json.error}`);
     }
