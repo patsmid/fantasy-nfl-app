@@ -1,8 +1,9 @@
 import { showSuccess, showError, showConfirm } from '../components/alerts.js';
+import { fetchWithTimeout } from './utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
 export async function fetchPlayers() {
-  const res = await fetch(`${API_BASE}/players`);
+  const res = await fetchWithTimeout(`${API_BASE}/players`);
   const json = await res.json();
   return json.data;
 }
@@ -24,7 +25,7 @@ export async function updatePlayers() {
 
 // --- Configuración ---
 export async function fetchConfig() {
-  const res = await fetch(`${API_BASE}/config`);
+  const res = await fetchWithTimeout(`${API_BASE}/config`);
   if (!res.ok) throw new Error('Error al obtener configuración');
   return await res.json();
 }
@@ -42,7 +43,7 @@ export async function updateConfig(id, newValue) {
 }
 
 export async function fetchLeagues() {
-  const res = await fetch(`${API_BASE}/leagues`);
+  const res = await fetchWithTimeout(`${API_BASE}/leagues`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
@@ -76,7 +77,7 @@ export async function updateLeaguesDynasty(id, dynasty) {
 
 //EXPERTOS
 export async function fetchExperts() {
-  const res = await fetch(`${API_BASE}/experts`);
+  const res = await fetchWithTimeout(`${API_BASE}/experts`);
   const json = await res.json();
   return json.data;
 }

@@ -61,6 +61,10 @@ app.post('/experts', createExpert);
 app.put('/experts/:id', updateExpert);
 app.delete('/experts/:id', deleteExpert);
 
+app.get('/', (req, res) => {
+  res.send('✅ API Fantasy NFL en línea');
+});
+
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);
 });
