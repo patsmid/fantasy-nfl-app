@@ -1,8 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import axios from 'axios';
 
-import { supabase } from './supabaseClient.js';
-
 export async function getSleeperADP(req, res) {
   try {
     const { date, adp_type, player_id, since } = req.query;
@@ -27,7 +25,6 @@ export async function getSleeperADP(req, res) {
   }
 }
 
-
 export async function getSleeperLeague(leagueId) {
   const { data } = await axios.get(`https://api.sleeper.app/v1/league/${leagueId}`);
   return data;
@@ -36,6 +33,21 @@ export async function getSleeperLeague(leagueId) {
 export async function getLeagueDraft(draftId) {
   const { data } = await axios.get(`https://api.sleeper.app/v1/draft/${draftId}/picks`);
   return data;
+}
+
+export async function updateSleeperADP(req, res) {
+  try {
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbzJKeM4mnNWbnIhGiOlRfCyEfccXfMVD8Zpp1300eRFVcRNgUGF7bZuRrd3D2xDXfYC/exec';
+    const authKey = 'f4nt4sy-@dp-sync-92js83sk'; // Usa una variable de entorno segura
+
+    const response = await fetch(`${scriptUrl}?auth=${authKey}`);
+    const text = await response.text();
+
+    res.json({ success: true, result: text });
+  } catch (err) {
+    console.error('❌ Error actualizando ADP:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 }
 
 export async function getLatestADPDate(req, res) {
@@ -62,7 +74,6 @@ export async function getLatestADPDate(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
-
 
 export async function getADPTypes(req, res) {
   try {
