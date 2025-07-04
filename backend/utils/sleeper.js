@@ -1,5 +1,4 @@
 import { supabase } from '../supabaseClient.js';
-import axios from 'axios';
 
 export async function getSleeperADP(req, res) {
   try {
@@ -26,13 +25,19 @@ export async function getSleeperADP(req, res) {
 }
 
 export async function getSleeperLeague(leagueId) {
-  const { data } = await axios.get(`https://api.sleeper.app/v1/league/${leagueId}`);
-  return data;
+  const response = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
+  if (!response.ok) {
+    throw new Error(`Sleeper API error: ${response.statusText}`);
+  }
+  return await response.json();
 }
 
 export async function getLeagueDraft(draftId) {
-  const { data } = await axios.get(`https://api.sleeper.app/v1/draft/${draftId}/picks`);
-  return data;
+  const response = await fetch(`https://api.sleeper.app/v1/draft/${draftId}/picks`);
+  if (!response.ok) {
+    throw new Error(`Sleeper API error: ${response.statusText}`);
+  }
+  return await response.json();
 }
 
 export async function updateSleeperADP(req, res) {
