@@ -3,6 +3,7 @@ import cors from 'cors';
 import { getPlayersRAW, getPlayers, updatePlayers } from './players.js';
 import { updateNFLState } from './updateNFLState.js';
 import { getAllConfig, getConfig, setConfig } from './configController.js';
+import { getLeagues, getLeaguesFromDB, updateLeagues, getLeagueById, updateLeagueDynasty } from './leagues.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,14 @@ app.get('/update-players', async (req, res) => {
 app.get('/config', getAllConfig);
 app.get('/config/:key', getConfig);
 app.post('/config', setConfig);
+
+router.get('/leagues/sleeper', getLeagues);         // Opción directa desde API Sleeper
+router.get('/leagues', getLeaguesFromDB);           // desde base de datos
+router.get('/update-leagues', updateLeagues);       // Actualiza desde API → Supabase
+router.get('/leagues/:id', getLeagueById); // 🆕 Consultar una liga por ID
+router.patch('/leagues/:id/dynasty', updateLeagueDynasty); // 🆕 Actualizar campo dynasty
+
+
 
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);

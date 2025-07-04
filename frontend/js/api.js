@@ -25,7 +25,7 @@ export async function fetchConfig() {
 
 export async function updateConfig(id, newValue) {
   const res = await fetch(`${API_BASE}/config/${id}`, {
-    method: 'PUT',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: newValue })
   });
@@ -33,4 +33,32 @@ export async function updateConfig(id, newValue) {
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || 'Error al actualizar configuración');
   return json;
+}
+
+export async function fetchLeagues() {
+  const res = await fetch(`${API_BASE}/leagues`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function updateLeagues() {
+  const res = await fetch(`${API_BASE}/update-leagues`);
+  const json = await res.json();
+  if (json.success) {
+    alert(`Ligas actualizadas: ${json.message}`);
+  } else {
+    alert(`Error al actualizar ligas: ${json.error}`);
+  }
+}
+
+export async function updateLeaguesDynasty(id, dynasty) {
+  const res = await fetch(`${API_BASE}/leagues/${id}/dynasty`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dynasty })
+  });
+
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
 }
