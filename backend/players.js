@@ -5,20 +5,38 @@ export async function getPlayers(req, res) {
   try {
     const start = parseInt(req.query.start) || 0;
     const length = parseInt(req.query.length) || 10;
+    const draw = parseInt(req.query.draw) || 1;
 
     const from = start;
     const to = start + length - 1;
 
-    const { data, count, error } = await supabase
-      .from('players')
-      .select('*', { count: 'exact' }) // Total de registros
-      .range(from, to)
-      .order('full_name');
+    // Columnas esperadas en el orden de la tabla
+    const columns = ['id', 'full_name', 'position', 'team', 'status'];
+
+    // Construir filtros dinámicos
+    let query = supabase.from('players').select('*', { count: 'exact' });
+
+    columns.forEach((col, index) => {
+      const filterValue = req.query[`filter_col_${index}`];
+      if (filterValue) {
+        // Buscar de forma parcial (ilike es case-insensitive)
+        query = query.ilike(col, `%${filterValue}%`);
+      }
+    });
+
+    // Orden descendente por id
+    query = query.order('id', { ascending: false });
+
+    // Paginación
+    query = query.range(from, to);
+
+    // Ejecutar consulta
+    const { data, count, error } = await query;
 
     if (error) throw error;
 
     res.json({
-      draw: parseInt(req.query.draw) || 1,
+      draw,
       recordsTotal: count,
       recordsFiltered: count,
       data,
@@ -28,6 +46,7 @@ export async function getPlayers(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+
 
 export async function getPlayersRAW(req, res) {
   try {
