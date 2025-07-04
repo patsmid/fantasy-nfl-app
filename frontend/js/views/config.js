@@ -1,5 +1,5 @@
 export default async function () {
-  const content = document.getElementById('content');
+  const content = document.getElementById('content-container');
   content.innerHTML = `
     <div class="container mt-4">
       <div class="d-flex justify-content-between align-items-center mb-3">

@@ -1,7 +1,7 @@
 import { fetchPlayers, updatePlayers } from '../api.js';
 
 export default async function renderPlayersView() {
-  const container = document.getElementById('main-content');
+  const container = document.getElementById('content-container');
   container.innerHTML = `
     <h2>Jugadores</h2>
     <div class="d-flex justify-content-between align-items-center mb-3">
