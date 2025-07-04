@@ -10,7 +10,7 @@ export async function updatePlayers() {
   const res = await fetch(`${API_BASE}/update-players`);
   const json = await res.json();
   if (json.success) {
-    alert(`Jugadores actualizados: ${json.updated}`);
+    alert(`Jugadores actualizados: ${json.message}`);
   } else {
     alert(`Error al actualizar: ${json.error}`);
   }
