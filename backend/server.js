@@ -68,20 +68,6 @@ app.get('/sleeperADP/latest-date', getLatestADPDate); // fecha más reciente
 app.get('/sleeperADP/types', getADPTypes);            // tipos de ADP únicos
 app.post('/update-sleeper-adp', updateSleeperADP);
 
-app.post('/update-sleeper-adp', async (req, res) => {
-  try {
-    const response = await fetch(
-      'https://script.google.com/macros/s/AKfycbzJKeM4mnNWbnIhGiOlRfCyEfccXfMVD8Zpp1300eRFVcRNgUGF7bZuRrd3D2xDXfYC/exec?auth=f4nt4sy-@dp-sync-92js83sk'
-    );
-    const text = await response.text();
-    res.json({ success: true, result: text });
-  } catch (err) {
-    console.error('❌ Error actualizando ADP:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///FUNCIONES DEL SERVIDOR
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////

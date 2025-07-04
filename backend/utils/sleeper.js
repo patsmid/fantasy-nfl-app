@@ -2,25 +2,59 @@ import { supabase } from '../supabaseClient.js';
 
 export async function getSleeperADP(req, res) {
   try {
-    const { date, adp_type, player_id, since } = req.query;
+    // Parámetros de DataTables
+    const draw = parseInt(req.query.draw) || 1;
+    const start = parseInt(req.query.start) || 0;
+    const length = parseInt(req.query.length) || 10;
 
-    let query = supabase
+    // Orden
+    const orderColIndex = req.query['order[0][column]'];
+    const orderDir = req.query['order[0][dir]'] || 'asc';
+
+    // Columnas (debe coincidir con las que usa DataTables)
+    const columns = ['id', 'adp_type', 'sleeper_player_id', 'adp_value', 'adp_value_prev', 'date'];
+
+    const orderCol = columns[orderColIndex] || 'adp_value';
+
+    // Filtros por columna
+    let queryFilters = {};
+    columns.forEach((col, idx) => {
+      const filter = req.query[`filter_col_${idx}`];
+      if (filter) {
+        // Para filtros básicos con contains insensible (ajusta según tu base)
+        queryFilters[col] = filter;
+      }
+    });
+
+    // Construir query Supabase
+    let query = supabase.from('sleeper_adp_data').select('*', { count: 'exact' });
+
+    // Aplicar filtros
+    for (const [col, val] of Object.entries(queryFilters)) {
+      query = query.ilike(col, `%${val}%`);
+    }
+
+    // Obtener total sin filtros para recordsTotal
+    const { count: totalCount } = await supabase
       .from('sleeper_adp_data')
-      .select('*')
-      .order('adp_value', { ascending: true });
+      .select('id', { count: 'exact', head: true });
 
-    if (date) query = query.eq('date', date);
-    if (adp_type) query = query.eq('adp_type', adp_type);
-    if (player_id) query = query.eq('sleeper_player_id', player_id);
-    if (since) query = query.gte('date', since); // ✅ filtro por fecha mínima
+    // Obtener total con filtros para recordsFiltered y datos paginados
+    const { data, count: filteredCount, error } = await query
+      .order(orderCol, { ascending: orderDir === 'asc' })
+      .range(start, start + length - 1);
 
-    const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ success: true, data });
+    res.json({
+      draw,
+      recordsTotal: totalCount,
+      recordsFiltered: filteredCount,
+      data,
+    });
   } catch (err) {
     console.error('❌ Error en /sleeperADP:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 }
 

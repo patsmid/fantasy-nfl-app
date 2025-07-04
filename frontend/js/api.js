@@ -23,6 +23,33 @@ export async function updatePlayers() {
   }
 }
 
+export async function fetchSleeperADP() {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/sleeperADP`);
+    const json = await res.json();
+    if (!json.data) throw new Error('No data received');
+    return json.data;
+  } catch (err) {
+    showError(`Error al obtener ADP: ${err.message}`);
+    return [];
+  }
+}
+
+export async function updateSleeperADP() {
+  try {
+    const res = await fetch(`${API_BASE}/update-sleeper-adp`, { method: 'POST' });
+    const json = await res.json();
+
+    if (json.success) {
+      showSuccess(`Éxito: ${json.message || 'ADP actualizado'}`);
+    } else {
+      showError(`Error al actualizar ADP: ${json.error || 'Error desconocido'}`);
+    }
+  } catch (err) {
+    showError(`Error de conexión: ${err.message}`);
+  }
+}
+
 // --- Configuración ---
 export async function fetchConfig() {
   const res = await fetchWithTimeout(`${API_BASE}/config`);
@@ -44,7 +71,7 @@ export async function updateConfig(id, newValue) {
 
 export async function fetchLeagues() {
   const res = await fetchWithTimeout(`${API_BASE}/leagues`);
-  if (!res.success) throw new Error(json.error);
+  if (!res.success) throw new Error(res.error);
   return res.data;
 }
 
@@ -73,6 +100,7 @@ export async function updateLeaguesDynasty(id, dynasty) {
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
+
 
 //EXPERTOS
 export async function fetchExperts() {
