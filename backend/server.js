@@ -41,13 +41,11 @@ app.get('/config', getAllConfig);
 app.get('/config/:key', getConfig);
 app.post('/config', setConfig);
 
-router.get('/leagues/sleeper', getLeagues);         // Opción directa desde API Sleeper
-router.get('/leagues', getLeaguesFromDB);           // desde base de datos
-router.get('/update-leagues', updateLeagues);       // Actualiza desde API → Supabase
-router.get('/leagues/:id', getLeagueById); // 🆕 Consultar una liga por ID
-router.patch('/leagues/:id/dynasty', updateLeagueDynasty); // 🆕 Actualizar campo dynasty
-
-
+app.get('/leagues/sleeper', getLeagues);         // Opción directa desde API Sleeper
+app.get('/leagues', getLeaguesFromDB);           // desde base de datos
+app.get('/update-leagues', updateLeagues);       // Actualiza desde API → Supabase
+app.get('/leagues/:id', getLeagueById); // 🆕 Consultar una liga por ID
+app.patch('/leagues/:id/dynasty', updateLeagueDynasty); // 🆕 Actualizar campo dynasty
 
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);
