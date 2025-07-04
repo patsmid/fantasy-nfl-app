@@ -37,11 +37,6 @@ export default async function () {
 async function loadLeagues() {
   const leagues = await fetchLeagues();
 
-  // Destruir instancia anterior si ya existe
-  if (window.leaguesTable) {
-    window.leaguesTable.destroy();
-  }
-
   const tbody = document.querySelector('#leaguesTable tbody');
   tbody.innerHTML = '';
 
@@ -62,7 +57,7 @@ async function loadLeagues() {
     tbody.appendChild(tr);
   });
 
-  // Activar toggle dynasty listeners
+  // Listeners de dynasty
   document.querySelectorAll('.toggle-dynasty').forEach(input => {
     input.addEventListener('change', async () => {
       const id = input.dataset.id;
@@ -75,8 +70,9 @@ async function loadLeagues() {
     });
   });
 
-  // Inicializar DataTable sin jQuery
+  // Inicializa DataTable de forma segura
   window.leaguesTable = new DataTable('#leaguesTable', {
+    destroy: true,
     responsive: true,
     perPage: 10,
     labels: {
