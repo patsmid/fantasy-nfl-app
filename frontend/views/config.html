@@ -1,0 +1,31 @@
+<div class="container mt-4">
+  <h2>⚙️ Configuración</h2>
+  <button id="add-config-btn" class="btn btn-success mb-3">➕ Nueva Configuración</button>
+
+  <table id="config-table" class="table table-striped table-bordered w-100"></table>
+
+  <!-- Modal -->
+  <div class="modal fade" id="config-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <form id="config-form" class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Configuración</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Clave</label>
+            <input type="text" name="key" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Valor</label>
+            <input type="text" name="value" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

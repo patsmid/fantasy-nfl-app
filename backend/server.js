@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { getPlayersRAW, getPlayers, updatePlayers } from './players.js';
 import { updateNFLState } from './updateNFLState.js';
+import { getAllConfig, getConfig, setConfig } from './configController.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,11 @@ app.get('/update-players', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+app.get('/config', getAllConfig);
+app.get('/config/:key', getConfig);
+app.post('/config', setConfig);
+
 
 app.listen(3000, () => {
   console.log(`🚀 Servidor corriendo en: ${PORT}`);

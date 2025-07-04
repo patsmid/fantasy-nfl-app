@@ -1,0 +1,79 @@
+
+:root {
+  --bg-primary: #16181d;
+  --bg-secondary: #1f2228;
+  --accent: #ff7a00;
+  --text-primary: #e4e6eb;
+  --text-secondary: #b0b3b8;
+  --border: #2f3033;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+}
+
+a, .btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: #cc6200;
+}
+
+.container, .card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.card-header {
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.table {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.table thead th {
+  border-bottom: 2px solid var(--border);
+  color: var(--accent);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: #23252b;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background-color: var(--accent);
+  color: #000;
+}
+
+.form-control {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(255, 122, 0, 0.25);
+}
+
+.btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+.btn-success:hover {
+  background-color: #218838;
+}
