@@ -11,7 +11,7 @@ import {
   updateExpert,
   deleteExpert
 } from './experts.js';
-import { getSleeperADP } from './sleeperADP.js';
+import { getSleeperADP } from './utils/sleeperADP.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
