@@ -11,6 +11,7 @@ import {
   updateExpert,
   deleteExpert
 } from './experts.js';
+import { getSleeperADP } from './sleeperADP.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,6 +61,18 @@ app.get('/experts/:id', getExpertById);
 app.post('/experts', createExpert);
 app.put('/experts/:id', updateExpert);
 app.delete('/experts/:id', deleteExpert);
+
+// Ruta sleeperADP
+app.get('/sleeperADP/', async (req, res) => {
+  const prev = req.query.prev === 'true';
+  try {
+    const data = await getSleeperADP(prev);
+    res.json(data);
+  } catch (err) {
+    console.error('❌ Error en /sleeperADP:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.get('/', (req, res) => {
   res.send('✅ API Fantasy NFL en línea');

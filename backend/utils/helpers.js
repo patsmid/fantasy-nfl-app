@@ -36,3 +36,19 @@ export function formatDateToMexico(dateString) {
 
   return new Intl.DateTimeFormat('es-MX', options).format(new Date(dateString));
 }
+
+export function findPlayerRank(name, rankings) {
+  const nameLower = name.toLowerCase();
+  const match = rankings.find(p =>
+    (p.name + ' ' + (p.team || '')).toLowerCase().includes(nameLower)
+  );
+  return match ? {
+    rank: match.rank || 9999,
+    pos_rank: match.pos_rank || '',
+    bye_week: match.bye_week || 0
+  } : {
+    rank: 9999,
+    pos_rank: '',
+    bye_week: 0
+  };
+}
