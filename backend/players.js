@@ -46,7 +46,6 @@ export async function getPlayersRAW(req, res) {
   }
 }
 
-
 function chunkArray(array, size) {
   const result = [];
   for (let i = 0; i < array.length; i += size)
