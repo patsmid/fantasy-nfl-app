@@ -20,6 +20,7 @@ function getADPDescription({ dynasty, scoring, superFlex }) {
     : (superFlex ? 'SF' : scoring);
 
   const found = sleeperADPcols.find(adp => adp.type === typeKey);
+  console.log(found?.description || 'Redraft PPR ADP');
   return found?.description || 'Redraft PPR ADP';
 }
 
@@ -38,6 +39,8 @@ async function getADPfromSupabase(adpTypeDescription) {
       adp_prev: parseFloat(row.adp_value_prev) || 500,
     });
   });
+  console.log("adp from supabase");
+  console.log(map);
   return map;
 }
 
@@ -52,7 +55,8 @@ async function getPlayersMeta() {
   data.forEach(p => {
     map.set(p.player_id, p);
   });
-
+    console.log("getPlayersMeta");
+  console.log(map);
   return map;
 }
 
@@ -86,9 +90,13 @@ router.get('/draft/:leagueId', async (req, res) => {
     const drafted = await draftRes.json();
     const draftedSet = new Set(drafted.map(p => p.player_id));
 
+    console.log("getPlayersMeta");
+  console.log(drafted);
+
     const players = [];
     for (const [playerId, adpInfo] of adpMap.entries()) {
       const meta = playerMetaMap.get(playerId);
+      console.log(meta);
       if (!meta) continue;
 
       const adp = adpInfo.adp;
