@@ -1,6 +1,3 @@
-// utils.js
-import Swal from 'sweetalert2';
-
 /**
  * Realiza un fetch con timeout configurable
  * @param {string} url
