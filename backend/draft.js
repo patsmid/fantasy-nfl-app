@@ -1,6 +1,6 @@
-// draft.js
+// routes/draft.js
 import express from 'express';
-import { supabase } from './supabaseClient.js';
+import { supabase } from '../utils/supabaseClient.js';
 import fetch from 'node-fetch';
 
 const router = express.Router();
@@ -20,7 +20,6 @@ function getADPDescription({ dynasty, scoring, superFlex }) {
     : (superFlex ? 'SF' : scoring);
 
   const found = sleeperADPcols.find(adp => adp.type === typeKey);
-  console.log(found?.description || 'Redraft PPR ADP');
   return found?.description || 'Redraft PPR ADP';
 }
 
@@ -39,8 +38,6 @@ async function getADPfromSupabase(adpTypeDescription) {
       adp_prev: parseFloat(row.adp_value_prev) || 500,
     });
   });
-  console.log("adp from supabase");
-  console.log(map);
   return map;
 }
 
@@ -55,15 +52,18 @@ async function getPlayersMeta() {
   data.forEach(p => {
     map.set(p.player_id, p);
   });
-    console.log("getPlayersMeta");
-  console.log(map);
+
   return map;
 }
+
+const excludedPositions = ['DL', 'CB', 'S', 'PK', 'K', 'FB'];
+const goodOffense = ['KC', 'SF', 'BUF', 'PHI', 'DAL', 'DET', 'MIA', 'CIN', 'BAL', 'GB'];
 
 router.get('/draft/:leagueId', async (req, res) => {
   try {
     const { leagueId } = req.params;
     const dynasty = req.query.dynasty === 'true';
+    const userId = req.query.userId || null; // <- ID de usuario opcional para futura extensión
 
     const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
     if (!leagueRes.ok) {
@@ -90,30 +90,24 @@ router.get('/draft/:leagueId', async (req, res) => {
     const drafted = await draftRes.json();
     const draftedSet = new Set(drafted.map(p => p.player_id));
 
-    console.log("getPlayersMeta");
-  console.log(drafted);
-
     const players = [];
     for (const [playerId, adpInfo] of adpMap.entries()) {
       const meta = playerMetaMap.get(playerId);
-      console.log(meta);
-      if (!meta) continue;
+      if (!meta || !meta.full_name || excludedPositions.includes(meta.position)) continue;
 
       const adp = adpInfo.adp;
       const adp_prev = adpInfo.adp_prev;
       const adp_diff = adp_prev - adp;
 
-      // Etiquetas de valor y riesgo
-      let value_tag = '';
-      if (adp_diff >= 20) value_tag = '🟢 Valor';
-      else if (adp_diff <= -20) value_tag = '🔴 Riesgo';
+      const rookie_tag = meta.years_exp === 0 ? '🧪' : '';
+      const value_tag = adp_diff >= 20 ? '🟢' : adp_diff <= -20 ? '🔴' : '';
+      const team_tag = goodOffense.includes(meta.team) ? '✔️' : '';
 
-      // Novato
-      const rookie_tag = meta.years_exp === 0 ? '🧪 Rookie' : '';
+      const nameDecorated = `${meta.full_name} ${rookie_tag}${value_tag}${team_tag}`.trim();
 
       players.push({
         sleeper_player_id: playerId,
-        name: meta.full_name,
+        name: nameDecorated,
         position: meta.position,
         team: meta.team,
         status: draftedSet.has(playerId) ? 'DRAFTEADO' : 'LIBRE',
@@ -123,8 +117,12 @@ router.get('/draft/:leagueId', async (req, res) => {
         adp_prev,
         adp_diff,
         adp_round: (Math.ceil(adp / numTeams)).toFixed(2),
-        value_tag,
-        rookie_tag
+        tags: [
+          rookie_tag && 'Rookie',
+          value_tag === '🟢' && 'Valor',
+          value_tag === '🔴' && 'Riesgo',
+          team_tag && 'Buena ofensiva'
+        ].filter(Boolean)
       });
     }
 
