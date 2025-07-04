@@ -81,4 +81,9 @@ async function loadLeagues() {
     perPage: 10,
     labels: {
       placeholder: 'Buscar...',
-      perPage: '{select} registr
+      perPage: '{select} registros por página',
+      noRows: 'No se encontraron ligas',
+      info: 'Mostrando {start} a {end} de {rows} ligas'
+    }
+  });
+}
