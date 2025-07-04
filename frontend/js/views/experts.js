@@ -88,21 +88,22 @@ async function loadExperts() {
 
   experts.forEach(e => {
     const tr = document.createElement('tr');
-		tr.innerHTML = `
-		  <td>${e.id}</td>
-		  <td>${e.id_experto}</td>
-		  <td>${e.experto}</td>
-		  <td>
-		    <button class="btn btn-sm btn-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}">
-		      <i class="fa-solid fa-pen-to-square"></i>
-		    </button>
-		    <button class="btn btn-sm btn-danger btn-delete" data-id="${e.id}">
-		      <i class="fa-solid fa-trash-can"></i>
-		    </button>
-		  </td>
-		`;
+    tr.innerHTML = `
+      <td>${e.id}</td>
+      <td>${e.id_experto}</td>
+      <td>${e.experto}</td>
+      <td>
+        <button class="btn btn-sm btn-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}">
+          <i class="bi bi-pencil-square"></i>
+        </button>
+        <button class="btn btn-sm btn-danger btn-delete" data-id="${e.id}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    `;
     tbody.appendChild(tr);
   });
+}
 
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {

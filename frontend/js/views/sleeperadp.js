@@ -1,4 +1,4 @@
-import { getSleeperADP, updateSleeperADP } from '../api.js';
+import { fetchSleeperADP, updateSleeperADP } from '../api.js';
 
 export default async function renderADPView() {
   const container = document.getElementById('content-container');
