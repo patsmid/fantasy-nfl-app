@@ -14,7 +14,7 @@ app.use(express.json());
 // Ruta para obtener los jugadores y enviarlos al frontend
 app.get('/playersRAW', getPlayersRAW);
 
-app.get('/getPlayers', getPlayers);
+app.get('/players', getPlayers);
 
 app.get('/update-nfl-state', async (req, res) => {
   try {

@@ -41,7 +41,7 @@ export default async function renderPlayersView() {
     processing: true,
     serverSide: true,
     ajax: {
-      url: '/player',
+      url: 'https://fantasy-nfl-backend.onrender.com/players',
       dataSrc: 'data',
       data: function (d) {
         // Añade filtros de columna al request
