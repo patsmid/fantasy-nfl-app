@@ -12,7 +12,6 @@ import {
   deleteExpert
 } from './experts.js';
 import { getSleeperADP, getLatestADPDate, getADPTypes, updateSleeperADP, getUniqueSleeperADPValues  } from './utils/sleeper.js';
-import { updateNFLState } from './updateNFLState.js';
 import draftRouter from './draft.js';
 
 const app = express();
