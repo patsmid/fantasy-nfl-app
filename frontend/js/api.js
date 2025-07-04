@@ -44,9 +44,8 @@ export async function updateConfig(id, newValue) {
 
 export async function fetchLeagues() {
   const res = await fetchWithTimeout(`${API_BASE}/leagues`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error);
-  return json.data;
+  if (!res.success) throw new Error(json.error);
+  return res.data;
 }
 
 export async function updateLeagues() {
@@ -78,8 +77,7 @@ export async function updateLeaguesDynasty(id, dynasty) {
 //EXPERTOS
 export async function fetchExperts() {
   const res = await fetchWithTimeout(`${API_BASE}/experts`);
-  const json = await res.json();
-  return json.data;
+  return res.data;
 }
 
 export async function createExpert(data) {
