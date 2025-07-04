@@ -1,10 +1,32 @@
+import { supabase } from './supabaseClient.js';
 import axios from 'axios';
 
-const https = require("https");
-const http = require("http");
-const url = require("url");
+import { supabase } from './supabaseClient.js';
 
-const spreadsheetId = "1wmjxi3K5rjIYME_lskUvquLbN331YV0vi-kg5VakpdY";
+export async function getSleeperADP(req, res) {
+  try {
+    const { date, adp_type, player_id, since } = req.query;
+
+    let query = supabase
+      .from('sleeper_adp_data')
+      .select('*')
+      .order('adp_value', { ascending: true });
+
+    if (date) query = query.eq('date', date);
+    if (adp_type) query = query.eq('adp_type', adp_type);
+    if (player_id) query = query.eq('sleeper_player_id', player_id);
+    if (since) query = query.gte('date', since); // ✅ filtro por fecha mínima
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ Error en /sleeperADP:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 
 export async function getSleeperLeague(leagueId) {
   const { data } = await axios.get(`https://api.sleeper.app/v1/league/${leagueId}`);
@@ -16,90 +38,49 @@ export async function getLeagueDraft(draftId) {
   return data;
 }
 
-/**
- * Obtiene la lista de hojas (nombre y gid)
- */
-function getSheetList() {
-  return new Promise((resolve, reject) => {
-    const sheetMetaUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?headers=1`;
-    https.get(sheetMetaUrl, (res) => {
-      let rawData = "";
-      res.on("data", (chunk) => (rawData += chunk));
-      res.on("end", () => {
-        try {
-          const match = rawData.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);/);
-          if (!match) throw new Error("No se encontró JSON válido");
+export async function getLatestADPDate(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from('sleeper_adp_data')
+      .select('date')
+      .order('date', { ascending: false })
+      .limit(1);
 
-          const json = JSON.parse(match[1]);
-          const matches = rawData.match(/sheetId":\s*(\d+),\s*"title":\s*"([^"]+)"/g);
-          const sheets = matches.map((line) => {
-            const gid = line.match(/sheetId":\s*(\d+)/)[1];
-            const name = line.match(/"title":\s*"([^"]+)"/)[1];
-            return { name, gid };
-          });
+    if (error) throw error;
 
-          resolve(sheets);
-        } catch (err) {
-          reject(err);
-        }
-      });
-    }).on("error", reject);
-  });
-}
+    const latestDate = data?.[0]?.date;
 
-/**
- * Descarga CSV de una hoja pública dado el gid
- */
-function getSheetCSV(gid) {
-  return new Promise((resolve, reject) => {
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
-    https.get(csvUrl, (res) => {
-      let csv = "";
-      res.on("data", (chunk) => (csv += chunk));
-      res.on("end", () => {
-        const rows = csv
-          .trim()
-          .split("\n")
-          .map((row) => row.split(","));
-        resolve(rows);
-      });
-    }).on("error", reject);
-  });
-}
-
-/**
- * Devuelve los datos de la hoja por índice (0 = primera hoja)
- */
-async function getSheetByIndex(index) {
-  const sheets = await getSheetList();
-  if (index >= sheets.length) throw new Error("Índice fuera de rango");
-  const gid = sheets[index].gid;
-  return await getSheetCSV(gid);
-}
-
-// Servidor HTTP básico
-const server = http.createServer(async (req, res) => {
-  const parsedUrl = url.parse(req.url, true);
-  const match = parsedUrl.pathname.match(/^\/sheet\/(\d)$/);
-
-  if (match) {
-    const index = parseInt(match[1], 10) - 1;
-
-    try {
-      const data = await getSheetByIndex(index);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(data));
-    } catch (err) {
-      res.writeHead(500, { "Content-Type": "text/plain" });
-      res.end("Error: " + err.message);
+    const clientModifiedSince = req.headers['if-modified-since'];
+    if (clientModifiedSince && new Date(clientModifiedSince) >= new Date(latestDate)) {
+      return res.status(304).end(); // ✅ No hay cambios
     }
-  } else {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Ruta no encontrada. Usa /sheet/2 o /sheet/3");
-  }
-});
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+    res.setHeader('Last-Modified', new Date(latestDate).toUTCString());
+    res.json({ success: true, latestDate });
+  } catch (err) {
+    console.error('❌ Error en getLatestADPDate:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+
+export async function getADPTypes(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from('sleeper_adp_data')
+      .select('adp_type')
+      .neq('adp_type', null)
+      .then((res) => {
+        // Eliminar duplicados manualmente ya que Supabase no soporta `distinct` directo con JS SDK
+        const unique = [...new Set(res.data.map(item => item.adp_type))];
+        return { data: unique };
+      });
+
+    if (error) throw error;
+
+    res.json({ success: true, adp_types: data });
+  } catch (err) {
+    console.error('❌ Error en getADPTypes:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}

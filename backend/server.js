@@ -11,7 +11,7 @@ import {
   updateExpert,
   deleteExpert
 } from './experts.js';
-import { getSleeperADP } from './utils/sleeperADP.js';
+import { getSleeperADP, getLatestADPDate, getADPTypes } from './utils/sleeper.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,16 +63,13 @@ app.put('/experts/:id', updateExpert);
 app.delete('/experts/:id', deleteExpert);
 
 // Ruta sleeperADP
-app.get('/sleeperADP/', async (req, res) => {
-  const prev = req.query.prev === 'true';
-  try {
-    const data = await getSleeperADP(prev);
-    res.json(data);
-  } catch (err) {
-    console.error('❌ Error en /sleeperADP:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+app.get('/sleeperADP', getSleeperADP);               // datos completos
+app.get('/sleeperADP/latest-date', getLatestADPDate); // fecha más reciente
+app.get('/sleeperADP/types', getADPTypes);            // tipos de ADP únicos
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///FUNCIONES DEL SERVIDOR
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.get('/', (req, res) => {
   res.send('✅ API Fantasy NFL en línea');

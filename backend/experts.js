@@ -1,4 +1,3 @@
-// experts.js
 import { supabase } from './supabaseClient.js';
 
 /**
