@@ -114,6 +114,8 @@ export default async function renderDraftView() {
       ? data
       : data.filter(p => (p.status || '').toLowerCase().trim() === 'libre');
 
+    console.log('Filtrados:', filteredData.length);
+
     filteredData.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -130,16 +132,20 @@ export default async function renderDraftView() {
       tbody.appendChild(tr);
     });
 
+    if (window.draftTable) {
+      window.draftTable.destroy();
+    }
+
     window.draftTable = new DataTable('#draftTable', {
-      destroy: true,
       responsive: true,
       perPage: 25,
-      order: [[5, 'asc']], // Ranking
+      order: [[5, 'asc']],
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
       }
     });
   }
+
 
   document.getElementById('btn-update-draft').addEventListener('click', async () => {
     try {
@@ -150,12 +156,14 @@ export default async function renderDraftView() {
 
       if (!leagueId) return showError('Selecciona una liga');
 
+      // Guardar filtros
       localStorage.setItem('draftLeague', leagueId);
       localStorage.setItem('draftPosition', position);
       localStorage.setItem('draftBye', byeCondition);
       localStorage.setItem('draftExpert', idExpert);
 
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+      console.log('Datos recibidos:', res);
       draftData = res.data;
 
       updateTable(draftData);
@@ -163,6 +171,7 @@ export default async function renderDraftView() {
       showError('Error al actualizar draft: ' + err.message);
     }
   });
+
 
   // Cambio en filtro de status con persistencia
   statusSelect.addEventListener('change', () => {
