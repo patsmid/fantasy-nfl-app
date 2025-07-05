@@ -67,10 +67,6 @@ export function getStarterPositions(leagueData) {
   return rosterPositions.slice(0, firstBench);
 }
 
-export function getADPtype(scoringSettings, dynasty, superFlex) {
-  const scoringType = scoringSettings.ppr ? 'PPR' :
-                      scoringSettings.half_ppr ? 'HALF' :
-                      'STANDARD';
-
-  return (dynasty ? 'DYNASTY_' : '') + (superFlex ? 'SF' : scoringType);
+export function getADPtype(scoring, dynasty, superFlex) {
+  return (dynasty ? 'DYNASTY_' : '') + (superFlex ? 'SF' : scoring);
 }

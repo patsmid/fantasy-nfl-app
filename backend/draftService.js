@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js';
 import fetch from 'node-fetch';
 import { fuzzySearch, getStarterPositions, getADPtype } from './utils/helpers.js';
+import { sleeperADPcols } from './utils/constants.js';
 
 const goodOffense = ['KC', 'HOU', 'SF', 'CIN', 'PHI', 'MIA', 'BAL', 'DET', 'BUF', 'GB', 'LAR', 'ATL', 'JAX', 'CHI'];
 
@@ -16,12 +17,17 @@ export async function getDraftData(leagueId) {
   const superFlex = starterPositions.includes('SUPER_FLEX');
   const dynasty = leagueData.settings.type === 'dynasty';
 
-  // 2. Calcular tipo de ADP
-  const adpType = getADPtype(
-    leagueData.settings.scoring_settings,
-    dynasty,
-    superFlex
+  const scoring = (
+    leagueData.scoring_settings?.rec === 1 ? 'PPR' :
+    leagueData.scoring_settings?.rec === 0.5 ? 'HALF' :
+    'STANDARD'
   );
+
+  const adpType = getADPtype(scoring, dynasty, superFlex);
+  const adpConfig = sleeperADPcols.find(col => col.type === adpType);
+  if (!adpConfig) throw new Error(`Tipo de ADP '${adpType}' no encontrado`);
+
+  const adpDescription = adpConfig.description;
 
   // 3. Obtener picks del draft
   const draftRes = await fetch(`https://api.sleeper.app/v1/draft/${leagueData.draft_id}/picks`);
@@ -41,7 +47,7 @@ export async function getDraftData(leagueId) {
   const { data: adpData } = await supabase
     .from('sleeper_adp_data')
     .select('*')
-    .eq('adp_type', adpType);
+    .eq('adp_type', adpDescription);
 
   // 6. Filtrar jugadores solo para IDs en ADP para evitar límite 1000
   const playerIds = adpData.map(p => p.sleeper_player_id);
