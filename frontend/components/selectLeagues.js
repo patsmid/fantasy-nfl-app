@@ -26,6 +26,15 @@ export async function renderLeagueSelect(selector, options = {}) {
       allowEmptyOption: true,
       ...options
     });
+
+    selectElement.tomselect = new TomSelect(selector, {
+  placeholder: 'Selecciona una liga...',
+  allowEmptyOption: true,
+  create: false,
+  persist: false,
+  controlInput: null,
+  ...options
+});
   } catch (err) {
     console.error('Error al cargar ligas:', err);
   }

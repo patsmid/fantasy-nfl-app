@@ -24,6 +24,9 @@ export async function renderExpertSelect(selector, options = {}) {
   selectElement.tomselect = new TomSelect(selector, {
     placeholder: 'Selecciona un experto...',
     allowEmptyOption: true,
+    create: false,
+    persist: false,
+    controlInput: null,
     ...options
   });
 }
