@@ -1,8 +1,8 @@
 import { fetchDraftData, fetchLeagues } from '../api.js';
-import { positions } from '../constants.js';
-import { showError } from '../components/alerts.js';
-import { renderExpertSelect } from '../components/selectExperts.js';
-import { renderLeagueSelect } from '../components/selectLeagues.js';
+import { positions } from '../../components/constants.js';
+import { showError } from '../../components/alerts.js';
+import { renderExpertSelect } from '../../components/selectExperts.js';
+import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
