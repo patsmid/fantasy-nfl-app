@@ -3,10 +3,21 @@ import { fetchWithTimeout } from '../components/utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
-  console.log(idExpert);
-  const res = await fetchWithTimeout(`${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`);
-  const json = await res.json();
-  return json;
+  const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`;
+
+  try {
+    const res = await fetchWithTimeout(url);
+    const json = await res.json();
+
+    if (!json || !Array.isArray(json.data)) {
+      throw new Error('Respuesta inválida del servidor');
+    }
+
+    return json;
+  } catch (err) {
+    console.error('Error en fetchDraftData:', err);
+    throw err;
+  }
 }
 
 export async function fetchPlayers() {
