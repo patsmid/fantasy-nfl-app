@@ -41,6 +41,22 @@ export default async function renderDraftView() {
             <option value="TODOS">TODOS</option>
           </select>
         </div>
+        <div class="col-md-2">
+          <label class="form-label d-block">Etiquetas</label>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-rookie">
+            <label class="form-check-label" for="filter-rookie">Rookie</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-valor">
+            <label class="form-check-label" for="filter-valor">Valor</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-riesgo">
+            <label class="form-check-label" for="filter-riesgo">Riesgo</label>
+          </div>
+        </div>
+
       </form>
 
       <table id="draftTable" class="table table-bordered table-hover w-100">
@@ -67,6 +83,10 @@ export default async function renderDraftView() {
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
+  const rookieCheckbox = document.getElementById('filter-rookie');
+const valorCheckbox = document.getElementById('filter-valor');
+const riesgoCheckbox = document.getElementById('filter-riesgo');
+
 
   // Cargar filtros previos
   const savedStatus = localStorage.getItem('draftStatusFilter');
@@ -114,6 +134,19 @@ export default async function renderDraftView() {
     if (draftData.length > 0) updateTable(draftData);
   });
 
+  rookieCheckbox.addEventListener('change', () => {
+  if (draftData.length > 0) updateTable(draftData);
+});
+
+valorCheckbox.addEventListener('change', () => {
+  if (draftData.length > 0) updateTable(draftData);
+});
+
+riesgoCheckbox.addEventListener('change', () => {
+  if (draftData.length > 0) updateTable(draftData);
+});
+
+
   // Botón "Actualizar Draft"
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
@@ -121,38 +154,48 @@ export default async function renderDraftView() {
   let draftData = [];
 
   // Función para actualizar la tabla
+  let draftTableInstance;
+
   async function updateTable(data) {
     const tbody = document.querySelector('#draftTable tbody');
     tbody.innerHTML = '';
 
     const statusFilter = statusSelect.value;
-    const filteredData = statusFilter === 'TODOS'
-      ? data
-      : data.filter(p => (p.status || '').toLowerCase().trim() === 'libre');
+    const showRookies = rookieCheckbox.checked;
+    const showValor = valorCheckbox.checked;
+    const showRiesgo = riesgoCheckbox.checked;
+
+    const filteredData = data.filter(p => {
+      const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
+      const rookieMatch = !showRookies || p.rookie === true;
+      const valorMatch = !showValor || (p.etiquetas || []).includes('valor');
+      const riesgoMatch = !showRiesgo || (p.etiquetas || []).includes('riesgo');
+      return statusMatch && rookieMatch && valorMatch && riesgoMatch;
+    });
 
     filteredData.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${p.adpValue}</td>
+        <td>${p.adpValue ?? ''}</td>
         <td>${p.nombre}</td>
         <td>${p.position}</td>
         <td>${p.team}</td>
-        <td>${p.bye}</td>
-        <td>${p.rank}</td>
+        <td>${p.bye ?? ''}</td>
+        <td>${p.rank ?? ''}</td>
         <td>${p.status}</td>
-        <td>${p.adpRound}</td>
-        <td>${p.adpDiff}</td>
+        <td>${p.adpRound ?? ''}</td>
+        <td>${p.adpDiff ?? ''}</td>
       `;
       tbody.appendChild(tr);
     });
 
-    if (window.draftTable) {
-      window.draftTable.destroy();
+    if (draftTableInstance) {
+      draftTableInstance.destroy();
     }
 
-    window.draftTable = new DataTable('#draftTable', {
+    draftTableInstance = new DataTable('#draftTable', {
       responsive: true,
-      perPage: 25,
+      pageLength: 25,
       order: [[5, 'asc']],
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'

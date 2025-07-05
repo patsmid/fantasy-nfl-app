@@ -64,7 +64,7 @@ export default async function renderPlayersView() {
       { data: 'team' },
       { data: 'status' }
     ],
-          responsive: true,
+    responsive: true,
     pageLength: 10,
     lengthMenu: [10, 25, 50, 100],
     language: {

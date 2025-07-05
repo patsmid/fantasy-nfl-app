@@ -114,7 +114,7 @@ async function loadConfig() {
   // Inicializa DataTables (si aún no está inicializado)
   if (!$.fn.DataTable.isDataTable('#configTable')) {
     $('#configTable').DataTable({
-    responsive: true,
+      responsive: true,
       pageLength: 10,
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
