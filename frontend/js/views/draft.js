@@ -5,7 +5,6 @@ import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
-  console.log("inidia");
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <div class="container mt-4">
@@ -137,7 +136,7 @@ export default async function renderDraftView() {
 
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
       draftData = res.data;
-      
+
       updateTable(draftData);
     } catch (err) {
       showError('Error al actualizar draft: ' + err.message);

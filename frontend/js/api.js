@@ -7,6 +7,7 @@ export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition 
 
   try {
     const res = await fetchWithTimeout(url);
+    console.log(res);
     const json = await res.json();
 
     if (!json || !Array.isArray(json.data)) {
