@@ -5,7 +5,8 @@ const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
   const res = await fetchWithTimeout(`${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`);
   const json = await res.json();
-  return json;
+  console.log(json);
+  return json.data;
 }
 
 export async function fetchPlayers() {
