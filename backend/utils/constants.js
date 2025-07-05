@@ -8,7 +8,7 @@ export const sleeperADPcols = [
 ];
 
 
-const positions = [
+export const positions = [
   { nombre: 'SUPER FLEX', valor: 'OP' },
   { nombre: 'TODAS', valor: 'OP' },
   { nombre: 'TODAS_PRE', valor: 'ALL' },
