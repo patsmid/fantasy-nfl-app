@@ -1,4 +1,5 @@
-import { fetchLeagues } from '../js/api.js';
+import dropdown_input from 'tom-select/plugins/dropdown_input/plugin.js';
+import { fetchExperts } from '../js/api.js';
 
 /**
  * Crea un <select> de ligas y lo convierte en TomSelect
@@ -24,17 +25,12 @@ export async function renderLeagueSelect(selector, options = {}) {
     selectElement.tomselect = new TomSelect(selector, {
       placeholder: 'Selecciona una liga...',
       allowEmptyOption: true,
+      create: false,
+      persist: false,
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
       ...options
     });
-
-    selectElement.tomselect = new TomSelect(selector, {
-  placeholder: 'Selecciona una liga...',
-  allowEmptyOption: true,
-  create: false,
-  persist: false,
-  controlInput: null,
-  ...options
-});
   } catch (err) {
     console.error('Error al cargar ligas:', err);
   }
