@@ -1,4 +1,4 @@
-import { fetchDraftData, fetchLeagues } from '../api.js';
+import { fetchDraftData } from '../api.js';
 import { positions } from '../../components/constants.js';
 import { showError } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
@@ -62,16 +62,14 @@ export default async function renderDraftView() {
     </div>
   `;
 
-  await renderExpertSelect('#select-expert');
-  await renderLeagueSelect('#select-league');
-
+  // Referencias
   const statusSelect = document.getElementById('select-status');
   const leagueSelect = document.getElementById('select-league');
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
 
-  // Cargar valores desde localStorage
+  // Cargar desde localStorage
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedPosition = localStorage.getItem('draftPosition');
@@ -79,10 +77,21 @@ export default async function renderDraftView() {
   const savedBye = localStorage.getItem('draftBye');
 
   if (savedStatus) statusSelect.value = savedStatus;
-  if (savedLeague) leagueSelect.value = savedLeague;
   if (savedPosition) positionSelect.value = savedPosition;
-  if (savedExpert) expertSelect.value = savedExpert;
   if (savedBye) byeInput.value = savedBye;
+
+  await renderExpertSelect('#select-expert');
+  await renderLeagueSelect('#select-league');
+
+  if (savedExpert) {
+    const ts = TomSelect.instances.find(i => i.input.id === 'select-expert');
+    ts?.setValue(savedExpert);
+  }
+
+  if (savedLeague) {
+    const ts = TomSelect.instances.find(i => i.input.id === 'select-league');
+    ts?.setValue(savedLeague);
+  }
 
   let draftData = [];
 
@@ -91,7 +100,9 @@ export default async function renderDraftView() {
     tbody.innerHTML = '';
 
     const statusFilter = statusSelect.value;
-    const filteredData = statusFilter === 'TODOS' ? data : data.filter(p => p.status === 'LIBRE');
+    const filteredData = statusFilter === 'TODOS'
+      ? data
+      : data.filter(p => (p.status || '').toLowerCase().trim() === 'libre');
 
     filteredData.forEach(p => {
       const tr = document.createElement('tr');
@@ -113,6 +124,7 @@ export default async function renderDraftView() {
       destroy: true,
       responsive: true,
       perPage: 25,
+      order: [[5, 'asc']], // Ranking
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
       }
@@ -128,7 +140,6 @@ export default async function renderDraftView() {
 
       if (!leagueId) return showError('Selecciona una liga');
 
-      // Guardar en localStorage
       localStorage.setItem('draftLeague', leagueId);
       localStorage.setItem('draftPosition', position);
       localStorage.setItem('draftBye', byeCondition);
@@ -143,7 +154,7 @@ export default async function renderDraftView() {
     }
   });
 
-  // Filtro dinámico de status con persistencia
+  // Cambio en filtro de status con persistencia
   statusSelect.addEventListener('change', () => {
     localStorage.setItem('draftStatusFilter', statusSelect.value);
     if (draftData.length > 0) {
