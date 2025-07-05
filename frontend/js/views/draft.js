@@ -112,46 +112,42 @@ export default async function renderDraftView() {
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
   let draftData = [];
-  let draftTableInstance;
 
   async function updateTable(data) {
-    const tbody = document.querySelector('#draftTable tbody');
-    tbody.innerHTML = '';
-
     const statusFilter = statusSelect.value;
     const filteredData = data.filter(p => {
       const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
       return statusMatch;
     });
 
-    filteredData.forEach(p => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${p.adpValue ?? ''}</td>
-        <td>${p.nombre}</td>
-        <td>${p.position}</td>
-        <td>${p.team}</td>
-        <td>${p.bye ?? ''}</td>
-        <td>${p.rank ?? ''}</td>
-        <td>${p.status}</td>
-        <td>${p.adpRound ?? ''}</td>
-        <td>${p.adpDiff ?? ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    const dataSet = filteredData.map(p => [
+      p.adpValue ?? '',
+      p.nombre,
+      p.position,
+      p.team,
+      p.bye ?? '',
+      p.rank ?? '',
+      p.status,
+      p.adpRound ?? '',
+      p.adpDiff ?? ''
+    ]);
 
-    if (draftTableInstance) {
-      draftTableInstance.destroy();
+    if ($.fn.dataTable.isDataTable('#draftTable')) {
+      const table = $('#draftTable').DataTable();
+      table.clear();
+      table.rows.add(dataSet);
+      table.draw();
+    } else {
+      $('#draftTable').DataTable({
+        data: dataSet,
+        responsive: true,
+        pageLength: 25,
+        order: [[5, 'asc']],
+        language: {
+          url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+        }
+      });
     }
-
-    draftTableInstance = new DataTable('#draftTable', {
-      responsive: true,
-      pageLength: 25,
-      order: [[5, 'asc']],
-      language: {
-        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-      }
-    });
   }
 
   async function loadDraftData() {
