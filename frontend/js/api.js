@@ -2,6 +2,12 @@ import { showSuccess, showError, showConfirm } from '../components/alerts.js';
 import { fetchWithTimeout } from '../components/utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
+export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
+  const res = await fetchWithTimeout(`${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`);
+  const json = await res.json();
+  return json;
+}
+
 export async function fetchPlayers() {
   const res = await fetchWithTimeout(`${API_BASE}/players`);
   const json = await res.json();
@@ -135,7 +141,6 @@ export async function deleteExpert(id) {
   const json = await res.json();
   if (!res.ok) throw new Error(json.error);
 }
-
 
 export async function fetchUniqueSleeperADPValues(column) {
   try {

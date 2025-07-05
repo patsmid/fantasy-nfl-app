@@ -7,7 +7,6 @@ export const sleeperADPcols = [
   { key: 6, type: 'DYNASTY_HALF', description: 'Dynasty Half PPR ADP' },
 ];
 
-
 export const positions = [
   { nombre: 'SUPER FLEX', valor: 'OP' },
   { nombre: 'TODAS', valor: 'OP' },
