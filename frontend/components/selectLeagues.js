@@ -1,4 +1,4 @@
-import { fetchExperts } from '../js/api.js';
+import { fetchLeagues } from '../js/api.js';
 
 /**
  * Crea un <select> de ligas y lo convierte en TomSelect

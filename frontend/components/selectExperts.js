@@ -8,11 +8,6 @@ import { fetchExperts } from '../js/api.js';
 export async function renderExpertSelect(selector, options = {}) {
   const res = await fetchExperts();
 
-  if (!res.success || !Array.isArray(res.data)) {
-    console.error('Error al obtener expertos:', res.error || 'Sin datos');
-    return;
-  }
-
   const selectElement = document.querySelector(selector);
   if (!selectElement) return;
 
