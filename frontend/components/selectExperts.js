@@ -14,7 +14,7 @@ export async function renderExpertSelect(selector, options = {}) {
   // Limpiar opciones previas
   selectElement.innerHTML = '<option value="">Selecciona un experto</option>';
 
-  res.data.forEach(expert => {
+  res.forEach(expert => {
     const opt = document.createElement('option');
     opt.value = expert.id;
     opt.textContent = expert.name;
