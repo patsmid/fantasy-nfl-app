@@ -1,4 +1,3 @@
-import dropdown_input from 'tom-select/plugins/dropdown_input/plugin.js';
 import { fetchExperts } from '../js/api.js';
 
 export async function renderExpertSelect(selector, options = {}) {

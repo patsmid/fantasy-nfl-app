@@ -78,8 +78,19 @@ export default async function renderDraftView() {
   if (savedPosition) positionSelect.value = savedPosition;
   if (savedBye) byeInput.value = savedBye;
 
-  await renderExpertSelect('#select-expert');
-  await renderLeagueSelect('#select-league');
+  await renderExpertSelect('#select-expert', {
+    plugins: ['dropdown_input'],
+    dropdownInput: false,
+    create: false,
+    persist: false
+  });
+
+  await renderLeagueSelect('#select-league', {
+    plugins: ['dropdown_input'],
+    dropdownInput: false,
+    create: false,
+    persist: false
+  });
 
   const expertTS = document.querySelector('#select-expert')?.tomselect;
   if (expertTS) {

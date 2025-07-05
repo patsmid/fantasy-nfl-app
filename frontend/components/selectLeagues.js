@@ -1,5 +1,4 @@
-import dropdown_input from 'tom-select/plugins/dropdown_input/plugin.js';
-import { fetchExperts } from '../js/api.js';
+import { fetchLeagues } from '../js/api.js';
 
 /**
  * Crea un <select> de ligas y lo convierte en TomSelect
@@ -9,7 +8,6 @@ import { fetchExperts } from '../js/api.js';
 export async function renderLeagueSelect(selector, options = {}) {
   try {
     const leagues = await fetchLeagues();
-
     const selectElement = document.querySelector(selector);
     if (!selectElement) return;
 
@@ -18,7 +16,7 @@ export async function renderLeagueSelect(selector, options = {}) {
     leagues.forEach(league => {
       const opt = document.createElement('option');
       opt.value = league.league_id;
-      opt.textContent = `${league.name}`;
+      opt.textContent = league.name;
       selectElement.appendChild(opt);
     });
 
