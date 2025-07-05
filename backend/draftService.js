@@ -89,6 +89,7 @@ export async function getDraftData(leagueId) {
     const adpBefore = adp.adp_value_prev || 500;
     const playerDrafted = draftedMap.has(playerId) ? '' : 'LIBRE';
 
+    if (!playerInfo || !playerInfo.full_name) continue;
     const fullName = playerInfo.full_name;
     const playerRank = fuzzySearch(fullName, rankings.players);
     const rank = (!playerRank.length)

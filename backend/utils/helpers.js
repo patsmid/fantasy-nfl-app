@@ -56,10 +56,20 @@ export function findPlayerRank(name, rankings) {
 // utils.js
 
 export function fuzzySearch(name, list) {
-  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!name || !list || !Array.isArray(list)) return [];
+
+  const norm = (s) => typeof s === 'string'
+    ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    : '';
+
   const nameNorm = norm(name);
-  return list.filter(player => norm(player.name).includes(nameNorm));
+
+  return list.filter(player => {
+    const playerName = player?.name;
+    return playerName && norm(playerName).includes(nameNorm);
+  });
 }
+
 
 export function getStarterPositions(leagueData) {
   const rosterPositions = leagueData.roster_positions;
