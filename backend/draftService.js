@@ -61,7 +61,6 @@ export async function getDraftData(leagueId) {
   const expertId = 3701; // Fijo como pediste
   const week = 0;
   const position = 'ALL';
-  const scoring = 'PPR';
   const type = dynasty ? 'DK' : 'PRESEASON';
 
   const rankURL = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=2025&week=${week}&id=${expertId}&position=${position}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
