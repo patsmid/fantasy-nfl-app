@@ -56,7 +56,6 @@ export default async function renderDraftView() {
             <label class="form-check-label" for="filter-riesgo">Riesgo</label>
           </div>
         </div>
-
       </form>
 
       <table id="draftTable" class="table table-bordered table-hover w-100">
@@ -84,11 +83,9 @@ export default async function renderDraftView() {
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
   const rookieCheckbox = document.getElementById('filter-rookie');
-const valorCheckbox = document.getElementById('filter-valor');
-const riesgoCheckbox = document.getElementById('filter-riesgo');
+  const valorCheckbox = document.getElementById('filter-valor');
+  const riesgoCheckbox = document.getElementById('filter-riesgo');
 
-
-  // Cargar filtros previos
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedPosition = localStorage.getItem('draftPosition');
@@ -99,61 +96,44 @@ const riesgoCheckbox = document.getElementById('filter-riesgo');
   if (savedPosition) positionSelect.value = savedPosition;
   if (savedBye) byeInput.value = savedBye;
 
-  // Render selects
   await renderExpertSelect('#select-expert');
   await renderLeagueSelect('#select-league');
 
-  // Restaurar valores con TomSelect y agregar listeners
-  const expertSelectTS = document.querySelector('#select-expert')?.tomselect;
-  if (expertSelectTS) {
-    expertSelectTS.setValue(savedExpert || '');
-    expertSelectTS.on('change', (value) => {
+  const expertTS = document.querySelector('#select-expert')?.tomselect;
+  if (expertTS) {
+    expertTS.setValue(savedExpert || '');
+    expertTS.on('change', value => {
       localStorage.setItem('draftExpert', value);
       loadDraftData();
     });
   }
 
-  const leagueSelectTS = document.querySelector('#select-league')?.tomselect;
-  if (leagueSelectTS) {
-    leagueSelectTS.setValue(savedLeague || '');
-    leagueSelectTS.on('change', (value) => {
+  const leagueTS = document.querySelector('#select-league')?.tomselect;
+  if (leagueTS) {
+    leagueTS.setValue(savedLeague || '');
+    leagueTS.on('change', value => {
       localStorage.setItem('draftLeague', value);
       loadDraftData();
     });
   }
 
-  // Listener para cambio de posición
   positionSelect.addEventListener('change', () => {
     localStorage.setItem('draftPosition', positionSelect.value);
     loadDraftData();
   });
 
-  // Listener para cambio de status
   statusSelect.addEventListener('change', () => {
     localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length > 0) updateTable(draftData);
+    if (draftData.length) updateTable(draftData);
   });
 
-  rookieCheckbox.addEventListener('change', () => {
-  if (draftData.length > 0) updateTable(draftData);
-});
+  rookieCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
+  valorCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
+  riesgoCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
 
-valorCheckbox.addEventListener('change', () => {
-  if (draftData.length > 0) updateTable(draftData);
-});
-
-riesgoCheckbox.addEventListener('change', () => {
-  if (draftData.length > 0) updateTable(draftData);
-});
-
-
-  // Botón "Actualizar Draft"
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
-  // Datos de draft
   let draftData = [];
-
-  // Función para actualizar la tabla
   let draftTableInstance;
 
   async function updateTable(data) {
@@ -203,7 +183,6 @@ riesgoCheckbox.addEventListener('change', () => {
     });
   }
 
-  // Función para cargar y actualizar datos del draft
   async function loadDraftData() {
     try {
       const leagueId = leagueSelect.value;
@@ -220,14 +199,12 @@ riesgoCheckbox.addEventListener('change', () => {
 
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
       draftData = res.data;
-
       updateTable(draftData);
     } catch (err) {
       showError('Error al actualizar draft: ' + err.message);
     }
   }
 
-  // Auto-cargar si hay filtros guardados
   if (savedLeague && savedPosition && savedExpert) {
     loadDraftData();
   }
