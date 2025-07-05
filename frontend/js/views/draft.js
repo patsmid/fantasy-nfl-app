@@ -1,4 +1,9 @@
 import { fetchExperts, createExpert, updateExpert, deleteExpert } from '../api.js';
+import { fetchDraftData, fetchLeagues } from '../api.js';
+import { positions } from '../../components/constants.js';
+import { showError } from '../../components/alerts.js';
+import { renderExpertSelect } from '../../components/selectExperts.js';
+import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderExpertsView() {
   const content = document.getElementById('content-container');
@@ -83,6 +88,8 @@ export default async function renderExpertsView() {
 
 async function loadExperts() {
   const experts = await fetchExperts();
+  const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+  console.log(res);
   const tbody = document.querySelector('#expertsTable tbody');
   tbody.innerHTML = '';
 
