@@ -53,23 +53,21 @@ export function findPlayerRank(name, rankings) {
   };
 }
 
-// utils.js
-
-export function fuzzySearch(name, list) {
+export function fuzzySearch(name, list, field = 'player_name') {
   if (!name || !list || !Array.isArray(list)) return [];
 
-  const norm = (s) => typeof s === 'string'
-    ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    : '';
+  const norm = (s) =>
+    typeof s === 'string'
+      ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      : '';
 
   const nameNorm = norm(name);
 
   return list.filter(player => {
-    const playerName = player?.name;
-    return playerName && norm(playerName).includes(nameNorm);
+    const value = player?.[field];
+    return value && norm(value).includes(nameNorm);
   });
 }
-
 
 export function getStarterPositions(leagueData) {
   const rosterPositions = leagueData.roster_positions;
