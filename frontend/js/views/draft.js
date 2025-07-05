@@ -62,14 +62,13 @@ export default async function renderDraftView() {
     </div>
   `;
 
-  // Referencias
   const statusSelect = document.getElementById('select-status');
   const leagueSelect = document.getElementById('select-league');
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
 
-  // Cargar desde localStorage
+  // Cargar filtros previos
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedPosition = localStorage.getItem('draftPosition');
@@ -80,31 +79,48 @@ export default async function renderDraftView() {
   if (savedPosition) positionSelect.value = savedPosition;
   if (savedBye) byeInput.value = savedBye;
 
+  // Render selects
   await renderExpertSelect('#select-expert');
   await renderLeagueSelect('#select-league');
 
-  if (savedExpert) {
-    const ts = document.querySelector('#select-expert')?.tomselect;
-    ts?.setValue(savedExpert);
-  }
-  if (savedLeague) {
-    const ts = document.querySelector('#select-league')?.tomselect;
-    ts?.setValue(savedLeague);
-  }
-
-  // Agregar listeners para guardar cambios automáticamente
+  // Restaurar valores con TomSelect y agregar listeners
   const expertSelectTS = document.querySelector('#select-expert')?.tomselect;
-  expertSelectTS?.on('change', (value) => {
-    localStorage.setItem('draftExpert', value);
-  });
+  if (expertSelectTS) {
+    expertSelectTS.setValue(savedExpert || '');
+    expertSelectTS.on('change', (value) => {
+      localStorage.setItem('draftExpert', value);
+      loadDraftData();
+    });
+  }
 
   const leagueSelectTS = document.querySelector('#select-league')?.tomselect;
-  leagueSelectTS?.on('change', (value) => {
-    localStorage.setItem('draftLeague', value);
+  if (leagueSelectTS) {
+    leagueSelectTS.setValue(savedLeague || '');
+    leagueSelectTS.on('change', (value) => {
+      localStorage.setItem('draftLeague', value);
+      loadDraftData();
+    });
+  }
+
+  // Listener para cambio de posición
+  positionSelect.addEventListener('change', () => {
+    localStorage.setItem('draftPosition', positionSelect.value);
+    loadDraftData();
   });
 
+  // Listener para cambio de status
+  statusSelect.addEventListener('change', () => {
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length > 0) updateTable(draftData);
+  });
+
+  // Botón "Actualizar Draft"
+  document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
+
+  // Datos de draft
   let draftData = [];
 
+  // Función para actualizar la tabla
   async function updateTable(data) {
     const tbody = document.querySelector('#draftTable tbody');
     tbody.innerHTML = '';
@@ -113,8 +129,6 @@ export default async function renderDraftView() {
     const filteredData = statusFilter === 'TODOS'
       ? data
       : data.filter(p => (p.status || '').toLowerCase().trim() === 'libre');
-
-    console.log('Filtrados:', filteredData.length);
 
     filteredData.forEach(p => {
       const tr = document.createElement('tr');
@@ -146,8 +160,8 @@ export default async function renderDraftView() {
     });
   }
 
-
-  document.getElementById('btn-update-draft').addEventListener('click', async () => {
+  // Función para cargar y actualizar datos del draft
+  async function loadDraftData() {
     try {
       const leagueId = leagueSelect.value;
       const position = positionSelect.value;
@@ -156,28 +170,22 @@ export default async function renderDraftView() {
 
       if (!leagueId) return showError('Selecciona una liga');
 
-      // Guardar filtros
       localStorage.setItem('draftLeague', leagueId);
       localStorage.setItem('draftPosition', position);
       localStorage.setItem('draftBye', byeCondition);
       localStorage.setItem('draftExpert', idExpert);
 
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-      console.log('Datos recibidos:', res);
       draftData = res.data;
 
       updateTable(draftData);
     } catch (err) {
       showError('Error al actualizar draft: ' + err.message);
     }
-  });
+  }
 
-
-  // Cambio en filtro de status con persistencia
-  statusSelect.addEventListener('change', () => {
-    localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length > 0) {
-      updateTable(draftData);
-    }
-  });
+  // Auto-cargar si hay filtros guardados
+  if (savedLeague && savedPosition && savedExpert) {
+    loadDraftData();
+  }
 }
