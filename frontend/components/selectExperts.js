@@ -1,4 +1,4 @@
-import { fetchExperts } from '../api.js';
+import { fetchExperts } from '../js/api.js';
 
 /**
  * Crea un <select> de expertos y lo convierte en TomSelect

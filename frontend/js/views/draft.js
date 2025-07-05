@@ -135,9 +135,9 @@ export default async function renderDraftView() {
       localStorage.setItem('draftBye', byeCondition);
       localStorage.setItem('draftExpert', idExpert);
 
-      //const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-      //draftData = res.data;
-      draftData = '';
+      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+      draftData = res.data;
+      
       updateTable(draftData);
     } catch (err) {
       showError('Error al actualizar draft: ' + err.message);
