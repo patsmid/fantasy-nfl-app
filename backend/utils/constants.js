@@ -6,3 +6,17 @@ export const sleeperADPcols = [
   { key: 5, type: 'DYNASTY_SF', description: 'Dynasty SF ADP' },
   { key: 6, type: 'DYNASTY_HALF', description: 'Dynasty Half PPR ADP' },
 ];
+
+
+const positions = [
+  { nombre: 'SUPER FLEX', valor: 'OP' },
+  { nombre: 'TODAS', valor: 'OP' },
+  { nombre: 'TODAS_PRE', valor: 'ALL' },
+  { nombre: 'QB', valor: 'QB' },
+  { nombre: 'WR', valor: 'WR' },
+  { nombre: 'RB', valor: 'RB' },
+  { nombre: 'TE', valor: 'TE' },
+  { nombre: 'KICKER', valor: 'K' },
+  { nombre: 'DEFENSA', valor: 'DST' },
+  { nombre: 'FLEX', valor: 'FLX' },
+];

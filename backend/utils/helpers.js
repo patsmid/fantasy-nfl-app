@@ -1,3 +1,5 @@
+import { positions } from './constants.js';
+
 export function getMexicoCityISOString() {
   const date = new Date();
 
@@ -77,4 +79,8 @@ export function getStarterPositions(leagueData) {
 
 export function getADPtype(scoring, dynasty, superFlex) {
   return (dynasty ? 'DYNASTY_' : '') + (superFlex ? 'SF' : scoring);
+}
+
+export function isValidPosition(pos) {
+  return positions.some(p => p.nombre === pos);
 }

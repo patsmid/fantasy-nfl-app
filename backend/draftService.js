@@ -1,13 +1,11 @@
 import { supabase } from './supabaseClient.js';
 import fetch from 'node-fetch';
 import { fuzzySearch, getStarterPositions, getADPtype } from './utils/helpers.js';
-import { sleeperADPcols } from './utils/constants.js';
+import { sleeperADPcols, positions } from './utils/constants.js';
 
 const goodOffense = ['KC', 'HOU', 'SF', 'CIN', 'PHI', 'MIA', 'BAL', 'DET', 'BUF', 'GB', 'LAR', 'ATL', 'JAX', 'CHI'];
 
-export async function getDraftData(leagueId) {
-  const byeCondition = 0;
-
+export async function getDraftData(leagueId, { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}) {
   // 1. Obtener datos de liga
   const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
   const leagueData = await leagueRes.json();
@@ -15,8 +13,18 @@ export async function getDraftData(leagueId) {
 
   const starterPositions = getStarterPositions(leagueData);
   const superFlex = starterPositions.includes('SUPER_FLEX');
-  const dynasty = leagueData.settings.type === 'dynasty';
 
+  // 2. Obtener tipo de liga desde config
+  const { data: configData } = await supabase
+    .from('config')
+    .select('value')
+    .eq('key', 'dynasty')
+    .single();
+
+  const tipoLiga = configData?.value;
+  const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+
+  // 3. Obtener tipo de scoring y ADP
   const scoring = (
     leagueData.scoring_settings?.rec === 1 ? 'PPR' :
     leagueData.scoring_settings?.rec === 0.5 ? 'HALF' :
@@ -26,44 +34,42 @@ export async function getDraftData(leagueId) {
   const adpType = getADPtype(scoring, dynasty, superFlex);
   const adpConfig = sleeperADPcols.find(col => col.type === adpType);
   if (!adpConfig) throw new Error(`Tipo de ADP '${adpType}' no encontrado`);
-
   const adpDescription = adpConfig.description;
 
-  // 3. Obtener picks del draft
+  // 4. Obtener picks del draft
   const draftRes = await fetch(`https://api.sleeper.app/v1/draft/${leagueData.draft_id}/picks`);
   const drafted = await draftRes.json();
   const draftedMap = new Map(drafted.map(p => [String(p.player_id), p]));
 
-  // 4. Obtener ID de usuario principal desde config
-  const { data: configData } = await supabase
+  // 5. Obtener ID de usuario principal desde config
+  const { data: configMainUser } = await supabase
     .from('config')
     .select('value')
     .eq('key', 'main_user_id')
     .single();
-  const mainUserId = configData?.value;
+
+  const mainUserId = configMainUser?.value;
   const myDraft = drafted.filter(p => p.picked_by === mainUserId);
 
-  // 5. Obtener ADP actual desde Supabase
+  // 6. Obtener ADP actual desde Supabase
   const { data: adpData } = await supabase
     .from('sleeper_adp_data')
     .select('*')
     .eq('adp_type', adpDescription);
 
-  // 6. Filtrar jugadores solo para IDs en ADP para evitar límite 1000
   const playerIds = adpData.map(p => p.sleeper_player_id);
-
   const { data: playersData } = await supabase
     .from('players')
     .select('*')
     .in('player_id', playerIds);
 
   // 7. Obtener rankings FantasyPros
-  const expertId = 3701; // Fijo como pediste
   const week = 0;
-  const position = 'ALL';
+  const posObj = positions.find(p => p.nombre === position) || positions.find(p => p.nombre === 'TODAS');
+  const posValue = posObj.valor;
   const type = dynasty ? 'DK' : 'PRESEASON';
 
-  const rankURL = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=2025&week=${week}&id=${expertId}&position=${position}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
+  const rankURL = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=2025&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
   const rankings = await fetch(rankURL).then(res => res.json());
 
   // 8. Analizar bye weeks y equipos de mis picks
@@ -119,5 +125,16 @@ export async function getDraftData(leagueId) {
     });
   }
 
-  return players.sort((a, b) => a.rank - b.rank);
+  return {
+    params: {
+      leagueId,
+      position,
+      byeCondition,
+      idExpert,
+      scoring,
+      dynasty,
+      superFlex
+    },
+    data: players.sort((a, b) => a.rank - b.rank)
+  };
 }
