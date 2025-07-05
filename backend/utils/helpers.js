@@ -52,3 +52,25 @@ export function findPlayerRank(name, rankings) {
     bye_week: 0
   };
 }
+
+// utils.js
+
+export function fuzzySearch(name, list) {
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const nameNorm = norm(name);
+  return list.filter(player => norm(player.name).includes(nameNorm));
+}
+
+export function getStarterPositions(leagueData) {
+  const rosterPositions = leagueData.roster_positions;
+  const firstBench = rosterPositions.indexOf('BN');
+  return rosterPositions.slice(0, firstBench);
+}
+
+export function getADPtype(scoringSettings, dynasty, superFlex) {
+  const scoringType = scoringSettings.ppr ? 'PPR' :
+                      scoringSettings.half_ppr ? 'HALF' :
+                      'STANDARD';
+
+  return (dynasty ? 'DYNASTY_' : '') + (superFlex ? 'SF' : scoringType);
+}

@@ -70,7 +70,7 @@ app.get('/sleeperADP/types', getADPTypes);            // tipos de ADP únicos
 app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
-app.use('/draft-api', draftRouter);
+app.use('/draft', draftRouter);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///FUNCIONES DEL SERVIDOR
