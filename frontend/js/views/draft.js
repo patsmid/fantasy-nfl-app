@@ -1,149 +1,154 @@
-import { fetchExperts, createExpert, updateExpert, deleteExpert } from '../api.js';
 import { fetchDraftData, fetchLeagues } from '../api.js';
 import { positions } from '../../components/constants.js';
 import { showError } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
-export default async function renderExpertsView() {
+export default async function renderDraftView() {
+  console.log("inidia");
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <div class="container mt-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Expertos</h2>
-        <button class="btn btn-primary" id="btn-add-expert">
-          <i class="fas fa-plus"></i> Agregar experto
+        <h2>Draft</h2>
+        <button class="btn btn-primary" id="btn-update-draft">
+          <i class="fas fa-sync"></i> Actualizar Draft
         </button>
       </div>
 
-      <table id="expertsTable" class="table table-bordered table-hover w-100">
+      <form class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label for="select-league" class="form-label">Liga</label>
+          <select id="select-league" class="form-select"></select>
+        </div>
+        <div class="col-md-2">
+          <label for="select-position" class="form-label">Posición</label>
+          <select id="select-position" class="form-select">
+            ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="input-bye" class="form-label">Bye condición</label>
+          <input type="number" class="form-control" id="input-bye" placeholder="0">
+        </div>
+        <div class="col-md-3">
+          <label for="select-expert" class="form-label">Experto</label>
+          <select id="select-expert" class="form-select"></select>
+        </div>
+        <div class="col-md-2">
+          <label for="select-status" class="form-label">Status</label>
+          <select id="select-status" class="form-select">
+            <option value="LIBRE">LIBRE</option>
+            <option value="TODOS">TODOS</option>
+          </select>
+        </div>
+      </form>
+
+      <table id="draftTable" class="table table-bordered table-hover w-100">
         <thead class="table-light">
           <tr>
-            <th>ID</th>
-            <th>ID Experto</th>
-            <th>Nombre</th>
-            <th>Acciones</th>
+            <th>ADP</th>
+            <th>Jugador</th>
+            <th>Posición</th>
+            <th>Equipo</th>
+            <th>Bye</th>
+            <th>Ranking</th>
+            <th>Status</th>
+            <th>Ronda</th>
+            <th>Diferencia</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
     </div>
-
-    <!-- Modal -->
-    <div class="modal fade" id="expertModal" tabindex="-1" aria-labelledby="expertModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <form class="modal-content" id="expertForm">
-          <div class="modal-header">
-            <h5 class="modal-title" id="expertModalLabel">Agregar experto</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="modal-id">
-            <div class="mb-3">
-              <label for="modal-id-experto" class="form-label">ID Experto</label>
-              <input type="number" class="form-control" id="modal-id-experto" required>
-            </div>
-            <div class="mb-3">
-              <label for="modal-experto" class="form-label">Nombre</label>
-              <input type="text" class="form-control" id="modal-experto" required>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-success">Guardar</button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          </div>
-        </form>
-      </div>
-    </div>
   `;
 
-  await loadExperts();
+  await renderExpertSelect('#select-expert');
+  await renderLeagueSelect('#select-league');
 
-  document.getElementById('btn-add-expert').addEventListener('click', () => {
-    document.getElementById('expertForm').reset();
-    document.getElementById('modal-id').value = '';
-    document.getElementById('expertModalLabel').textContent = 'Agregar experto';
-    new bootstrap.Modal(document.getElementById('expertModal')).show();
-  });
+  const statusSelect = document.getElementById('select-status');
+  const leagueSelect = document.getElementById('select-league');
+  const positionSelect = document.getElementById('select-position');
+  const expertSelect = document.getElementById('select-expert');
+  const byeInput = document.getElementById('input-bye');
 
-  document.getElementById('expertForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('modal-id').value;
-    const id_experto = document.getElementById('modal-id-experto').value;
-    const experto = document.getElementById('modal-experto').value;
+  // Cargar valores desde localStorage
+  const savedStatus = localStorage.getItem('draftStatusFilter');
+  const savedLeague = localStorage.getItem('draftLeague');
+  const savedPosition = localStorage.getItem('draftPosition');
+  const savedExpert = localStorage.getItem('draftExpert');
+  const savedBye = localStorage.getItem('draftBye');
 
-    try {
-      if (id) {
-        await updateExpert(id, { id_experto, experto });
-      } else {
-        await createExpert({ id_experto, experto });
+  if (savedStatus) statusSelect.value = savedStatus;
+  if (savedLeague) leagueSelect.value = savedLeague;
+  if (savedPosition) positionSelect.value = savedPosition;
+  if (savedExpert) expertSelect.value = savedExpert;
+  if (savedBye) byeInput.value = savedBye;
+
+  let draftData = [];
+
+  async function updateTable(data) {
+    const tbody = document.querySelector('#draftTable tbody');
+    tbody.innerHTML = '';
+
+    const statusFilter = statusSelect.value;
+    const filteredData = statusFilter === 'TODOS' ? data : data.filter(p => p.status === 'LIBRE');
+
+    filteredData.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.adpValue}</td>
+        <td>${p.nombre}</td>
+        <td>${p.position}</td>
+        <td>${p.team}</td>
+        <td>${p.bye}</td>
+        <td>${p.rank}</td>
+        <td>${p.status}</td>
+        <td>${p.adpRound}</td>
+        <td>${p.adpDiff}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    window.draftTable = new DataTable('#draftTable', {
+      destroy: true,
+      responsive: true,
+      perPage: 25,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
       }
-      bootstrap.Modal.getInstance(document.getElementById('expertModal')).hide();
-      await loadExperts();
+    });
+  }
+
+  document.getElementById('btn-update-draft').addEventListener('click', async () => {
+    try {
+      const leagueId = leagueSelect.value;
+      const position = positionSelect.value;
+      const byeCondition = byeInput.value || 0;
+      const idExpert = expertSelect.value || 3701;
+
+      if (!leagueId) return showError('Selecciona una liga');
+
+      // Guardar en localStorage
+      localStorage.setItem('draftLeague', leagueId);
+      localStorage.setItem('draftPosition', position);
+      localStorage.setItem('draftBye', byeCondition);
+      localStorage.setItem('draftExpert', idExpert);
+
+      //const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+      //draftData = res.data;
+      draftData = '';
+      updateTable(draftData);
     } catch (err) {
-      alert('Error al guardar experto: ' + err.message);
+      showError('Error al actualizar draft: ' + err.message);
     }
   });
-}
 
-async function loadExperts() {
-  const experts = await fetchExperts();
-  const res = await fetchDraftData('1243403523698200576');
-  console.log(res);
-  const tbody = document.querySelector('#expertsTable tbody');
-  tbody.innerHTML = '';
-
-  experts.forEach(e => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${e.id}</td>
-      <td>${e.id_experto}</td>
-      <td>${e.experto}</td>
-      <td>
-        <button class="btn btn-sm btn-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}">
-          <i class="bi bi-pencil-square"></i>
-        </button>
-        <button class="btn btn-sm btn-danger btn-delete" data-id="${e.id}">
-          <i class="bi bi-trash"></i>
-        </button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('modal-id').value = btn.dataset.id;
-      document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
-      document.getElementById('modal-experto').value = btn.dataset.experto;
-      document.getElementById('expertModalLabel').textContent = 'Editar experto';
-      new bootstrap.Modal(document.getElementById('expertModal')).show();
-    });
-  });
-
-  document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('¿Estás seguro de eliminar este experto?')) {
-        try {
-          await deleteExpert(btn.dataset.id);
-          await loadExperts();
-        } catch (err) {
-          alert('Error al eliminar experto: ' + err.message);
-        }
-      }
-    });
-  });
-
-  // Re-inicializa la DataTable
-  window.expertsTable = new DataTable('#expertsTable', {
-    destroy: true,
-    responsive: true,
-    perPage: 10,
-    labels: {
-      placeholder: 'Buscar...',
-      perPage: '{select} registros por página',
-      noRows: 'No se encontraron expertos',
-      info: 'Mostrando {start} a {end} de {rows} expertos'
+  // Filtro dinámico de status con persistencia
+  statusSelect.addEventListener('change', () => {
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length > 0) {
+      updateTable(draftData);
     }
   });
 }
