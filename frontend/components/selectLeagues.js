@@ -17,7 +17,7 @@ export async function renderLeagueSelect(selector, options = {}) {
     leagues.forEach(league => {
       const opt = document.createElement('option');
       opt.value = league.league_id;
-      opt.textContent = `${league.name} (${league.season})`;
+      opt.textContent = `${league.name}`;
       selectElement.appendChild(opt);
     });
 

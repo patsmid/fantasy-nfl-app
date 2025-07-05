@@ -22,6 +22,13 @@ app.use(cors());
 app.use(express.static('frontend'));
 app.use(express.json());
 
+// CORS config
+app.use(cors({
+  origin: 'https://fantasy-nfl-app.onrender.com', // Tu frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
 // Ruta para obtener los jugadores y enviarlos al frontend
 app.get('/playersRAW', getPlayersRAW);
 

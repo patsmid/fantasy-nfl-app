@@ -6,7 +6,7 @@ import { fetchExperts } from '../js/api.js';
  * @param {Object} [options] - Opciones de TomSelect adicionales
  */
 export async function renderExpertSelect(selector, options = {}) {
-  const res = await fetchExperts();
+  const experts = await fetchExperts();
 
   const selectElement = document.querySelector(selector);
   if (!selectElement) return;
@@ -14,10 +14,10 @@ export async function renderExpertSelect(selector, options = {}) {
   // Limpiar opciones previas
   selectElement.innerHTML = '<option value="">Selecciona un experto</option>';
 
-  res.forEach(expert => {
+  experts.forEach(expert => {
     const opt = document.createElement('option');
-    opt.value = expert.id;
-    opt.textContent = expert.name;
+    opt.value = expert.id_experto;
+    opt.textContent = expert.experto;
     selectElement.appendChild(opt);
   });
 
