@@ -21,7 +21,7 @@ export async function renderLeagueSelect(selector, options = {}) {
       selectElement.appendChild(opt);
     });
 
-    new TomSelect(selector, {
+    selectElement.tomselect = new TomSelect(selector, {
       placeholder: 'Selecciona una liga...',
       allowEmptyOption: true,
       ...options

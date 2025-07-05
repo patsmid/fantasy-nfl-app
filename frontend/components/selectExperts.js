@@ -2,12 +2,11 @@ import { fetchExperts } from '../js/api.js';
 
 /**
  * Crea un <select> de expertos y lo convierte en TomSelect
- * @param {string} selector - Selector CSS del input select a inicializar
- * @param {Object} [options] - Opciones de TomSelect adicionales
+ * @param {string} selector - Selector CSS del select
+ * @param {Object} [options] - Opciones adicionales para TomSelect
  */
 export async function renderExpertSelect(selector, options = {}) {
   const experts = await fetchExperts();
-
   const selectElement = document.querySelector(selector);
   if (!selectElement) return;
 
@@ -21,7 +20,8 @@ export async function renderExpertSelect(selector, options = {}) {
     selectElement.appendChild(opt);
   });
 
-  new TomSelect(selector, {
+  // Inicializar y guardar instancia en el DOM
+  selectElement.tomselect = new TomSelect(selector, {
     placeholder: 'Selecciona un experto...',
     allowEmptyOption: true,
     ...options

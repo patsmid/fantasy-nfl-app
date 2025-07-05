@@ -84,14 +84,24 @@ export default async function renderDraftView() {
   await renderLeagueSelect('#select-league');
 
   if (savedExpert) {
-    const ts = TomSelect.instances.find(i => i.input.id === 'select-expert');
+    const ts = document.querySelector('#select-expert')?.tomselect;
     ts?.setValue(savedExpert);
   }
-
   if (savedLeague) {
-    const ts = TomSelect.instances.find(i => i.input.id === 'select-league');
+    const ts = document.querySelector('#select-league')?.tomselect;
     ts?.setValue(savedLeague);
   }
+
+  // Agregar listeners para guardar cambios automáticamente
+  const expertSelectTS = document.querySelector('#select-expert')?.tomselect;
+  expertSelectTS?.on('change', (value) => {
+    localStorage.setItem('draftExpert', value);
+  });
+
+  const leagueSelectTS = document.querySelector('#select-league')?.tomselect;
+  leagueSelectTS?.on('change', (value) => {
+    localStorage.setItem('draftLeague', value);
+  });
 
   let draftData = [];
 
