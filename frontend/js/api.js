@@ -3,10 +3,10 @@ import { fetchWithTimeout } from '../components/utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
+  console.log(idExpert);
   const res = await fetchWithTimeout(`${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`);
   const json = await res.json();
-  console.log(json);
-  return json.data;
+  return json;
 }
 
 export async function fetchPlayers() {

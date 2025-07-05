@@ -5,6 +5,7 @@ import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
+  console.log("inidia");
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <div class="container mt-4">
