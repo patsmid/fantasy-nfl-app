@@ -41,21 +41,6 @@ export default async function renderDraftView() {
             <option value="TODOS">TODOS</option>
           </select>
         </div>
-        <div class="col-md-2">
-          <label class="form-label d-block">Etiquetas</label>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="checkbox" id="filter-rookie">
-            <label class="form-check-label" for="filter-rookie">Rookie</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="checkbox" id="filter-valor">
-            <label class="form-check-label" for="filter-valor">Valor</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="checkbox" id="filter-riesgo">
-            <label class="form-check-label" for="filter-riesgo">Riesgo</label>
-          </div>
-        </div>
       </form>
 
       <table id="draftTable" class="table table-bordered table-hover w-100">
@@ -82,9 +67,6 @@ export default async function renderDraftView() {
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
-  const rookieCheckbox = document.getElementById('filter-rookie');
-  const valorCheckbox = document.getElementById('filter-valor');
-  const riesgoCheckbox = document.getElementById('filter-riesgo');
 
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
@@ -127,10 +109,6 @@ export default async function renderDraftView() {
     if (draftData.length) updateTable(draftData);
   });
 
-  rookieCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
-  valorCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
-  riesgoCheckbox.addEventListener('change', () => draftData.length && updateTable(draftData));
-
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
   let draftData = [];
@@ -141,16 +119,9 @@ export default async function renderDraftView() {
     tbody.innerHTML = '';
 
     const statusFilter = statusSelect.value;
-    const showRookies = rookieCheckbox.checked;
-    const showValor = valorCheckbox.checked;
-    const showRiesgo = riesgoCheckbox.checked;
-
     const filteredData = data.filter(p => {
       const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
-      const rookieMatch = !showRookies || p.rookie === true;
-      const valorMatch = !showValor || (p.etiquetas || []).includes('valor');
-      const riesgoMatch = !showRiesgo || (p.etiquetas || []).includes('riesgo');
-      return statusMatch && rookieMatch && valorMatch && riesgoMatch;
+      return statusMatch;
     });
 
     filteredData.forEach(p => {
