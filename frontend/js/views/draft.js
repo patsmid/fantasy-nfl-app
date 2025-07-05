@@ -88,7 +88,7 @@ export default async function renderExpertsView() {
 
 async function loadExperts() {
   const experts = await fetchExperts();
-  const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+  const res = await fetchDraftData('1243403523698200576');
   console.log(res);
   const tbody = document.querySelector('#expertsTable tbody');
   tbody.innerHTML = '';
