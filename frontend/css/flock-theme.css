@@ -123,9 +123,11 @@ body {
 }
 
 .navbar .navbar-brand {
+  font-size: 1.2rem;
+  font-weight: 600;
   color: var(--text-primary);
   user-select: none;
-  transition: color 0.3s ease;
+  margin: 0;
 }
 
 /* Botón hamburguesa */
@@ -331,13 +333,21 @@ a, .btn-primary {
 
 /* Topbar redondeada estilo Flock */
 .navbar.flock-topbar {
-  margin: 1rem 1rem 0;
-  border-radius: 1rem;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
-  background-color: var(--bg-secondary) !important;
-  padding: 0.75rem 1.25rem;
-  border: 1px solid var(--border);
-  z-index: 1050;
+  background-color: var(--bg-primary) !important;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 0.5rem 1rem;
+  height: 56px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1040;
+  display: flex;
+  align-items: center;
+  box-shadow: none;
+  margin: 0;
+  border-radius: 0;
 }
 
 /* Asegura que se mantenga fija arriba */
@@ -348,7 +358,8 @@ a, .btn-primary {
   left: 0;
 }
 
-/* Deja espacio para que el contenido no quede cubierto */
 #content-container {
-  margin-top: 96px; /* Altura navbar + separación */
+  margin-top: 56px; /* altura navbar fija */
+  margin-left: 250px;
+  padding: 1.5rem;
 }

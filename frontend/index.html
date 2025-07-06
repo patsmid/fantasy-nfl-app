@@ -36,8 +36,14 @@
     <!-- Contenedor principal -->
     <div class="flex-grow-1 d-flex flex-column min-vh-100">
       <!-- Topbar -->
-      <nav class="navbar flock-topbar fixed-top">
-        <div class="container-fluid">
+      <nav class="navbar flock-topbar">
+        <div class="container-fluid d-flex align-items-center justify-content-between">
+          <!-- Texto o logo a la izquierda -->
+          <div class="navbar-brand m-0 d-flex align-items-center" id="topbar-brand">
+            🏈 Fantasy NFL
+          </div>
+
+          <!-- Botón hamburguesa móvil -->
           <button class="btn btn-outline-secondary d-lg-none" id="toggle-sidebar" aria-label="Abrir menú lateral">☰</button>
         </div>
       </nav>
