@@ -3,39 +3,46 @@ import { fetchLeagues, updateLeagues, updateLeaguesDynasty } from '../api.js';
 export default async function () {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="container mt-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="fw-semibold mb-0">Ligas</h2>
-        <button class="btn btn-primary d-flex align-items-center gap-2" id="btn-update-leagues" type="button" aria-label="Actualizar ligas">
-          <i class="bi bi-arrow-clockwise fs-5"></i>
-          Actualizar
-        </button>
-      </div>
-      <div class="table-responsive shadow-sm rounded">
-        <table id="leaguesTable" class="table table-bordered table-hover align-middle mb-0 w-100">
-          <thead class="table-light text-uppercase text-secondary">
-            <tr>
-              <th scope="col" style="width: 6rem;">ID</th>
-              <th scope="col">Nombre</th>
-              <th scope="col" style="width: 8rem;">Dynasty</th>
-              <th scope="col" style="width: 8rem;">Draft ID</th>
-              <th scope="col" style="width: 7rem;">Rosters</th>
-              <th scope="col" style="width: 8rem;">Status</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+    <div class="card border-0 shadow-sm rounded flock-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="m-0 d-flex align-items-center gap-2">
+            <i class="bi bi-trophy-fill text-danger"></i> Ligas
+          </h4>
+          <button class="btn btn-sm btn-primary d-flex align-items-center gap-2" id="btn-update-leagues" type="button">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table id="leaguesTable" class="table table-dark table-hover align-middle w-100">
+            <thead class="table-dark text-uppercase text-secondary small">
+              <tr>
+                <th style="width: 6rem;">ID</th>
+                <th>Nombre</th>
+                <th style="width: 8rem;">Dynasty</th>
+                <th style="width: 8rem;">Draft ID</th>
+                <th style="width: 7rem;">Rosters</th>
+                <th style="width: 8rem;">Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
   `;
 
-  document.getElementById('btn-update-leagues').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-update-leagues');
+  btn.addEventListener('click', async () => {
     try {
-      document.getElementById('btn-update-leagues').disabled = true;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Actualizando...`;
       await updateLeagues();
       await loadLeagues();
     } finally {
-      document.getElementById('btn-update-leagues').disabled = false;
+      btn.disabled = false;
+      btn.innerHTML = `<i class="bi bi-arrow-clockwise"></i> Actualizar`;
     }
   });
 
@@ -44,15 +51,14 @@ export default async function () {
 
 async function loadLeagues() {
   const leagues = await fetchLeagues();
-
   const tbody = document.querySelector('#leaguesTable tbody');
   tbody.innerHTML = '';
 
   leagues.forEach(l => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="text-center">${l.id}</td>
-      <td>${l.name}</td>
+      <td class="text-center text-white">${l.id}</td>
+      <td class="fw-semibold">${l.name}</td>
       <td class="text-center">
         <div class="form-check form-switch mb-0">
           <input
@@ -64,14 +70,14 @@ async function loadLeagues() {
           >
         </div>
       </td>
-      <td class="text-center">${l.draft_id || ''}</td>
-      <td class="text-center">${l.total_rosters || ''}</td>
-      <td class="text-center text-capitalize">${l.status || ''}</td>
+      <td class="text-center text-white">${l.draft_id || ''}</td>
+      <td class="text-center text-white">${l.total_rosters || ''}</td>
+      <td class="text-center text-capitalize text-secondary"><span class="badge bg-success text-uppercase">${l.status}</span></td>
     `;
     tbody.appendChild(tr);
   });
 
-  // Listeners de dynasty
+  // Listener de dynasty
   document.querySelectorAll('.toggle-dynasty').forEach(input => {
     input.addEventListener('change', async () => {
       const id = input.dataset.id;
@@ -88,7 +94,7 @@ async function loadLeagues() {
     });
   });
 
-  // Inicializa DataTable con idioma español y opciones modernas
+  // DataTable con idioma español
   window.leaguesTable = new DataTable('#leaguesTable', {
     destroy: true,
     responsive: true,
@@ -96,22 +102,9 @@ async function loadLeagues() {
     sortable: true,
     labels: {
       placeholder: 'Buscar ligas...',
-      perPage: '{select} registros por página',
+      perPage: '{select} por página',
       noRows: 'No se encontraron ligas',
       info: 'Mostrando {start} a {end} de {rows} ligas',
-    },
-    language: {
-      searchPlaceholder: "Buscar ligas...",
-      info: "Mostrando _START_ a _END_ de _TOTAL_ ligas",
-      lengthMenu: "Mostrar _MENU_ ligas",
-      infoEmpty: "Mostrando 0 a 0 de 0 ligas",
-      zeroRecords: "No se encontraron ligas",
-      paginate: {
-        first: "Primero",
-        last: "Último",
-        next: "Siguiente",
-        previous: "Anterior"
-      },
     }
   });
 }
