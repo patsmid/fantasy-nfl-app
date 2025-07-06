@@ -1,6 +1,6 @@
 import { getLeagueData, getConfigValue, getDraftPicks, getADPData, getPlayersData, getRankings, getMainUserDraft } from './lib/draftUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
-import { getStarterPositions } from './utils/helpers.js';
+import { getStarterPositions, getADPtype } from './utils/helpers.js';
 
 export async function getDraftData(leagueId, { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}) {
   const leagueData = await getLeagueData(leagueId);
