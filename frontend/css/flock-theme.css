@@ -307,3 +307,10 @@ a, .btn-primary {
     padding: 1.5rem;
   }
 }
+
+@media (min-width: 992px) {
+  #content-container {
+    margin-left: 250px;
+    padding: 1.5rem;
+  }
+}
