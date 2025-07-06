@@ -302,12 +302,8 @@ a, .btn-primary {
   font-weight: 600;
 }
 
-/* Espacio para sidebar fijo en desktop */
 @media (min-width: 992px) {
-  .flex-grow-1 {
-    margin-left: 250px;
-  }
   main {
-    margin-left: 0;
+    padding: 1.5rem;
   }
 }
