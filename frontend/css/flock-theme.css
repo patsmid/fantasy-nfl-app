@@ -5,6 +5,27 @@
   --text-primary: #e4e6eb;
   --text-secondary: #b0b3b8;
   --border: #2f3033;
+
+  /* Variables Bootstrap Pagination con !important */
+  --bs-pagination-color: var(--text-primary) !important;
+  --bs-pagination-bg: var(--bg-secondary) !important;
+  --bs-pagination-border-color: var(--border) !important;
+
+  --bs-pagination-hover-color: #000 !important;
+  --bs-pagination-hover-bg: var(--accent) !important;
+  --bs-pagination-hover-border-color: var(--accent) !important;
+
+  --bs-pagination-focus-color: #000 !important;
+  --bs-pagination-focus-bg: var(--accent) !important;
+  --bs-pagination-focus-box-shadow: none !important;
+
+  --bs-pagination-active-color: #000 !important;
+  --bs-pagination-active-bg: var(--accent) !important;
+  --bs-pagination-active-border-color: var(--accent) !important;
+
+  --bs-pagination-disabled-color: #6c757d !important;
+  --bs-pagination-disabled-bg: var(--bg-secondary) !important;
+  --bs-pagination-disabled-border-color: var(--border) !important;
 }
 
 body {
@@ -390,13 +411,14 @@ table.dataTable tbody tr.selected {
   border-radius: 0.375rem !important;
   padding: 0.375rem 0.75rem;
   font-size: 0.875rem;
+  transition: all 0.2s ease;
 }
 
 .dataTables_wrapper .pagination .page-item.active .page-link {
   background-color: var(--accent) !important;
   color: #000 !important;
   border-color: var(--accent) !important;
-  font-weight: bold;
+  font-weight: bold !important;
 }
 
 .dataTables_wrapper .pagination .page-item .page-link:hover {
@@ -408,23 +430,4 @@ table.dataTable tbody tr.selected {
 .dataTables_wrapper .pagination .page-item .page-link:focus {
   box-shadow: none !important;
   outline: none !important;
-}
-
-/* Overwrite Bootstrap pagination colors to match dark theme */
-:root {
-  --bs-pagination-color: var(--text-primary);
-  --bs-pagination-bg: var(--bg-secondary);
-  --bs-pagination-border-color: var(--border);
-  --bs-pagination-hover-color: #000;
-  --bs-pagination-hover-bg: var(--accent);
-  --bs-pagination-hover-border-color: var(--accent);
-  --bs-pagination-focus-color: #000;
-  --bs-pagination-focus-bg: var(--accent);
-  --bs-pagination-focus-box-shadow: none;
-  --bs-pagination-active-color: #000;
-  --bs-pagination-active-bg: var(--accent);
-  --bs-pagination-active-border-color: var(--accent);
-  --bs-pagination-disabled-color: #6c757d;
-  --bs-pagination-disabled-bg: var(--bg-secondary);
-  --bs-pagination-disabled-border-color: var(--border);
 }
