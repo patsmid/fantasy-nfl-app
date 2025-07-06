@@ -1,10 +1,11 @@
 import { getLeagueData, getConfigValue, getDraftPicks, getADPData, getPlayersData, getRankings, getMainUserDraft } from './lib/draftUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
+import { getStarterPositions } from './utils/helpers.js';
 
 export async function getDraftData(leagueId, { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}) {
   const leagueData = await getLeagueData(leagueId);
   const num_teams = leagueData.settings.num_teams;
-  const starterPositions = leagueData.settings.roster_positions;
+  const starterPositions = getStarterPositions(leagueData);
   const superFlex = starterPositions.includes('SUPER_FLEX');
 
   const tipoLiga = await getConfigValue('dynasty');
