@@ -60,7 +60,8 @@ export default async function renderExpertsView() {
 
   await loadExperts();
 
-  const modal = new bootstrap.Modal(document.getElementById('expertModal'));
+  const modalEl = document.getElementById('expertModal');
+  const modal = new bootstrap.Modal(modalEl);
 
   document.getElementById('btn-add-expert').addEventListener('click', () => {
     document.getElementById('expertForm').reset();
@@ -122,6 +123,8 @@ async function loadExperts() {
       document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
       document.getElementById('modal-experto').value = btn.dataset.experto;
       document.getElementById('expertModalLabel').textContent = 'Editar experto';
+      const modalEl = document.getElementById('configModal');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
       modal.show();
     });
   });

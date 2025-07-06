@@ -143,7 +143,6 @@ async function loadConfig() {
     });
   }
 
-  // 🔄 Aquí sí agregamos el evento a los botones que ya existen
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {
       document.getElementById('configId').value = btn.dataset.id;
