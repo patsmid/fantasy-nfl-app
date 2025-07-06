@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fantasy NFL App</title>
 
   <!-- Bootstrap, DataTables, Icons, SweetAlert, TomSelect -->
@@ -15,39 +15,37 @@
   <link href="css/styles.css" rel="stylesheet" />
   <link href="css/flock-theme.css" rel="stylesheet" />
 </head>
-
 <body>
   <div id="app" class="d-flex flex-column flex-lg-row">
 
     <!-- Sidebar fijo (desktop) -->
-    <nav id="sidebar" class="flock-sidebar d-none d-lg-flex">
-      <!-- Se llenará dinámicamente desde sidebar.html -->
+    <nav id="sidebar" class="flock-sidebar d-none d-lg-flex" role="navigation" aria-label="Sidebar principal">
+      <!-- Se llenará dinámicamente -->
     </nav>
 
     <!-- Sidebar móvil (offcanvas) -->
-    <div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="sidebarMobile" aria-labelledby="sidebarMobileLabel">
+    <div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="sidebarMobile" aria-labelledby="sidebarMobileLabel" aria-modal="true" role="dialog">
       <div class="offcanvas-header border-bottom">
         <h5 class="offcanvas-title" id="sidebarMobileLabel">🏈 Fantasy NFL</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
       </div>
-      <div class="offcanvas-body p-0" id="sidebarMobileContent">
-        <!-- Se llenará dinámicamente con el mismo contenido -->
+      <div class="offcanvas-body p-0" id="sidebarMobileContent" role="menu">
+        <!-- Se llenará dinámicamente -->
       </div>
     </div>
 
     <!-- Contenido principal -->
-    <div class="flex-grow-1">
+    <main class="flex-grow-1" id="content-container" tabindex="-1" aria-live="polite">
       <!-- Topbar -->
-      <nav class="navbar">
+      <nav class="navbar navbar-light bg-light shadow-sm">
         <div class="container-fluid">
-          <button class="btn btn-outline-secondary d-lg-none" id="toggle-sidebar">☰</button>
+          <button class="btn btn-outline-secondary d-lg-none" id="toggle-sidebar" aria-label="Abrir menú lateral">☰</button>
           <span class="navbar-brand mb-0 h1">Fantasy NFL</span>
         </div>
       </nav>
 
-      <!-- Contenido dinámico -->
-      <main class="p-4" id="content-container"></main>
-    </div>
+      <!-- Contenido dinámico se carga aquí -->
+    </main>
   </div>
 
   <!-- Scripts -->

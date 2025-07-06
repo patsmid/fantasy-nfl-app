@@ -2,19 +2,25 @@ async function loadSidebar() {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
-  const response = await fetch('/components/sidebar.html');
-  const html = await response.text();
+  try {
+    const response = await fetch('/components/sidebar.html');
+    if (!response.ok) throw new Error('No se pudo cargar el sidebar');
 
-  sidebar.innerHTML = html;
-  sidebarMobile.innerHTML = html; // Copiamos contenido también para el offcanvas
+    const html = await response.text();
+    sidebar.innerHTML = html;
+    sidebarMobile.innerHTML = html;
 
-  activateSidebarLinks();
-  await loadView('players');
-  setActiveSidebarItem('players');
+    activateSidebarLinks();
+    await loadView('players'); // Vista inicial
+    setActiveSidebarItem('players');
+  } catch (error) {
+    console.error('Error cargando sidebar:', error);
+  }
 }
 
 function activateSidebarLinks() {
-  const links = document.querySelectorAll('[data-view]');
+  // Seleccionamos los links del sidebar desktop y mobile
+  const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   links.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -22,14 +28,14 @@ function activateSidebarLinks() {
       await loadView(view);
       setActiveSidebarItem(view);
 
-      // Oculta offcanvas en móvil
+      // Cerrar offcanvas si está abierto (en móvil)
       const sidebarMobileEl = document.getElementById('sidebarMobile');
       const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
       if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
-  // Botón ☰ móvil
+  // Botón hamburguesa para móvil
   const toggleBtn = document.getElementById('toggle-sidebar');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
@@ -40,15 +46,22 @@ function activateSidebarLinks() {
 }
 
 async function loadView(viewName) {
-  const viewModule = await import(`./views/${viewName}.js`);
-  viewModule.default();
+  try {
+    const viewModule = await import(`./views/${viewName}.js`);
+    await viewModule.default();
+  } catch (error) {
+    console.error(`Error cargando vista ${viewName}:`, error);
+    // Opcional: mostrar alerta o contenido fallback
+  }
 }
 
 function setActiveSidebarItem(viewName) {
+  // Activamos el link en desktop y mobile
   document.querySelectorAll('[data-view]').forEach(link => {
-    const isActive = link.getAttribute('data-view') === viewName;
-    link.classList.toggle('active', isActive);
+    link.classList.toggle('active', link.getAttribute('data-view') === viewName);
   });
 }
 
-document.addEventListener('DOMContentLoaded', loadSidebar);
+document.addEventListener('DOMContentLoaded', () => {
+  loadSidebar();
+});
