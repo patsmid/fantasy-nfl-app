@@ -3,31 +3,40 @@ import { fetchConfig, updateConfig } from '../api.js';
 export default async function () {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="container mt-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Configuración</h2>
-        <button class="btn btn-primary" id="btn-add-config"><i class="fas fa-plus"></i> Agregar</button>
+    <div class="card border-0 shadow-sm rounded flock-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="m-0 d-flex align-items-center gap-2">
+            <i class="bi bi-gear-fill text-warning"></i> Configuración
+          </h4>
+          <button class="btn btn-sm btn-primary" id="btn-add-config">
+            <i class="bi bi-plus-circle me-1"></i> Agregar
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table id="configTable" class="table table-dark table-hover align-middle w-100">
+            <thead>
+              <tr>
+                <th>Clave</th>
+                <th>Valor</th>
+                <th>Última actualización</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
-      <table id="configTable" class="table table-bordered table-hover w-100">
-        <thead class="table-light">
-          <tr>
-            <th>Clave</th>
-            <th>Valor</th>
-            <th>Última actualización</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
     </div>
 
     <!-- Modal -->
     <div class="modal fade" id="configModal" tabindex="-1">
       <div class="modal-dialog">
-        <form class="modal-content" id="configForm">
-          <div class="modal-header">
+        <form class="modal-content bg-dark text-white border border-secondary rounded" id="configForm">
+          <div class="modal-header border-bottom border-secondary">
             <h5 class="modal-title">Configuración</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <input type="hidden" id="configId" />
@@ -40,7 +49,7 @@ export default async function () {
               <input type="text" class="form-control" id="configValue" name="value" />
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-top border-secondary">
             <button type="submit" class="btn btn-success">Guardar</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           </div>
@@ -96,29 +105,30 @@ async function loadConfig() {
   json.data.forEach(row => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${row.key}</td>
+      <td class="fw-semibold">${row.key}</td>
       <td>${row.value || ''}</td>
-      <td>${new Date(row.updated_at).toLocaleString()}</td>
+      <td><small class="text-muted">${new Date(row.updated_at).toLocaleString()}</small></td>
       <td>
-        <button class="btn btn-sm btn-outline-primary btn-edit"
+        <button class="btn btn-sm btn-outline-warning btn-edit"
                 data-id="${row.id}"
                 data-key="${row.key}"
                 data-value="${row.value}">
-          Editar
+          <i class="bi bi-pencil-square"></i>
         </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  // Inicializa DataTables (si aún no está inicializado)
+  // DataTable con estilos limpios
   if (!$.fn.DataTable.isDataTable('#configTable')) {
     $('#configTable').DataTable({
       responsive: true,
       pageLength: 10,
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-      }
+      },
+      dom: 'tip' // sin botones, simple
     });
   }
 

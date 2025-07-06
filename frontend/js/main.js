@@ -11,8 +11,8 @@ async function loadSidebar() {
     sidebarMobile.innerHTML = html;
 
     activateSidebarLinks();
-    await loadView('players'); // Vista inicial
-    setActiveSidebarItem('players');
+    await loadView('config'); // Vista inicial
+    setActiveSidebarItem('config');
   } catch (error) {
     console.error('Error cargando sidebar:', error);
   }
