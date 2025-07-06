@@ -3,34 +3,40 @@ import { fetchExperts, createExpert, updateExpert, deleteExpert } from '../api.j
 export default async function renderExpertsView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="container mt-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Expertos</h2>
-        <button class="btn btn-primary" id="btn-add-expert">
-          <i class="fas fa-plus"></i> Agregar experto
-        </button>
-      </div>
+    <div class="card border-0 shadow-sm rounded flock-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="m-0 d-flex align-items-center gap-2">
+            <i class="bi bi-person-badge text-warning"></i> Expertos
+          </h4>
+          <button class="btn btn-sm btn-primary d-flex align-items-center gap-2" id="btn-add-expert">
+            <i class="bi bi-plus-circle"></i> Agregar experto
+          </button>
+        </div>
 
-      <table id="expertsTable" class="table table-bordered table-hover w-100">
-        <thead class="table-light">
-          <tr>
-            <th>ID</th>
-            <th>ID Experto</th>
-            <th>Nombre</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+        <div class="table-responsive">
+          <table id="expertsTable" class="table table-dark table-hover align-middle w-100">
+            <thead class="table-dark text-uppercase text-secondary small">
+              <tr>
+                <th>ID</th>
+                <th>ID Experto</th>
+                <th>Nombre</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- Modal -->
     <div class="modal fade" id="expertModal" tabindex="-1" aria-labelledby="expertModalLabel" aria-hidden="true">
       <div class="modal-dialog">
-        <form class="modal-content" id="expertForm">
-          <div class="modal-header">
+        <form class="modal-content bg-dark text-white border border-secondary rounded" id="expertForm">
+          <div class="modal-header border-bottom border-secondary">
             <h5 class="modal-title" id="expertModalLabel">Agregar experto</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <input type="hidden" id="modal-id">
@@ -43,7 +49,7 @@ export default async function renderExpertsView() {
               <input type="text" class="form-control" id="modal-experto" required>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-top border-secondary">
             <button type="submit" class="btn btn-success">Guardar</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           </div>
@@ -54,11 +60,13 @@ export default async function renderExpertsView() {
 
   await loadExperts();
 
+  const modal = new bootstrap.Modal(document.getElementById('expertModal'));
+
   document.getElementById('btn-add-expert').addEventListener('click', () => {
     document.getElementById('expertForm').reset();
     document.getElementById('modal-id').value = '';
     document.getElementById('expertModalLabel').textContent = 'Agregar experto';
-    new bootstrap.Modal(document.getElementById('expertModal')).show();
+    modal.show();
   });
 
   document.getElementById('expertForm').addEventListener('submit', async (e) => {
@@ -73,7 +81,7 @@ export default async function renderExpertsView() {
       } else {
         await createExpert({ id_experto, experto });
       }
-      bootstrap.Modal.getInstance(document.getElementById('expertModal')).hide();
+      modal.hide();
       await loadExperts();
     } catch (err) {
       alert('Error al guardar experto: ' + err.message);
@@ -93,16 +101,20 @@ async function loadExperts() {
       <td>${e.id_experto}</td>
       <td>${e.experto}</td>
       <td>
-        <button class="btn btn-sm btn-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}">
-          <i class="bi bi-pencil-square"></i>
-        </button>
-        <button class="btn btn-sm btn-danger btn-delete" data-id="${e.id}">
-          <i class="bi bi-trash"></i>
-        </button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}" title="Editar">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${e.id}" title="Eliminar">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  const modal = new bootstrap.Modal(document.getElementById('expertModal'));
 
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -110,7 +122,7 @@ async function loadExperts() {
       document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
       document.getElementById('modal-experto').value = btn.dataset.experto;
       document.getElementById('expertModalLabel').textContent = 'Editar experto';
-      new bootstrap.Modal(document.getElementById('expertModal')).show();
+      modal.show();
     });
   });
 
@@ -127,13 +139,14 @@ async function loadExperts() {
     });
   });
 
-  // Re-inicializa la DataTable
+  // Re-inicializa la DataTable con estilo moderno
   window.expertsTable = new DataTable('#expertsTable', {
     destroy: true,
     responsive: true,
     perPage: 10,
+    sortable: true,
     labels: {
-      placeholder: 'Buscar...',
+      placeholder: 'Buscar expertos...',
       perPage: '{select} registros por página',
       noRows: 'No se encontraron expertos',
       info: 'Mostrando {start} a {end} de {rows} expertos'
