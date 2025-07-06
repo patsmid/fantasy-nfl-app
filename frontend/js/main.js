@@ -1,37 +1,54 @@
 async function loadSidebar() {
   const sidebar = document.getElementById('sidebar');
-  const response = await fetch('/components/sidebar.html');
-  sidebar.innerHTML = await response.text();
+  const sidebarMobile = document.getElementById('sidebarMobileContent');
 
-  // Activar links de vista
-  document.querySelectorAll('[data-view]').forEach(link => {
+  const response = await fetch('/components/sidebar.html');
+  const html = await response.text();
+
+  sidebar.innerHTML = html;
+  sidebarMobile.innerHTML = html; // Copiamos contenido también para el offcanvas
+
+  activateSidebarLinks();
+  await loadView('players');
+  setActiveSidebarItem('players');
+}
+
+function activateSidebarLinks() {
+  const links = document.querySelectorAll('[data-view]');
+  links.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       const view = link.getAttribute('data-view');
       await loadView(view);
+      setActiveSidebarItem(view);
 
-      // Si estamos en móvil, ocultamos la sidebar al hacer clic en un enlace
-      if (window.innerWidth < 992) {
-        sidebar.classList.remove('show');
-      }
+      // Oculta offcanvas en móvil
+      const sidebarMobileEl = document.getElementById('sidebarMobile');
+      const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
+      if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
-  // Activar botón ☰ para mostrar u ocultar sidebar (mobile)
+  // Botón ☰ móvil
   const toggleBtn = document.getElementById('toggle-sidebar');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('show');
+      const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
+      offcanvas.show();
     });
   }
-
-  // Carga inicial
-  loadView('players');
 }
 
 async function loadView(viewName) {
   const viewModule = await import(`./views/${viewName}.js`);
   viewModule.default();
+}
+
+function setActiveSidebarItem(viewName) {
+  document.querySelectorAll('[data-view]').forEach(link => {
+    const isActive = link.getAttribute('data-view') === viewName;
+    link.classList.toggle('active', isActive);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', loadSidebar);

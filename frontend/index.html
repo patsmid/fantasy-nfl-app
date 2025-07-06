@@ -4,31 +4,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fantasy NFL App</title>
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
-  <link href="https://cdn.datatables.net/v/bs5/jq-3.7.0/moment-2.29.4/jszip-3.10.1/dt-2.3.2/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/fc-5.0.4/r-3.0.5/sl-3.0.1/datatables.min.css" rel="stylesheet" integrity="sha384-/WIFJ4L0aSZa3/PX10z4bk/oWfq/CaKwez/YdJez4kpJUspEtOosJuxq7evf4xq+" crossorigin="anonymous">
-	<!-- SweetAlert2 -->
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.min.css">
-	<!-- Tom Select -->
-	<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-	<!-- Bootstrap Icons CDN -->
-	<link
-	  rel="stylesheet"
-	  href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
-	/>
-	<link href="css/styles.css" rel="stylesheet" />
-  <link href="css/flock-theme.css" rel="stylesheet">
+
+  <!-- Bootstrap, DataTables, Icons, SweetAlert, TomSelect -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/v/bs5/jq-3.7.0/moment-2.29.4/jszip-3.10.1/dt-2.3.2/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/fc-5.0.4/r-3.0.5/sl-3.0.1/datatables.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="css/styles.css" rel="stylesheet" />
+  <link href="css/flock-theme.css" rel="stylesheet" />
 </head>
+
 <body>
-  <div class="d-flex flex-column flex-lg-row" id="app">
-    <!-- Sidebar -->
-    <nav id="sidebar" class="sidebar bg-dark text-white collapse d-lg-block">
-      <div class="p-3">
-        <h4 class="text-center">🏈 Fantasy App</h4>
-        <ul class="nav flex-column" id="menu-container"></ul>
-      </div>
+  <div id="app" class="d-flex flex-column flex-lg-row">
+
+    <!-- Sidebar fijo (desktop) -->
+    <nav id="sidebar" class="flock-sidebar d-none d-lg-flex">
+      <!-- Se llenará dinámicamente desde sidebar.html -->
     </nav>
-    <!-- Main content -->
-    <div class="flex-grow-1">
+
+    <!-- Sidebar móvil (offcanvas) -->
+    <div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="sidebarMobile" aria-labelledby="sidebarMobileLabel">
+      <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title" id="sidebarMobileLabel">🏈 Fantasy NFL</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+      </div>
+      <div class="offcanvas-body p-0" id="sidebarMobileContent">
+        <!-- Se llenará dinámicamente con el mismo contenido -->
+      </div>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="flex-grow-1" style="margin-left: 250px;">
       <!-- Topbar -->
       <nav class="navbar navbar-light bg-light">
         <div class="container-fluid">
@@ -37,17 +45,18 @@
         </div>
       </nav>
 
-      <!-- Content -->
+      <!-- Contenido dinámico -->
       <main class="p-4" id="content-container"></main>
     </div>
   </div>
-	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js" integrity="sha384-VFQrHzqBh5qiJIU0uGU5CIW3+OWpdGGJM9LBnGbuIH2mkICcFZ7lPd/AAtI7SNf7" crossorigin="anonymous"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js" integrity="sha384-/RlQG9uf0M2vcTw3CX7fbqgbj/h8wKxw7C3zu9/GxcBPRKOEcESxaxufwRXqzq6n" crossorigin="anonymous"></script>
-	<script src="https://cdn.datatables.net/v/bs5/jq-3.7.0/moment-2.29.4/jszip-3.10.1/dt-2.3.2/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/fc-5.0.4/r-3.0.5/sl-3.0.1/datatables.min.js" integrity="sha384-oejZWbJdpbSaNSdreQqABRQODO+EUWf0stDyN8gBM8FnZWuRNqWUXzx1En7HQQl/" crossorigin="anonymous"></script>
-	<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
-  <!-- TomSelect JS (bundle completo con plugins) -->
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+  <script src="https://cdn.datatables.net/v/bs5/jq-3.7.0/moment-2.29.4/jszip-3.10.1/dt-2.3.2/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/fc-5.0.4/r-3.0.5/sl-3.0.1/datatables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-	<script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
