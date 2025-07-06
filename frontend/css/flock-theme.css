@@ -363,3 +363,19 @@ a, .btn-primary {
   margin-left: 250px;
   padding: 1.5rem;
 }
+
+@media (min-width: 992px) {
+  .flock-sidebar {
+    top: 56px;   /* Se alinea justo debajo de la topbar */
+    height: calc(100vh - 56px);
+  }
+}
+
+@media (max-width: 991px) {
+  #content-container {
+    margin-top: 0 !important;
+  }
+  .offcanvas.offcanvas-start {
+    top: 0;  /* El offcanvas se inicia desde la parte superior */
+  }
+}
