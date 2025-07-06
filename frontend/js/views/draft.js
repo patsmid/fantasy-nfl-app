@@ -7,58 +7,64 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="container mt-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Draft</h2>
-        <button class="btn btn-primary" id="btn-update-draft">
-          <i class="fas fa-sync"></i> Actualizar Draft
-        </button>
+    <div class="card border-0 shadow-sm rounded flock-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="m-0 d-flex align-items-center gap-2">
+            <i class="bi bi-clipboard-data text-info"></i> Draft
+          </h4>
+          <button class="btn btn-sm btn-primary" id="btn-update-draft">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar Draft
+          </button>
+        </div>
+
+        <form class="row g-3 mb-4">
+          <div class="col-md-3">
+            <label for="select-league" class="form-label">Liga</label>
+            <select id="select-league" class="form-select"></select>
+          </div>
+          <div class="col-md-2">
+            <label for="select-position" class="form-label">Posición</label>
+            <select id="select-position" class="form-select">
+              ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label for="input-bye" class="form-label">Bye condición</label>
+            <input type="number" class="form-control" id="input-bye" placeholder="0">
+          </div>
+          <div class="col-md-3">
+            <label for="select-expert" class="form-label">Experto</label>
+            <select id="select-expert" class="form-select"></select>
+          </div>
+          <div class="col-md-2">
+            <label for="select-status" class="form-label">Status</label>
+            <select id="select-status" class="form-select">
+              <option value="LIBRE">LIBRE</option>
+              <option value="TODOS">TODOS</option>
+            </select>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table id="draftTable" class="table table-dark table-hover align-middle w-100">
+            <thead class="table-dark">
+              <tr>
+                <th>ADP</th>
+                <th>Jugador</th>
+                <th>Posición</th>
+                <th>Equipo</th>
+                <th>Bye</th>
+                <th>Ranking</th>
+                <th>Status</th>
+                <th>Ronda</th>
+                <th>Diferencia</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
-
-      <form class="row g-3 mb-4">
-        <div class="col-md-3">
-          <label for="select-league" class="form-label">Liga</label>
-          <select id="select-league" class="form-select"></select>
-        </div>
-        <div class="col-md-2">
-          <label for="select-position" class="form-label">Posición</label>
-          <select id="select-position" class="form-select">
-            ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label for="input-bye" class="form-label">Bye condición</label>
-          <input type="number" class="form-control" id="input-bye" placeholder="0">
-        </div>
-        <div class="col-md-3">
-          <label for="select-expert" class="form-label">Experto</label>
-          <select id="select-expert" class="form-select"></select>
-        </div>
-        <div class="col-md-2">
-          <label for="select-status" class="form-label">Status</label>
-          <select id="select-status" class="form-select">
-            <option value="LIBRE">LIBRE</option>
-            <option value="TODOS">TODOS</option>
-          </select>
-        </div>
-      </form>
-
-      <table id="draftTable" class="table table-bordered table-hover w-100">
-        <thead class="table-light">
-          <tr>
-            <th>ADP</th>
-            <th>Jugador</th>
-            <th>Posición</th>
-            <th>Equipo</th>
-            <th>Bye</th>
-            <th>Ranking</th>
-            <th>Status</th>
-            <th>Ronda</th>
-            <th>Diferencia</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
     </div>
   `;
 
@@ -156,7 +162,8 @@ export default async function renderDraftView() {
         order: [[5, 'asc']],
         language: {
           url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-        }
+        },
+        dom: 'tip'
       });
     }
   }

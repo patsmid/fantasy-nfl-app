@@ -68,16 +68,6 @@ export default async function () {
     modal.show();
   });
 
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('configId').value = btn.dataset.id;
-      document.getElementById('configKey').value = btn.dataset.key;
-      document.getElementById('configKey').readOnly = true;
-      document.getElementById('configValue').value = btn.dataset.value || '';
-      modal.show(); // Reutilizar la instancia
-    });
-  });
-
   document.getElementById('configForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('configId').value;
@@ -131,7 +121,7 @@ async function loadConfig() {
     tbody.appendChild(tr);
   });
 
-  // DataTable con estilos limpios
+  // Inicializa o reinicia DataTable
   if (!$.fn.DataTable.isDataTable('#configTable')) {
     $('#configTable').DataTable({
       responsive: true,
@@ -139,8 +129,30 @@ async function loadConfig() {
       language: {
         url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
       },
-      dom: 'tip' // sin botones, simple
+      dom: 'tip'
+    });
+  } else {
+    $('#configTable').DataTable().clear().destroy();
+    $('#configTable').DataTable({
+      responsive: true,
+      pageLength: 10,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+      },
+      dom: 'tip'
     });
   }
 
+  // 🔄 Aquí sí agregamos el evento a los botones que ya existen
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('configId').value = btn.dataset.id;
+      document.getElementById('configKey').value = btn.dataset.key;
+      document.getElementById('configKey').readOnly = true;
+      document.getElementById('configValue').value = btn.dataset.value || '';
+      const modalEl = document.getElementById('configModal');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+    });
+  });
 }
