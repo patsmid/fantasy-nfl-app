@@ -16,7 +16,7 @@ export default async function renderExpertsView() {
 
         <div class="table-responsive">
           <table id="expertsTable" class="table table-dark table-hover align-middle w-100">
-            <thead class="table-dark text-uppercase text-secondary small">
+            <thead class="table-dark">
               <tr>
                 <th>ID</th>
                 <th>ID Experto</th>
@@ -31,7 +31,7 @@ export default async function renderExpertsView() {
     </div>
 
     <!-- Modal -->
-    <div class="modal fade" id="expertModal" tabindex="-1" aria-labelledby="expertModalLabel" aria-hidden="true">
+    <div class="modal fade" id="expertModal" tabindex="-1">
       <div class="modal-dialog">
         <form class="modal-content bg-dark text-white border border-secondary rounded" id="expertForm">
           <div class="modal-header border-bottom border-secondary">
@@ -58,8 +58,6 @@ export default async function renderExpertsView() {
     </div>
   `;
 
-  await loadExperts();
-
   const modalEl = document.getElementById('expertModal');
   const modal = new bootstrap.Modal(modalEl);
 
@@ -83,14 +81,16 @@ export default async function renderExpertsView() {
         await createExpert({ id_experto, experto });
       }
       modal.hide();
-      await loadExperts();
+      await loadExperts(modal);
     } catch (err) {
       alert('Error al guardar experto: ' + err.message);
     }
   });
+
+  await loadExperts(modal);
 }
 
-async function loadExperts() {
+async function loadExperts(modal) {
   const experts = await fetchExperts();
   const tbody = document.querySelector('#expertsTable tbody');
   tbody.innerHTML = '';
@@ -115,7 +115,19 @@ async function loadExperts() {
     tbody.appendChild(tr);
   });
 
-  const modal = new bootstrap.Modal(document.getElementById('expertModal'));
+  // Inicializa o reinicia DataTable en español
+  if ($.fn.DataTable.isDataTable('#expertsTable')) {
+    $('#expertsTable').DataTable().clear().destroy();
+  }
+
+  $('#expertsTable').DataTable({
+    responsive: true,
+    pageLength: 10,
+    language: {
+      url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+    },
+    dom: 'tip'
+  });
 
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -123,9 +135,10 @@ async function loadExperts() {
       document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
       document.getElementById('modal-experto').value = btn.dataset.experto;
       document.getElementById('expertModalLabel').textContent = 'Editar experto';
-      const modalEl = document.getElementById('configModal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
+
+      const modalEl = document.getElementById('expertModal');
+      const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modalInstance.show();
     });
   });
 
@@ -134,25 +147,11 @@ async function loadExperts() {
       if (confirm('¿Estás seguro de eliminar este experto?')) {
         try {
           await deleteExpert(btn.dataset.id);
-          await loadExperts();
+          await loadExperts(modal);
         } catch (err) {
           alert('Error al eliminar experto: ' + err.message);
         }
       }
     });
-  });
-
-  // Re-inicializa la DataTable con estilo moderno
-  window.expertsTable = new DataTable('#expertsTable', {
-    destroy: true,
-    responsive: true,
-    perPage: 10,
-    sortable: true,
-    labels: {
-      placeholder: 'Buscar expertos...',
-      perPage: '{select} registros por página',
-      noRows: 'No se encontraron expertos',
-      info: 'Mostrando {start} a {end} de {rows} expertos'
-    }
   });
 }
