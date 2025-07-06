@@ -16,7 +16,7 @@ export default async function () {
 
         <div class="table-responsive">
           <table id="configTable" class="table table-dark table-hover align-middle w-100">
-            <thead>
+            <thead class="table-dark">
               <tr>
                 <th>Clave</th>
                 <th>Valor</th>
@@ -58,13 +58,24 @@ export default async function () {
     </div>
   `;
 
-  const modal = new bootstrap.Modal(document.getElementById('configModal'));
+  const modalEl = document.getElementById('configModal');
+  const modal = new bootstrap.Modal(modalEl);
 
   document.getElementById('btn-add-config').addEventListener('click', () => {
     document.getElementById('configForm').reset();
     document.getElementById('configId').value = '';
     document.getElementById('configKey').readOnly = false;
     modal.show();
+  });
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('configId').value = btn.dataset.id;
+      document.getElementById('configKey').value = btn.dataset.key;
+      document.getElementById('configKey').readOnly = true;
+      document.getElementById('configValue').value = btn.dataset.value || '';
+      modal.show(); // Reutilizar la instancia
+    });
   });
 
   document.getElementById('configForm').addEventListener('submit', async (e) => {
@@ -107,7 +118,7 @@ async function loadConfig() {
     tr.innerHTML = `
       <td class="fw-semibold">${row.key}</td>
       <td>${row.value || ''}</td>
-      <td><small class="text-muted">${new Date(row.updated_at).toLocaleString()}</small></td>
+      <td><small class="text-secondary">${new Date(row.updated_at).toLocaleString()}</small></td>
       <td>
         <button class="btn btn-sm btn-outline-warning btn-edit"
                 data-id="${row.id}"
@@ -132,13 +143,4 @@ async function loadConfig() {
     });
   }
 
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('configId').value = btn.dataset.id;
-      document.getElementById('configKey').value = btn.dataset.key;
-      document.getElementById('configKey').readOnly = true;
-      document.getElementById('configValue').value = btn.dataset.value || '';
-      new bootstrap.Modal(document.getElementById('configModal')).show();
-    });
-  });
 }

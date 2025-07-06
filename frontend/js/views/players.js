@@ -11,32 +11,34 @@ export default async function renderPlayersView() {
         </button>
       </div>
 
-      <div class="table-responsive">
-        <table id="players-table" class="table table-bordered table-hover w-100">
-          <thead class="table-light">
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Posición</th>
-              <th>Equipo</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tfoot>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Posición</th>
-              <th>Equipo</th>
-              <th>Status</th>
-            </tr>
-          </tfoot>
-        </table>
+      <div class="card p-3">
+        <div class="table-responsive">
+          <table id="players-table" class="table table-dark table-hover w-100">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Posición</th>
+                <th>Equipo</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tfoot>
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Posición</th>
+                <th>Equipo</th>
+                <th>Status</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   `;
 
-  // Agrega inputs de filtro en cada columna del footer
+  // Inputs de filtro para cada columna
   $('#players-table tfoot th').each(function () {
     const title = $(this).text();
     $(this).html(`<input type="text" class="form-control form-control-sm" placeholder="Filtrar ${title}" />`);
@@ -69,20 +71,30 @@ export default async function renderPlayersView() {
     lengthMenu: [10, 25, 50, 100],
     language: {
       url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+    },
+    initComplete: function () {
+      this.api().columns().every(function () {
+        const column = this;
+        $('input', column.footer()).on('keyup change', function () {
+          column.search(this.value).draw();
+        });
+      });
     }
-  });
-
-  $('#players-table tfoot input').on('keyup change', function () {
-    table.ajax.reload();
   });
 
   const updateBtn = document.getElementById('update-btn');
   updateBtn.addEventListener('click', async () => {
     updateBtn.disabled = true;
     updateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Actualizando...';
-    await updatePlayers();
-    updateBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar jugadores';
-    updateBtn.disabled = false;
-    table.ajax.reload();
+
+    try {
+      await updatePlayers();
+      table.ajax.reload();
+    } catch (error) {
+      console.error('Error actualizando jugadores:', error);
+    } finally {
+      updateBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar jugadores';
+      updateBtn.disabled = false;
+    }
   });
 }
