@@ -1,5 +1,5 @@
 import express from 'express';
-import { fetchAndStoreProjections, getWeeklyProjections, getTotalProjections } from './lib/projectionsService.js';
+import { fetchAndStoreProjections, getWeeklyProjections, getTotalProjectionsDB } from './lib/projectionsService.js';
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
   try {
     const data = week
       ? await getWeeklyProjections(season, parseInt(week))
-      : await getTotalProjections(season);
+      : await getTotalProjectionsDB(season);
 
     res.json(data);
   } catch (err) {

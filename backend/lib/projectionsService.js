@@ -137,7 +137,7 @@ export async function getWeeklyProjections(season, week) {
   return data;
 }
 
-export async function getTotalProjections(season) {
+export async function getTotalProjectionsDB(season) {
   const { data, error } = await supabase
     .from('projections_total')
     .select('*')
