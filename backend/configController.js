@@ -48,23 +48,45 @@ export async function getConfig(req, res) {
 /**
  * Crear o actualizar una configuración
  */
-export async function setConfig(req, res) {
-  const { key, value } = req.body;
+ export async function setConfig(req, res) {
+   const { key, value } = req.body;
 
-  if (!key) {
-    return res.status(400).json({ success: false, error: 'Missing key' });
-  }
+   if (!key) {
+     return res.status(400).json({ success: false, error: 'No se encontró el valor key' });
+   }
 
-  try {
-    const { error } = await supabase
-      .from('config')
-      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+   try {
+     let finalValue = value;
 
-    if (error) throw error;
+     // Formatea si es playerDB_updated y el valor es una fecha válida
+     if (key === 'playerDB_updated') {
+       const date = new Date(value);
+       if (!isNaN(date)) {
+         const day = String(date.getDate()).padStart(2, '0');
+         const month = String(date.getMonth() + 1).padStart(2, '0');
+         const year = date.getFullYear();
+         const hours = String(date.getHours()).padStart(2, '0');
+         const minutes = String(date.getMinutes()).padStart(2, '0');
+         finalValue = `${day}/${month}/${year} ${hours}:${minutes}`;
+       }
+     }
 
-    res.json({ success: true, message: `Configuración actualizada: ${key}` });
-  } catch (err) {
-    console.error('❌ Error en setConfig:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-}
+     const { error } = await supabase
+       .from('config')
+       .upsert(
+         {
+           key,
+           value: finalValue,
+           updated_at: new Date().toISOString()
+         },
+         { onConflict: 'key' }
+       );
+
+     if (error) throw error;
+
+     res.json({ success: true, message: `Configuración actualizada: ${key}` });
+   } catch (err) {
+     console.error('❌ Error en setConfig:', err.message || err);
+     res.status(500).json({ success: false, error: err.message });
+   }
+ }
