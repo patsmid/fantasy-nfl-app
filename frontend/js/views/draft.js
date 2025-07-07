@@ -150,9 +150,9 @@ export default async function renderDraftView() {
       p.status,
       p.adpRound ?? '',
       p.adpDiff ?? '',
-      p.vor ?? '', // ✅
-      p.adjustedVOR ?? '', // ✅
-      p.dropoff ?? '' // ✅
+      p.vor ?? '',
+      p.adjustedVOR ?? '',
+      p.dropoff ?? ''
     ]);
 
     if ($.fn.dataTable.isDataTable('#draftTable')) {
@@ -169,7 +169,7 @@ export default async function renderDraftView() {
         language: {
           url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
         },
-        dom: 'tip'
+        dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip'
       });
     }
   }
