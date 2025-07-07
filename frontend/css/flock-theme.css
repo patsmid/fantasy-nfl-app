@@ -393,3 +393,22 @@ table.dataTable tbody tr.selected {
   box-shadow: none !important;
   outline: none !important;
 }
+
+/* === OVERRIDE VARIABLES DE BOOTSTRAP PARA PAGINACIÓN === */
+.pagination {
+  --bs-pagination-color: var(--text-primary);
+  --bs-pagination-bg: var(--bg-secondary);
+  --bs-pagination-border-color: var(--border);
+  --bs-pagination-hover-color: #000;
+  --bs-pagination-hover-bg: var(--accent);
+  --bs-pagination-hover-border-color: var(--accent);
+  --bs-pagination-focus-color: #000;
+  --bs-pagination-focus-bg: var(--accent);
+  --bs-pagination-focus-box-shadow: none;
+  --bs-pagination-active-color: #000;
+  --bs-pagination-active-bg: var(--accent);
+  --bs-pagination-active-border-color: var(--accent);
+  --bs-pagination-disabled-color: #6c757d;
+  --bs-pagination-disabled-bg: var(--bg-secondary);
+  --bs-pagination-disabled-border-color: var(--border);
+}
