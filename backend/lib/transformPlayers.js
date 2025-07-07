@@ -26,7 +26,8 @@ export function buildFinalPlayers({
   }
 
   const players = [];
-  const positionBuckets = {}; // Para tier_pos
+  const positionBuckets = {};
+  let maxGlobalVor = 0;
 
   for (const adp of adpData) {
     const playerId = String(adp.sleeper_player_id);
@@ -59,18 +60,13 @@ export function buildFinalPlayers({
     const adjustedVor = vorMap.get(String(playerId))?.adjustedVOR || 0;
     const dropoff = vorMap.get(playerId)?.dropoff || 0;
 
-    // Guardar para clasificación por posición
+    // Bucket por posición
     if (!positionBuckets[playerInfo.position]) {
       positionBuckets[playerInfo.position] = [];
     }
     positionBuckets[playerInfo.position].push({ player_id: playerId, vor: rawVor });
 
-    // Cálculo de tier global
-		let tier_global = 5;
-		if (rawVor >= 80) tier_global = 1;
-		else if (rawVor >= 50) tier_global = 2;
-		else if (rawVor >= 30) tier_global = 3;
-		else if (rawVor >= 10) tier_global = 4;
+    if (rawVor > maxGlobalVor) maxGlobalVor = rawVor;
 
     players.push({
       player_id: playerId,
@@ -86,29 +82,40 @@ export function buildFinalPlayers({
       projection: Number(projection.toFixed(2)),
       vor: Number(rawVor.toFixed(2)),
       adjustedVOR: Number(adjustedVor.toFixed(2)),
-      dropoff: Number(dropoff.toFixed(2)),
-      tier_global,
-      tier_global_label: getTierLabel(tier_global)
+      dropoff: Number(dropoff.toFixed(2))
     });
   }
 
-  // Calcular tier por posición usando adjustedVOR
+  // Tiers dinámicos globales
+  for (const p of players) {
+    const vor = p.vor;
+    let tier = 5;
+    if (vor >= 0.8 * maxGlobalVor) tier = 1;
+    else if (vor >= 0.6 * maxGlobalVor) tier = 2;
+    else if (vor >= 0.4 * maxGlobalVor) tier = 3;
+    else if (vor >= 0.2 * maxGlobalVor) tier = 4;
+    p.tier_global = tier;
+    p.tier_global_label = getTierLabel(tier);
+  }
+
+  // Tiers dinámicos por posición
   const tierByPlayerId = new Map();
 
   for (const [pos, list] of Object.entries(positionBuckets)) {
     const sorted = list.sort((a, b) => b.vor - a.vor);
-    for (let i = 0; i < sorted.length; i++) {
-      const { player_id, vor } = sorted[i];
+    const maxPosVor = sorted[0]?.vor || 0;
+
+    for (const { player_id, vor } of sorted) {
       let tier = 5;
-      if (vor >= 80) tier = 1;
-      else if (vor >= 50) tier = 2;
-      else if (vor >= 30) tier = 3;
-      else if (vor >= 10) tier = 4;
+      if (vor >= 0.8 * maxPosVor) tier = 1;
+      else if (vor >= 0.6 * maxPosVor) tier = 2;
+      else if (vor >= 0.4 * maxPosVor) tier = 3;
+      else if (vor >= 0.2 * maxPosVor) tier = 4;
       tierByPlayerId.set(player_id, tier);
     }
   }
 
-  // Agregar tier_pos a cada jugador
+  // Asignar tier_pos
   for (const p of players) {
     const tierPos = tierByPlayerId.get(p.player_id) || 5;
     p.tier_pos = tierPos;
