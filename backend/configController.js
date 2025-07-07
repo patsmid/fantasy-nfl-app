@@ -3,21 +3,37 @@ import { supabase } from './supabaseClient.js';
 /**
  * Obtener todas las configuraciones
  */
-export async function getAllConfig(req, res) {
-  try {
-    const { data, error } = await supabase
-      .from('config')
-      .select('*')
-      .order('key');
+ export async function getAllConfig(req, res) {
+   try {
+     const { data, error } = await supabase
+       .from('config')
+       .select('*')
+       .order('key');
 
-    if (error) throw error;
+     if (error) throw error;
 
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en getAllConfig:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-}
+     // Formatear si existe playerDB_updated
+     const formattedData = data.map((item) => {
+       if (item.key === 'playerDB_updated' && item.value) {
+         const date = new Date(item.value);
+         const day = String(date.getDate()).padStart(2, '0');
+         const month = String(date.getMonth() + 1).padStart(2, '0');
+         const year = date.getFullYear();
+         const hours = String(date.getHours()).padStart(2, '0');
+         const minutes = String(date.getMinutes()).padStart(2, '0');
+         const formattedDate = `${day}/${month}/${year} ${hours}:${minutes}`;
+         return { ...item, value: formattedDate };
+       }
+       return item;
+     });
+
+     res.json({ success: true, data: formattedData });
+   } catch (err) {
+     console.error('❌ Error en getAllConfig:', err.message || err);
+     res.status(500).json({ success: false, error: err.message });
+   }
+ }
+
 
 /**
  * Obtener una configuración por clave
