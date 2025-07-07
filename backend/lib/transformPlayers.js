@@ -66,11 +66,11 @@ export function buildFinalPlayers({
     positionBuckets[playerInfo.position].push({ player_id: playerId, vor: rawVor });
 
     // Cálculo de tier global
-    let tier_global = 5;
-    if (adjustedVor >= 80) tier_global = 1;
-    else if (adjustedVor >= 50) tier_global = 2;
-    else if (adjustedVor >= 30) tier_global = 3;
-    else if (adjustedVor >= 10) tier_global = 4;
+		let tier_global = 5;
+		if (rawVor >= 80) tier_global = 1;
+		else if (rawVor >= 50) tier_global = 2;
+		else if (rawVor >= 30) tier_global = 3;
+		else if (rawVor >= 10) tier_global = 4;
 
     players.push({
       player_id: playerId,
