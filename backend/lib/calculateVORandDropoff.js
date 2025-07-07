@@ -1,35 +1,44 @@
 export function calculateVORandDropoff(projections, starterPositions, numTeams) {
-  const positionMap = {};
+  const starterCounts = {};
+  for (const pos of starterPositions) {
+    if (!starterCounts[pos]) starterCounts[pos] = 0;
+    starterCounts[pos]++;
+  }
 
-  projections.forEach(p => {
-    const pos = p.position;
-    if (!positionMap[pos]) positionMap[pos] = [];
-    positionMap[pos].push(p);
-  });
+  const posBuckets = {};
+  for (const p of projections) {
+    if (!p || !p.position || typeof p.total_ppr !== 'number') continue;
+    if (!posBuckets[p.position]) posBuckets[p.position] = [];
+    posBuckets[p.position].push(p);
+  }
 
-  const results = [];
+  const result = [];
 
-  for (const [pos, players] of Object.entries(positionMap)) {
-    players.sort((a, b) => b.total_ppr - a.total_ppr);
+  for (const [pos, list] of Object.entries(posBuckets)) {
+    const libres = list.filter(p => p.status === 'LIBRE' || !p.status);
+    const sorted = libres.sort((a, b) => b.total_ppr - a.total_ppr);
 
-    const startersPerTeam = starterPositions.filter(p => p === pos).length;
-    const replacementIndex = startersPerTeam * numTeams;
-    const replacement = players[replacementIndex] || { total_ppr: 0 };
+    const N = starterCounts[pos] ? starterCounts[pos] * numTeams : numTeams;
+    const replacementIndex = Math.min(N - 1, sorted.length - 1);
+    const replacementValue = sorted[replacementIndex]?.total_ppr || 0;
 
-    for (let i = 0; i < players.length; i++) {
-      const player = players[i];
-      const nextPlayer = players[i + 1];
-      const dropoff = nextPlayer ? player.total_ppr - nextPlayer.total_ppr : 0;
+    const scarcityFactor = 1 + ((starterCounts[pos] || 0) / numTeams);
 
-      results.push({
-        player_id: player.player_id,
-        position: pos,
-        total_ppr: player.total_ppr,
-        vor: player.total_ppr - replacement.total_ppr,
-        dropoff: parseFloat(dropoff.toFixed(2)),
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      const vor = p.total_ppr - replacementValue;
+      const adjustedVOR = vor * scarcityFactor;
+      const dropoff = i + 1 < sorted.length
+        ? sorted[i].total_ppr - sorted[i + 1].total_ppr
+        : 0;
+
+      result.push({
+        player_id: p.player_id,
+        vor: Number(adjustedVOR.toFixed(2)),
+        dropoff: Number(dropoff.toFixed(2))
       });
     }
   }
 
-  return results;
+  return result;
 }

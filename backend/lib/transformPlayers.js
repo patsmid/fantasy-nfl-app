@@ -36,7 +36,7 @@ export function buildFinalPlayers({
     const fullName = playerInfo.full_name;
     const adpValue = adp.adp_value;
     const adpBefore = adp.adp_value_prev || 500;
-    const status = draftedMap.has(playerId) ? 'DRAFTEADO' : 'LIBRE';
+    const status = draftedMap.has(playerId) ? '' : 'LIBRE';
 
     const playerRankMatch = fuzzySearch(fullName, rankings.players);
     const playerRank = playerRankMatch[0] || {};
