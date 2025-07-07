@@ -1,8 +1,26 @@
 export function calculateVORandDropoff(projections, starterPositions, numTeams) {
   const starterCounts = {};
+
   for (const pos of starterPositions) {
-    if (!starterCounts[pos]) starterCounts[pos] = 0;
-    starterCounts[pos]++;
+    // Posiciones normales
+    if (['QB', 'RB', 'WR', 'TE', 'K', 'DST'].includes(pos)) {
+      starterCounts[pos] = (starterCounts[pos] || 0) + 1;
+    }
+
+    // Posiciones flexibles
+    else if (pos === 'FLEX') {
+      ['RB', 'WR', 'TE'].forEach(p => {
+        starterCounts[p] = (starterCounts[p] || 0) + 1 / 3;
+      });
+    } else if (pos === 'REC_FLEX') {
+      ['WR', 'TE'].forEach(p => {
+        starterCounts[p] = (starterCounts[p] || 0) + 1 / 2;
+      });
+    } else if (pos === 'SUPER_FLEX') {
+      ['QB', 'RB', 'WR', 'TE'].forEach(p => {
+        starterCounts[p] = (starterCounts[p] || 0) + 1 / 4;
+      });
+    }
   }
 
   const posBuckets = {};
@@ -16,35 +34,28 @@ export function calculateVORandDropoff(projections, starterPositions, numTeams) 
 
   for (const [pos, list] of Object.entries(posBuckets)) {
     const libres = list.filter(p => p.status === 'LIBRE' || !p.status);
-    const sortedLibres = [...libres].sort((a, b) => b.total_ppr - a.total_ppr);
+    const sorted = libres.sort((a, b) => b.total_ppr - a.total_ppr);
 
-    const N = starterCounts[pos] ? starterCounts[pos] * numTeams : numTeams;
-    const replacementIndex = Math.min(N - 1, sortedLibres.length - 1);
-    const replacementValue = sortedLibres[replacementIndex]?.total_ppr || 0;
+    const N = starterCounts[pos] ? Math.round(starterCounts[pos] * numTeams) : numTeams;
+    const replacementIndex = Math.min(N - 1, sorted.length - 1);
+    const replacementValue = sorted[replacementIndex]?.total_ppr || 0;
 
     const scarcityFactor = 1 + ((starterCounts[pos] || 0) / numTeams);
 
-    for (const p of list) {
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
       const vor = p.total_ppr - replacementValue;
-
-      // Si está en la lista de libres, calculamos adjustedVOR y dropoff
-      const isLibre = p.status === 'LIBRE' || !p.status;
-      const adjustedVOR = isLibre ? vor * scarcityFactor : 0;
-
-      // Solo calculamos dropoff si es LIBRE y está ordenado
-      let dropoff = 0;
-      if (isLibre) {
-        const index = sortedLibres.findIndex(pl => pl.player_id === p.player_id);
-        if (index >= 0 && index + 1 < sortedLibres.length) {
-          dropoff = sortedLibres[index].total_ppr - sortedLibres[index + 1].total_ppr;
-        }
-      }
+      const dropoff = i + 1 < list.length
+        ? list[i].total_ppr - list[i + 1].total_ppr
+        : 0;
 
       result.push({
         player_id: p.player_id,
         vor: Number(vor.toFixed(2)),
-        adjustedVOR: Number(adjustedVOR.toFixed(2)),
-        dropoff: Number(dropoff.toFixed(2))
+        adjustedVOR: (p.status === 'LIBRE' || !p.status)
+          ? Number((vor * scarcityFactor).toFixed(2))
+          : 0,
+        dropoff: Number(dropoff.toFixed(2)),
       });
     }
   }
