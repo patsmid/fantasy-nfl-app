@@ -78,12 +78,26 @@ export async function getConfig(req, res) {
      if (key === 'playerDB_updated') {
        const date = new Date(value);
        if (!isNaN(date)) {
-         const day = String(date.getDate()).padStart(2, '0');
-         const month = String(date.getMonth() + 1).padStart(2, '0');
-         const year = date.getFullYear();
-         const hours = String(date.getHours()).padStart(2, '0');
-         const minutes = String(date.getMinutes()).padStart(2, '0');
-         finalValue = `${day}/${month}/${year} ${hours}:${minutes}`;
+         const formatter = new Intl.DateTimeFormat('es-MX', {
+           timeZone: 'America/Mexico_City',
+           day: '2-digit',
+           month: '2-digit',
+           year: 'numeric',
+           hour: '2-digit',
+           minute: '2-digit',
+           hour12: false,
+         });
+
+         const parts = formatter.formatToParts(date);
+         const getPart = (type) => parts.find((p) => p.type === type)?.value || '00';
+
+         const day = getPart('day');
+         const month = getPart('month');
+         const year = getPart('year');
+         const hour = getPart('hour');
+         const minute = getPart('minute');
+
+         finalValue = `${day}/${month}/${year} ${hour}:${minute}`;
        }
      }
 
