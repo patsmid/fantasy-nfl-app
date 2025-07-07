@@ -3,12 +3,6 @@ import fetch from 'node-fetch';
 import { getStarterPositions, getADPtype } from '../utils/helpers.js';
 import { sleeperADPcols, positions } from '../utils/constants.js';
 
-export async function getLeagueData(leagueId) {
-  const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
-  if (!res.ok) throw new Error(`Error al obtener datos de liga: ${res.status}`);
-  return await res.json();
-}
-
 export async function getConfigValue(key) {
   const { data, error } = await supabase.from('config').select('value').eq('key', key).single();
   if (error) throw new Error(`Error leyendo config: ${key}`);

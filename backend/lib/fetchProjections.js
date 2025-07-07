@@ -1,9 +1,9 @@
 import fetch from 'node-fetch';
-import { getNflState, getLeagueData, getPlayoffsData } from '../utils/sleeper.js';
+import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
 export async function getTotalProjections(leagueId) {
   const { season } = await getNflState();
-  const leagueData = await getLeagueData(leagueId);
+  const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
 
   const regularSeasonLength = leagueData.settings.playoff_week_start - 1;
