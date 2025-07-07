@@ -1,4 +1,4 @@
-import { getLeagueData, getConfigValue, getDraftPicks, getADPData, getPlayersData, getRankings, getMainUserDraft } from './lib/draftUtils.js';
+import { getSleeperLeague, getConfigValue, getDraftPicks, getADPData, getPlayersData, getRankings, getMainUserDraft } from './lib/draftUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
 import { getTotalProjections } from './lib/fetchProjections.js';
@@ -6,7 +6,7 @@ import { calculateVORandDropoff } from './lib/calculateVORandDropoff.js';
 
 export async function getDraftData(leagueId, { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}) {
   // 1. Datos de liga
-  const leagueData = await getLeagueData(leagueId);
+  const leagueData = await getSleeperLeague(leagueId);
   const num_teams = leagueData.settings.num_teams;
   const starterPositions = getStarterPositions(leagueData);
   const superFlex = starterPositions.includes('SUPER_FLEX');
