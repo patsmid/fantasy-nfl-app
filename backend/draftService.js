@@ -43,7 +43,7 @@ export async function getDraftData(leagueId, { position = 'TODAS', byeCondition 
   const draftedMap = new Map(drafted.map(p => [String(p.player_id), p]));
   const projectionsWithStatus = projections.map(p => ({
     ...p,
-    status: draftedMap.has(p.player_id) ? '' : 'LIBRE'
+    status: draftedMap.has(p.player_id) ? 'DRAFTEADO' : 'LIBRE'
   }));
 
   const vorList = calculateVORandDropoff(projectionsWithStatus, starterPositions, num_teams);
