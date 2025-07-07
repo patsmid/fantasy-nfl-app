@@ -19,3 +19,5 @@ export const positions = [
   { nombre: 'DEFENSA', valor: 'DST' },
   { nombre: 'FLEX', valor: 'FLX' },
 ];
+
+export const goodOffense = ['KC', 'HOU', 'SF', 'CIN', 'PHI', 'MIA', 'BAL', 'DET', 'BUF', 'GB', 'LAR', 'ATL', 'JAX', 'CHI'];

@@ -1,5 +1,18 @@
 import { supabase } from '../supabaseClient.js';
 
+export async function getNflState() {
+  try {
+    const res = await fetch('https://api.sleeper.app/v1/state/nfl');
+    if (!res.ok) throw new Error(`Sleeper API error: ${res.statusText}`);
+
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error('❌ Error al obtener estado NFL:', err.message);
+    throw err;
+  }
+}
+
 export async function getSleeperADP(req, res) {
   try {
     // Parámetros DataTables
@@ -148,6 +161,19 @@ export async function getLatestADPDate(req, res) {
   }
 }
 
+export async function getPlayoffsData(leagueId) {
+  try {
+    const url = `https://api.sleeper.app/v1/league/${leagueId}/winners_bracket`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Sleeper API error (playoffs): ${res.statusText}`);
+    return await res.json(); // Array de rondas
+  } catch (err) {
+    console.error('❌ Error al obtener playoffs:', err.message);
+    throw err;
+  }
+}
+
+//funciones auxiliares
 export async function getADPTypes(req, res) {
   try {
     const { data, error } = await supabase
