@@ -1,5 +1,5 @@
 import { fuzzySearch } from '../utils/helpers.js';
-import { goodOffense } from '../constants.js';
+import { goodOffense } from '../utils/constants.js';
 
 export function buildFinalPlayers({
   adpData,
