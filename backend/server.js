@@ -13,6 +13,7 @@ import {
 } from './experts.js';
 import { getSleeperADP, getLatestADPDate, getADPTypes, updateSleeperADP, getUniqueSleeperADPValues  } from './utils/sleeper.js';
 import draftRouter from './draft.js';
+import linksRouter from './links.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,6 +80,7 @@ app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
 app.use('/draft', draftRouter);
 
+app.use('/links', linksRouter);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///FUNCIONES DEL SERVIDOR
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
