@@ -16,25 +16,34 @@ export function calculateVORandDropoff(projections, starterPositions, numTeams) 
 
   for (const [pos, list] of Object.entries(posBuckets)) {
     const libres = list.filter(p => p.status === 'LIBRE' || !p.status);
-    const sorted = libres.sort((a, b) => b.total_ppr - a.total_ppr);
+    const sortedLibres = [...libres].sort((a, b) => b.total_ppr - a.total_ppr);
 
     const N = starterCounts[pos] ? starterCounts[pos] * numTeams : numTeams;
-    const replacementIndex = Math.min(N - 1, sorted.length - 1);
-    const replacementValue = sorted[replacementIndex]?.total_ppr || 0;
+    const replacementIndex = Math.min(N - 1, sortedLibres.length - 1);
+    const replacementValue = sortedLibres[replacementIndex]?.total_ppr || 0;
 
     const scarcityFactor = 1 + ((starterCounts[pos] || 0) / numTeams);
 
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i];
+    for (const p of list) {
       const vor = p.total_ppr - replacementValue;
-      const adjustedVOR = vor * scarcityFactor;
-      const dropoff = i + 1 < sorted.length
-        ? sorted[i].total_ppr - sorted[i + 1].total_ppr
-        : 0;
+
+      // Si está en la lista de libres, calculamos adjustedVOR y dropoff
+      const isLibre = p.status === 'LIBRE' || !p.status;
+      const adjustedVOR = isLibre ? vor * scarcityFactor : 0;
+
+      // Solo calculamos dropoff si es LIBRE y está ordenado
+      let dropoff = 0;
+      if (isLibre) {
+        const index = sortedLibres.findIndex(pl => pl.player_id === p.player_id);
+        if (index >= 0 && index + 1 < sortedLibres.length) {
+          dropoff = sortedLibres[index].total_ppr - sortedLibres[index + 1].total_ppr;
+        }
+      }
 
       result.push({
         player_id: p.player_id,
-        vor: Number(adjustedVOR.toFixed(2)),
+        vor: Number(vor.toFixed(2)),
+        adjustedVOR: Number(adjustedVOR.toFixed(2)),
         dropoff: Number(dropoff.toFixed(2))
       });
     }

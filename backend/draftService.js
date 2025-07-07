@@ -47,7 +47,7 @@ export async function getDraftData(leagueId, { position = 'TODAS', byeCondition 
   }));
 
   const vorList = calculateVORandDropoff(projectionsWithStatus, starterPositions, num_teams);
-  const vorMap = new Map(vorList.map(p => [p.player_id, p]));
+	const vorMap = new Map(vorList.map(p => [p.player_id, p]));
 
   // 8. Construcción final de jugadores
   const players = buildFinalPlayers({

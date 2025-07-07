@@ -55,42 +55,44 @@ export function buildFinalPlayers({
     const adpRound = Math.ceil(adpValue / num_teams) + 0.01 * (adpValue - num_teams * (Math.ceil(adpValue / num_teams) - 1));
 
     const projection = projectionMap.get(playerId) || 0;
-    const vor = vorMap.get(playerId)?.vor || 0;
+    const rawVor = vorMap.get(String(playerId))?.vor || 0;
+    const adjustedVor = vorMap.get(String(playerId))?.adjustedVOR || 0;
     const dropoff = vorMap.get(playerId)?.dropoff || 0;
 
     // Guardar para clasificación por posición
     if (!positionBuckets[playerInfo.position]) {
       positionBuckets[playerInfo.position] = [];
     }
-    positionBuckets[playerInfo.position].push({ player_id: playerId, vor });
+    positionBuckets[playerInfo.position].push({ player_id: playerId, vor: rawVor });
 
     // Cálculo de tier global
     let tier_global = 5;
-    if (vor >= 80) tier_global = 1;
-    else if (vor >= 50) tier_global = 2;
-    else if (vor >= 30) tier_global = 3;
-    else if (vor >= 10) tier_global = 4;
+    if (adjustedVor >= 80) tier_global = 1;
+    else if (adjustedVor >= 50) tier_global = 2;
+    else if (adjustedVor >= 30) tier_global = 3;
+    else if (adjustedVor >= 10) tier_global = 4;
 
-		players.push({
-		  player_id: playerId,
-		  nombre: `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`,
-		  position: playerInfo.position,
-		  team: playerInfo.team,
-		  bye,
-		  rank,
-		  status,
-		  adpValue: Number(adpValue.toFixed(2)),
-		  adpDiff: Number((adpBefore - adpValue).toFixed(2)),
-		  adpRound: Number(adpRound.toFixed(2)),
-		  projection: Number(projection.toFixed(2)),
-		  vor: Number(vor.toFixed(2)),
-		  dropoff: Number(dropoff.toFixed(2)),
-		  tier_global,
-		  tier_global_label: getTierLabel(tier_global) // 👈 Agregado
-		});
+    players.push({
+      player_id: playerId,
+      nombre: `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`,
+      position: playerInfo.position,
+      team: playerInfo.team,
+      bye,
+      rank,
+      status,
+      adpValue: Number(adpValue.toFixed(2)),
+      adpDiff: Number((adpBefore - adpValue).toFixed(2)),
+      adpRound: Number(adpRound.toFixed(2)),
+      projection: Number(projection.toFixed(2)),
+      vor: Number(rawVor.toFixed(2)),
+      adjustedVOR: Number(adjustedVor.toFixed(2)),
+      dropoff: Number(dropoff.toFixed(2)),
+      tier_global,
+      tier_global_label: getTierLabel(tier_global)
+    });
   }
 
-  // Calcular tier por posición
+  // Calcular tier por posición usando adjustedVOR
   const tierByPlayerId = new Map();
 
   for (const [pos, list] of Object.entries(positionBuckets)) {
@@ -108,14 +110,10 @@ export function buildFinalPlayers({
 
   // Agregar tier_pos a cada jugador
   for (const p of players) {
-    p.tier_pos = tierByPlayerId.get(p.player_id) || 5;
+    const tierPos = tierByPlayerId.get(p.player_id) || 5;
+    p.tier_pos = tierPos;
+    p.tier_pos_label = getTierLabel(tierPos);
   }
-
-	for (const p of players) {
-	  const tierPos = tierByPlayerId.get(p.player_id) || 5;
-	  p.tier_pos = tierPos;
-	  p.tier_pos_label = getTierLabel(tierPos);
-	}
 
   return players.sort((a, b) => a.rank - b.rank);
 }
