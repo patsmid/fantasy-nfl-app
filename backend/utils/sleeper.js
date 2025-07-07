@@ -173,6 +173,7 @@ export async function getPlayoffsData(leagueId) {
   }
 }
 
+////////////////////////////////////////////////////////////////////////
 //funciones auxiliares
 export async function getADPTypes(req, res) {
   try {

@@ -13,6 +13,7 @@ import {
 } from './experts.js';
 import { getSleeperADP, getLatestADPDate, getADPTypes, updateSleeperADP, getUniqueSleeperADPValues  } from './utils/sleeper.js';
 import draftRouter from './draft.js';
+import projectionsRouter from './projections.js';
 import linksRouter from './links.js';
 
 const app = express();
@@ -79,6 +80,8 @@ app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
 app.use('/draft', draftRouter);
+
+app.use('/api/projections', projectionsRouter);
 
 app.use('/links', linksRouter);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
