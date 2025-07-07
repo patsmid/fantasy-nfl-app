@@ -1,6 +1,6 @@
 import { fetchDraftData } from '../api.js';
 import { positions } from '../../components/constants.js';
-import { showError } from '../../components/alerts.js';
+import { showError, showLoadingBar } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
@@ -59,6 +59,9 @@ export default async function renderDraftView() {
                 <th>Status</th>
                 <th>Ronda</th>
                 <th>Diferencia</th>
+                <th>VOR</th> <!-- ✅ -->
+                <th>VOR Ajustado</th> <!-- ✅ -->
+                <th>Dropoff</th> <!-- ✅ -->
               </tr>
             </thead>
             <tbody></tbody>
@@ -146,7 +149,10 @@ export default async function renderDraftView() {
       p.rank ?? '',
       p.status,
       p.adpRound ?? '',
-      p.adpDiff ?? ''
+      p.adpDiff ?? '',
+      p.vor ?? '', // ✅
+      p.adjustedVOR ?? '', // ✅
+      p.dropoff ?? '' // ✅
     ]);
 
     if ($.fn.dataTable.isDataTable('#draftTable')) {
@@ -168,27 +174,34 @@ export default async function renderDraftView() {
     }
   }
 
-  async function loadDraftData() {
-    try {
-      const leagueId = leagueSelect.value;
-      const position = positionSelect.value;
-      const byeCondition = byeInput.value || 0;
-      const idExpert = expertSelect.value || 3701;
+	async function loadDraftData() {
+	  try {
+	    const leagueId = leagueSelect.value;
+	    const position = positionSelect.value;
+	    const byeCondition = byeInput.value || 0;
+	    const idExpert = expertSelect.value;
 
-      if (!leagueId) return showError('Selecciona una liga');
+	    if (!leagueId || !idExpert) {
+	      return showError('Selecciona una liga y un experto');
+	    }
 
-      localStorage.setItem('draftLeague', leagueId);
-      localStorage.setItem('draftPosition', position);
-      localStorage.setItem('draftBye', byeCondition);
-      localStorage.setItem('draftExpert', idExpert);
+	    localStorage.setItem('draftLeague', leagueId);
+	    localStorage.setItem('draftPosition', position);
+	    localStorage.setItem('draftBye', byeCondition);
+	    localStorage.setItem('draftExpert', idExpert);
 
-      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-      draftData = res.data;
-      updateTable(draftData);
-    } catch (err) {
-      showError('Error al actualizar draft: ' + err.message);
-    }
-  }
+	    showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+
+	    const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+	    draftData = res.data;
+	    updateTable(draftData);
+
+	    Swal.close();
+	  } catch (err) {
+	    Swal.close();
+	    showError('Error al actualizar draft: ' + err.message);
+	  }
+	}
 
   if (savedLeague && savedPosition && savedExpert) {
     loadDraftData();

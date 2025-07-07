@@ -33,3 +33,18 @@ export function showConfirm({
     cancelButtonText
   });
 }
+
+export function showLoadingBar(title = 'Cargando...', text = 'Esto puede tardar unos segundos') {
+  Swal.fire({
+    title,
+    html: `
+      <div class="progress" style="height: 20px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+             role="progressbar" style="width: 100%"></div>
+      </div>
+    `,
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading()
+  });
+}
