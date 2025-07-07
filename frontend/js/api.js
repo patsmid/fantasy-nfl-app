@@ -6,8 +6,8 @@ export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition 
   const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`;
 
   try {
-    const json = await fetch(url);
-
+    const res = await fetch(url);
+    const json = await res.json();
     if (!json || !Array.isArray(json.data)) {
       throw new Error('Respuesta inválida del servidor');
     }
