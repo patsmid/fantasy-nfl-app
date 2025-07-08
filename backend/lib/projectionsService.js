@@ -43,13 +43,13 @@ export async function getTotalProjectionsFromDB(leagueId) {
  * Calcula proyección PPR.
  * Convierte valores numéricos que vengan como string.
  */
-export function calculateProjection(stats = {}, scoring = {}) {
-  return Object.entries(stats).reduce((acc, [stat, val]) => {
-    const multiplier = scoring[stat] || 0;
-    const numVal = typeof val === 'string' ? Number(val) : val;
-    return acc + numVal * multiplier;
-  }, 0);
-}
+// export function calculateProjection(stats = {}, scoring = {}) {
+//   return Object.entries(stats).reduce((acc, [stat, val]) => {
+//     const multiplier = scoring[stat] || 0;
+//     const numVal = typeof val === 'string' ? Number(val) : val;
+//     return acc + numVal * multiplier;
+//   }, 0);
+// }
 
 export async function getTotalProjections(leagueId) {
   const { season } = await getNflState();
@@ -101,11 +101,11 @@ export async function getTotalProjections(leagueId) {
   return Array.from(allProjections.values());
 }
 
-// export function calculateProjection(stats = {}, scoring = {}) {
-//   return Object.entries(stats).reduce(
-//     (acc, [stat, val]) => acc + (val * (scoring[stat] || 0)), 0
-//   );
-// }
+export function calculateProjection(stats = {}, scoring = {}) {
+  return Object.entries(stats).reduce(
+    (acc, [stat, val]) => acc + (val * (scoring[stat] || 0)), 0
+  );
+}
 
 export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const { season } = await getNflState();
