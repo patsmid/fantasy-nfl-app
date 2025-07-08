@@ -53,19 +53,22 @@ export function calculateProjection(projectedStats = {}, scoringSettings = {}) {
   return score;
 }
 
-export async function fetchAndStoreProjections() {
+export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const { season } = await getNflState();
-  //const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
-const  weeks = [1];
+  const weeks = Array.from({ length: toWeek - fromWeek + 1 }, (_, i) => fromWeek + i);
   const seasonType = 'regular';
 
   const weekly = [];
   const totalMap = new Map();
   const OFFENSIVE_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
 
+  console.log(`📆 Semanas a procesar:`, weeks);
+
   for (const week of weeks) {
     const url = `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=${seasonType}&order_by=ppr`;
     const res = await fetch(url);
+
+    console.log(`📡 Obteniendo datos de la semana ${week}: ${url}`);
 
     if (!res.ok) {
       console.warn(`⚠️ Semana ${week} fallida: ${res.statusText}`);
@@ -73,6 +76,7 @@ const  weeks = [1];
     }
 
     const data = await res.json();
+    console.log(`✅ Semana ${week} descargada: ${data.length} jugadores`);
 
     for (const entry of data) {
       const stats = entry.stats || {};
@@ -116,14 +120,15 @@ const  weeks = [1];
     supabase.from('projections_total').upsert(total, { onConflict: ['player_id', 'season'] })
   ]);
 
-  if (resWeekly.error) console.error('❌ Error semanal:', resWeekly.error.message);
-  if (resTotal.error) console.error('❌ Error total:', resTotal.error.message);
+  if (resWeekly.error) throw new Error('Error semanal: ' + resWeekly.error.message);
+  if (resTotal.error) throw new Error('Error total: ' + resTotal.error.message);
 
   return {
     weeklyCount: weekly.length,
     totalCount: total.length
   };
 }
+
 
 export async function getWeeklyProjections(season, week) {
   const { data, error } = await supabase

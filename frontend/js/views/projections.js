@@ -1,3 +1,5 @@
+import { showLoadingBar, showError } from '../../components/alerts.js';
+
 export default async function renderProjectionsView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
@@ -45,19 +47,48 @@ export default async function renderProjectionsView() {
     renderProjectionsTable(data);
   });
 
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
   document.getElementById('btn-update-projections').addEventListener('click', async () => {
     const btn = document.getElementById('btn-update-projections');
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Actualizando...';
 
-    try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/projections/update', { method: 'POST' });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      alert(`✅ Proyecciones actualizadas.\nTotales: ${json.totalCount}\nSemanales: ${json.weeklyCount}`);
-    } catch (err) {
-      alert('❌ Error al actualizar proyecciones:\n' + err.message);
+    showLoadingBar('Actualizando proyecciones', 'Procesando semanas por bloques...');
+
+    const totalWeeks = 18;
+    const chunkSize = 3;
+    let totalWeekly = 0;
+    let totalTotal = 0;
+
+    for (let fromWeek = 1; fromWeek <= totalWeeks; fromWeek += chunkSize) {
+      const toWeek = Math.min(fromWeek + chunkSize - 1, totalWeeks);
+      try {
+        const res = await fetch('https://fantasy-nfl-backend.onrender.com/projections/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fromWeek, toWeek })
+        });
+
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+
+        totalWeekly += json.weeklyCount;
+        totalTotal += json.totalCount;
+
+        console.log(`✅ Semanas ${fromWeek}-${toWeek} actualizadas`);
+      } catch (err) {
+        console.error(`❌ Error en semanas ${fromWeek}-${toWeek}:`, err.message);
+        Swal.close();
+        showError(`❌ Error al actualizar semanas ${fromWeek}-${toWeek}:\n` + err.message);
+        break;
+      }
+
+      await sleep(5000);
     }
+
+    Swal.close();
+    alert(`✅ Proyecciones completas\nTotal semanal: ${totalWeekly}\nTotal acumulado: ${totalTotal}`);
 
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Actualizar';
@@ -67,7 +98,7 @@ export default async function renderProjectionsView() {
 function renderProjectionsTable(data = []) {
   const keys = ['pts_ppr', 'pts_half_ppr', 'pts_std'];
   const html = `
-    <table class="table table-dark table-hover align-middle w-100">
+    <table id="projectionsTable" class="table table-dark table-hover align-middle w-100">
       <thead>
         <tr>
           <th>Jugador</th>
@@ -84,5 +115,19 @@ function renderProjectionsTable(data = []) {
       </tbody>
     </table>
   `;
+
   document.getElementById('projectionsResult').innerHTML = html;
+
+  if ($.fn.dataTable.isDataTable('#projectionsTable')) {
+    $('#projectionsTable').DataTable().destroy();
+  }
+
+  $('#projectionsTable').DataTable({
+    responsive: true,
+    pageLength: 25,
+    language: {
+      url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+    },
+    dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip'
+  });
 }

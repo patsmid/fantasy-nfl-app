@@ -24,14 +24,21 @@ router.get('/', async (req, res) => {
 
 router.post('/update', async (req, res) => {
   try {
-    console.log('🔁 Iniciando actualización de proyecciones');
-    const result = await fetchAndStoreProjections();
-    console.log('✅ Actualización completada');
+    const { fromWeek = 1, toWeek = 18 } = req.body;
+
+    if (fromWeek > toWeek) {
+      return res.status(400).json({ error: '"fromWeek" no puede ser mayor que "toWeek"' });
+    }
+
+    console.log(`🔄 Actualizando proyecciones de la semana ${fromWeek} a ${toWeek}`);
+
+    const result = await fetchAndStoreProjections(fromWeek, toWeek);
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('❌ Error al actualizar proyecciones:', error.message || error);
     res.status(500).json({ error: 'Error al actualizar proyecciones' });
   }
 });
+
 
 export default router;
