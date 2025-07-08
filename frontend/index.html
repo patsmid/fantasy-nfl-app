@@ -21,7 +21,6 @@
 
     <!-- Sidebar fijo (desktop) -->
     <nav id="sidebar" class="flock-sidebar d-none d-lg-flex" role="navigation" aria-label="Sidebar principal">
-			<div class="flock-logo">🏈 Fantasy NFL</div>
       <!-- Se llenará dinámicamente -->
     </nav>
 
@@ -38,19 +37,18 @@
     <!-- Contenedor principal -->
     <div class="flex-grow-1 d-flex flex-column min-vh-100">
       <!-- Topbar -->
-      <nav class="navbar flock-topbar">
-        <div class="container-fluid d-flex align-items-center justify-content-between">
-          <!-- Texto o logo a la izquierda -->
-          <!-- <div class="navbar-brand m-0 d-flex align-items-center" id="topbar-brand">
-            🏈 Fantasy NFL
-          </div> -->
+			<nav class="navbar flock-topbar">
+			  <div class="container-fluid d-flex align-items-center">
+			    <!-- Logo solo visible en desktop -->
+			    <!-- <div class="navbar-brand d-none d-lg-block">🏈 Fantasy NFL</div> -->
 
-          <!-- Botón hamburguesa móvil -->
-					<button class="btn btn-outline-secondary d-lg-none" id="toggle-sidebar" aria-label="Menú">
-					  <i class="bi bi-list fs-3"></i>
-					</button>
-        </div>
-      </nav>
+			    <!-- Botón hamburguesa móvil alineado a la derecha -->
+			    <button class="btn btn-outline-secondary d-lg-none ms-auto" id="toggle-sidebar" aria-label="Menú">
+			      <i class="bi bi-list fs-3"></i>
+			    </button>
+			  </div>
+			</nav>
+
 
       <!-- Contenido dinámico -->
       <main id="content-container" class="p-4 flex-grow-1" tabindex="-1" aria-live="polite"></main>
