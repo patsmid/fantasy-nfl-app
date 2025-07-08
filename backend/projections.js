@@ -24,10 +24,12 @@ router.get('/', async (req, res) => {
 
 router.post('/update', async (req, res) => {
   try {
+    console.log('🔁 Iniciando actualización de proyecciones');
     const result = await fetchAndStoreProjections();
+    console.log('✅ Actualización completada');
     res.json({ success: true, ...result });
   } catch (error) {
-    console.error('❌ Error al actualizar proyecciones:', error.message);
+    console.error('❌ Error al actualizar proyecciones:', error.message || error);
     res.status(500).json({ error: 'Error al actualizar proyecciones' });
   }
 });

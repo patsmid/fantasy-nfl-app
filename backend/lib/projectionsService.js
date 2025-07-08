@@ -55,24 +55,25 @@ export function calculateProjection(projectedStats = {}, scoringSettings = {}) {
 
 export async function fetchAndStoreProjections() {
   const { season } = await getNflState();
-  const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+  //const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+const  weeks = [1];
   const seasonType = 'regular';
 
   const weekly = [];
   const totalMap = new Map();
   const OFFENSIVE_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
-    console.log(weeks);
+
   for (const week of weeks) {
     const url = `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=${seasonType}&order_by=ppr`;
     const res = await fetch(url);
-    console.log(url);
+
     if (!res.ok) {
       console.warn(`⚠️ Semana ${week} fallida: ${res.statusText}`);
       continue;
     }
 
     const data = await res.json();
-    console.log(data);
+
     for (const entry of data) {
       const stats = entry.stats || {};
       const player_id = entry.player_id;
