@@ -11,7 +11,8 @@ export async function getTotalProjections(leagueId) {
     .from('projections_raw')
     .select('player_id, stats, week, season')
     .eq('season', season)
-    .order('week');
+    .order('week')
+    .range(0, 9999);
 
   if (error) throw new Error('Error DB: ' + error.message);
 
@@ -82,13 +83,11 @@ export async function getTotalProjectionsFromSleeper(leagueId) {
   return Array.from(allProjections.values());
 }
 
-
 export function calculateProjection(stats = {}, scoring = {}) {
   return Object.entries(stats).reduce(
     (acc, [stat, val]) => acc + (val * (scoring[stat] || 0)), 0
   );
 }
-
 
 export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const { season } = await getNflState();
