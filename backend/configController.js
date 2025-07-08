@@ -15,7 +15,7 @@ import { supabase } from './supabaseClient.js';
      // Formatear si existe playerDB_updated
      const formattedData = data.map((item) => {
        if (item.key === 'playerDB_updated' && item.value) {
-         const date = new Date(item.value);
+         const date = new Date(item.value).toLocaleString("es-MX", {timeZone: "America/Mexico_City"});
          const day = String(date.getDate()).padStart(2, '0');
          const month = String(date.getMonth() + 1).padStart(2, '0');
          const year = date.getFullYear();
