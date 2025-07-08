@@ -21,7 +21,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   padding: 1.5rem 1rem;
-  padding-top: 72px;
+  padding-top: 1rem;
   position: fixed;
   top: 0;
   left: 0;
@@ -47,6 +47,7 @@ body {
   font-size: 1.4rem;
   font-weight: 600;
   margin: 0 0 2rem;
+	margin-bottom: 1rem;
   padding-left: 0.25rem;
   user-select: none;
 }
