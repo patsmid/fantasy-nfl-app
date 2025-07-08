@@ -34,7 +34,6 @@ import { supabase } from './supabaseClient.js';
    }
  }
 
-
 /**
  * Obtener una configuración por clave
  */
@@ -76,29 +75,7 @@ export async function getConfig(req, res) {
 
      // Formatea si es playerDB_updated y el valor es una fecha válida
      if (key === 'playerDB_updated') {
-       const date = new Date(value);
-       if (!isNaN(date)) {
-         const formatter = new Intl.DateTimeFormat('es-MX', {
-           timeZone: 'America/Mexico_City',
-           day: '2-digit',
-           month: '2-digit',
-           year: 'numeric',
-           hour: '2-digit',
-           minute: '2-digit',
-           hour12: false,
-         });
-
-         const parts = formatter.formatToParts(date);
-         const getPart = (type) => parts.find((p) => p.type === type)?.value || '00';
-
-         const day = getPart('day');
-         const month = getPart('month');
-         const year = getPart('year');
-         const hour = getPart('hour');
-         const minute = getPart('minute');
-
-         finalValue = `${day}/${month}/${year} ${hour}:${minute}`;
-       }
+			 finalValue = new Date();
      }
 
      const { error } = await supabase
