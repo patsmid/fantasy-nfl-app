@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import { supabase } from '../supabaseClient.js';
 import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
-export async function getTotalProjectionsFromDB(leagueId) {
+export async function getTotalProjections(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
@@ -12,46 +12,38 @@ export async function getTotalProjectionsFromDB(leagueId) {
     .select('player_id, stats, week, season')
     .eq('season', season)
     .order('week')
-    .range(0, 9999);
+		.range(0, 9999);
 
   if (error) throw new Error('Error DB: ' + error.message);
 
   const projectionsMap = new Map();
 
   for (const row of data) {
-    // ⬇️ 1. Asegurar que stats sea objeto
-    const statsObj = typeof row.stats === 'string'
-      ? JSON.parse(row.stats)
-      : row.stats;
-
-    // ⬇️ 2. Calcular puntos
-    const points = calculateProjection(statsObj, scoringSettings);
+    const points = calculateProjection(row.stats, scoringSettings);
 
     if (!projectionsMap.has(row.player_id)) {
       projectionsMap.set(row.player_id, {
         player_id: row.player_id,
-        total_ppr: 0
+        total_ppr: 0,
       });
     }
+
     projectionsMap.get(row.player_id).total_ppr += points;
   }
 
   return Array.from(projectionsMap.values());
 }
 
-/**
- * Calcula proyección PPR.
- * Convierte valores numéricos que vengan como string.
- */
-// export function calculateProjection(stats = {}, scoring = {}) {
-//   return Object.entries(stats).reduce((acc, [stat, val]) => {
-//     const multiplier = scoring[stat] || 0;
-//     const numVal = typeof val === 'string' ? Number(val) : val;
-//     return acc + numVal * multiplier;
-//   }, 0);
-// }
+export function calculateProjection(stats = {}, scoring = {}) {
+   return Object.entries(scoring).reduce((acc, [key, multiplier]) => {
+     const value = stats[key];
+     if (value === undefined) return acc;
+     const num = typeof value === 'string' ? parseFloat(value) : value;
+     return acc + num * multiplier;
+   }, 0);
+ }
 
-export async function getTotalProjections(leagueId) {
+export async function getTotalProjectionsFromSleeper(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
@@ -101,11 +93,11 @@ export async function getTotalProjections(leagueId) {
   return Array.from(allProjections.values());
 }
 
-export function calculateProjection(stats = {}, scoring = {}) {
-  return Object.entries(stats).reduce(
-    (acc, [stat, val]) => acc + (val * (scoring[stat] || 0)), 0
-  );
-}
+// export function calculateProjection(stats = {}, scoring = {}) {
+//   return Object.entries(stats).reduce(
+//     (acc, [stat, val]) => acc + (val * (scoring[stat] || 0)), 0
+//   );
+// }
 
 export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const { season } = await getNflState();
