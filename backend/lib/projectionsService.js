@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import { supabase } from '../supabaseClient.js';
 import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
-export async function getTotalProjections(leagueId) {
+export async function getTotalProjectionsFromDB(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
@@ -51,7 +51,7 @@ export function calculateProjection(stats = {}, scoring = {}) {
   }, 0);
 }
 
-export async function getTotalProjectionsFromSleeper(leagueId) {
+export async function getTotalProjections(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
