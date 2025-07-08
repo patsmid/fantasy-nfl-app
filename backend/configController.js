@@ -12,7 +12,7 @@ import { supabase } from './supabaseClient.js';
 
      if (error) throw error;
 
-   	res.json({ success: true, data: formattedData });
+   	res.json({ success: true, data: data });
    } catch (err) {
      console.error('❌ Error en getAllConfig:', err.message || err);
      res.status(500).json({ success: false, error: err.message });
