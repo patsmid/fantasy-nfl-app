@@ -7,12 +7,18 @@ export async function getTotalProjections(leagueId) {
   const leagueData = await getSleeperLeague(leagueId);
   const scoringSettings = leagueData.scoring_settings;
 
+  const regularSeasonLength = leagueData.settings.playoff_week_start - 1;
+  const playoffs = await getPlayoffsData(leagueId);
+  const playoffLength = playoffs.at(-1)?.r || 0;
+  const fullSeasonLength = regularSeasonLength + playoffLength;
+
   const { data, error } = await supabase
     .from('projections_raw')
     .select('player_id, stats, week, season')
     .eq('season', season)
+    .lte('week', fullSeasonLength)
     .order('week')
-		.range(0, 9999);
+    .range(0, 9999);
 
   if (error) throw new Error('Error DB: ' + error.message);
 
@@ -20,14 +26,12 @@ export async function getTotalProjections(leagueId) {
 
   for (const row of data) {
     const points = calculateProjection(row.stats, scoringSettings);
-
     if (!projectionsMap.has(row.player_id)) {
       projectionsMap.set(row.player_id, {
         player_id: row.player_id,
         total_ppr: 0,
       });
     }
-
     projectionsMap.get(row.player_id).total_ppr += points;
   }
 
@@ -106,22 +110,23 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const weeks = Array.from({ length: toWeek - fromWeek + 1 }, (_, i) => fromWeek + i);
   const updated_at = new Date().toISOString();
 
-  console.log(`📆 Semanas a procesar:`, weeks);
-
   const weekly = [];
   const totalMap = new Map();
 
-  // Paso 1: Borrar contenido actual
+  // Paso 1: Borrar SOLO semanas actuales para no perder datos previos
   await Promise.all([
-    supabase.from('projections_raw').delete().neq('player_id', ''),
-    supabase.from('projections_total').delete().neq('player_id', '')
+    supabase
+      .from('projections_raw')
+      .delete()
+      .eq('season', season)
+      .gte('week', fromWeek)
+      .lte('week', toWeek)
   ]);
 
-  // Paso 2: Fetch concurrente por semana
+  // Paso 2: Fetch concurrente
   const fetches = weeks.map(week => {
     const url = `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=${seasonType}&position[]=FLEX&position[]=K&position[]=QB&position[]=RB&position[]=REC_FLEX&position[]=SUPER_FLEX&position[]=TE&position[]=WR&position[]=WRRB_FLEX&order_by=ppr`;
-    console.log(`📡 Obteniendo semana ${week}: ${url}`);
-    return fetch(url).then(res => res.ok ? res.json() : []);
+    return fetch(url).then(res => (res.ok ? res.json() : []));
   });
 
   const allWeeksData = await Promise.all(fetches);
@@ -130,15 +135,12 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
     const week = weeks[i];
     const data = allWeeksData[i];
 
-    console.log(`✅ Semana ${week} descargada: ${data.length} jugadores`);
-
     for (const entry of data) {
       const stats = entry.stats || {};
       const player_id = entry.player_id;
       const position = entry.player?.position || entry.player?.fantasy_positions?.[0];
 
       if (!OFFENSIVE_POSITIONS.includes(position)) continue;
-
       if (stats.adp_dd_ppr === 1000 && stats.pos_adp_dd_ppr === undefined) continue;
 
       weekly.push({
@@ -149,7 +151,6 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
         updated_at
       });
 
-      // Acumular en totalMap
       if (!totalMap.has(player_id)) {
         totalMap.set(player_id, {
           player_id,
@@ -170,7 +171,7 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
 
   const [resWeekly, resTotal] = await Promise.all([
     supabase.from('projections_raw').insert(weekly),
-    supabase.from('projections_total').insert(total)
+    supabase.from('projections_total').upsert(total, { onConflict: ['player_id', 'season'] })
   ]);
 
   if (resWeekly.error) throw new Error('Error semanal: ' + resWeekly.error.message);
