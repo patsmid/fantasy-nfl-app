@@ -107,7 +107,7 @@ export async function getConfig(req, res) {
          {
            key,
            value: finalValue,
-           updated_at: new Date().toISOString()
+           updated_at: new Date()
          },
          { onConflict: 'key' }
        );

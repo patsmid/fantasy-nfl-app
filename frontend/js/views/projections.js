@@ -39,7 +39,7 @@ export default async function renderProjectionsView() {
     const season = document.getElementById('seasonInput').value.trim();
     const week = document.getElementById('weekInput').value.trim();
 
-    let url = `/api/projections?season=${season}`;
+    let url = `https://fantasy-nfl-backend.onrender.com/projections?season=${season}`;
     if (week) url += `&week=${week}`;
 
     const res = await fetch(url);
