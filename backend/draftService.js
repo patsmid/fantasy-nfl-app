@@ -37,7 +37,7 @@ export async function getDraftData(leagueId, { position = 'TODAS', byeCondition 
   const rankings = await getRankings({ dynasty, scoring, idExpert, position });
 
   // 6. Proyecciones totales por jugador (PPR ajustado según configuración de liga)
-  const projections = await getTotalProjections(leagueId);
+  const projections = await getTotalProjectionsFromSleeper(leagueId);
 
   // 7. VOR y Dropoff (solo jugadores LIBRE, usando scarcity)
   const draftedMap = new Map(drafted.map(p => [String(p.player_id), p]));
