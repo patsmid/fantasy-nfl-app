@@ -26,26 +26,57 @@ export async function getTotalProjections(leagueId) {
 
   for (const row of data) {
     const points = calculateProjection(row.stats, scoringSettings);
+
+		if (Number.isNaN(points)) {
+			console.warn('❌ Proyección inválida para', row.player_id, row.stats);
+		}
+
     if (!projectionsMap.has(row.player_id)) {
       projectionsMap.set(row.player_id, {
         player_id: row.player_id,
         total_ppr: 0,
       });
     }
+
     projectionsMap.get(row.player_id).total_ppr += points;
   }
 
   return Array.from(projectionsMap.values());
 }
 
+export async function getTotalProjections_alt(leagueId) {
+  const { season } = await getNflState();
+  const leagueData = await getSleeperLeague(leagueId);
+  const scoringSettings = leagueData.scoring_settings;
+
+  const { data, error } = await supabase
+    .from('projections_total')
+    .select('player_id, stats, season')
+    .eq('season', season)
+    .range(0, 9999);
+
+  if (error) throw new Error('Error DB: ' + error.message);
+
+  const projections = data.map(row => {
+    const total_ppr = calculateProjection(row.stats, scoringSettings);
+    return {
+      player_id: row.player_id,
+      total_ppr
+    };
+  });
+
+  return projections;
+}
+
+
 export function calculateProjection(stats = {}, scoring = {}) {
-   return Object.entries(scoring).reduce((acc, [key, multiplier]) => {
-     const value = stats[key];
-     if (value === undefined) return acc;
-     const num = typeof value === 'string' ? parseFloat(value) : value;
-     return acc + num * multiplier;
-   }, 0);
- }
+  return Object.entries(scoring).reduce((acc, [key, multiplier]) => {
+    const raw = stats[key];
+    const value = typeof raw === 'string' ? parseFloat(raw) : raw;
+    if (typeof value !== 'number' || isNaN(value)) return acc;
+    return acc + value * multiplier;
+  }, 0);
+}
 
 export async function getTotalProjectionsFromSleeper(leagueId) {
   const { season } = await getNflState();
