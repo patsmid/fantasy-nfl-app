@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { supabase } from '../supabaseClient.js';
 import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
 export async function getTotalProjections(leagueId) {
