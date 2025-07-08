@@ -81,7 +81,7 @@ app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
 app.use('/draft', draftRouter);
 
-app.use('/api/projections', projectionsRouter);
+app.use('/projections', projectionsRouter);
 
 app.use('/links', linksRouter);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////

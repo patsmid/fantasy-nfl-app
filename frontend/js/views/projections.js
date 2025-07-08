@@ -51,7 +51,7 @@ export default async function renderProjectionsView() {
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Actualizando...';
 
     try {
-      const res = await fetch('/api/projections/update', { method: 'POST' });
+      const res = await fetch('https://fantasy-nfl-backend.onrender.com/projections/update', { method: 'POST' });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       alert(`✅ Proyecciones actualizadas.\nTotales: ${json.totalCount}\nSemanales: ${json.weeklyCount}`);
