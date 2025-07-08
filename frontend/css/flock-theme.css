@@ -21,9 +21,9 @@ body {
   color: var(--text-primary);
   padding: 1.5rem 1rem;
   position: fixed;
-  top: 56px;
+  top: 0;
   left: 0;
-  height: calc(100vh - 56px);
+  height: 100vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -102,7 +102,7 @@ body {
   height: 56px;
   position: fixed;
   top: 0;
-  left: 0;
+  left: 250px;
   right: 0;
   z-index: 1040;
   display: flex;
