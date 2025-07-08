@@ -7,6 +7,7 @@
   --border: #2f3033;
 }
 
+/* === BASE === */
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -14,12 +15,13 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Sidebar fijo (solo desktop) */
+/* === SIDEBAR DESKTOP === */
 .flock-sidebar {
   width: 250px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   padding: 1.5rem 1rem;
+  padding-top: 72px;
   position: fixed;
   top: 0;
   left: 0;
@@ -36,7 +38,6 @@ body {
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
 }
-
 .flock-sidebar::-webkit-scrollbar-thumb {
   background-color: var(--accent);
   border-radius: 4px;
@@ -45,12 +46,12 @@ body {
 .flock-logo {
   font-size: 1.4rem;
   font-weight: 600;
-  margin-bottom: 2rem;
-  color: #fff;
+  margin: 0 0 2rem;
+  padding-left: 0.25rem;
   user-select: none;
 }
 
-/* Sidebar links */
+/* === NAV LINKS === */
 .flock-nav .nav-link {
   display: flex;
   align-items: center;
@@ -93,7 +94,7 @@ body {
   }
 }
 
-/* Topbar fija */
+/* === TOPBAR === */
 .navbar.flock-topbar {
   background-color: var(--bg-primary) !important;
   border-bottom: 1px solid var(--border);
@@ -107,7 +108,14 @@ body {
   z-index: 1040;
   display: flex;
   align-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   border-radius: 0;
+}
+
+@media (max-width: 991px) {
+  .navbar.flock-topbar {
+    left: 0;
+  }
 }
 
 .navbar .navbar-brand {
@@ -121,6 +129,12 @@ body {
 #toggle-sidebar {
   color: var(--text-primary);
   border-color: var(--border);
+  position: relative;
+  z-index: 1050;
+  font-size: 1.25rem;
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 #toggle-sidebar:hover {
@@ -128,12 +142,34 @@ body {
   border-color: var(--accent);
 }
 
-/* Contenido principal */
+/* === CONTENIDO PRINCIPAL === */
 #content-container {
   padding: 1.5rem;
 }
 
-/* Botones */
+@media (min-width: 992px) {
+  .flock-sidebar {
+    display: flex;
+  }
+  #content-container {
+    margin-left: 250px;
+    margin-top: 56px;
+  }
+}
+
+@media (max-width: 991px) {
+  .flock-sidebar {
+    display: none !important;
+  }
+  #content-container {
+    margin: 56px 0 0;
+  }
+  .offcanvas.offcanvas-start {
+    top: 56px;
+  }
+}
+
+/* === BOTONES === */
 a, .btn-primary {
   background-color: var(--accent);
   border-color: var(--accent);
@@ -154,7 +190,7 @@ a, .btn-primary {
   background-color: #218838;
 }
 
-/* Tarjetas y tablas */
+/* === TARJETAS Y TABLAS === */
 .container, .card {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -187,33 +223,7 @@ a, .btn-primary {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-/* === RESPONSIVE === */
-@media (max-width: 991px) {
-  .flock-sidebar {
-    display: none !important;
-  }
-
-  #content-container {
-    margin: 56px 0 0 0;
-  }
-
-  .offcanvas.offcanvas-start {
-    top: 56px;
-  }
-}
-
-@media (min-width: 992px) {
-  .flock-sidebar {
-    display: flex;
-  }
-
-  #content-container {
-    margin-left: 250px;
-    margin-top: 56px;
-  }
-}
-
-/* === DATATABLES ESTILOS OSCUROS + BOOTSTRAP 5 === */
+/* === DATATABLES === */
 .dataTables_wrapper {
   color: var(--text-primary);
   background-color: var(--bg-secondary);
@@ -247,7 +257,7 @@ table.dataTable tbody tr.selected {
   background-color: #1c1f2e;
 }
 
-/* Filtro (buscador) */
+/* Buscador */
 .dataTables_wrapper .dataTables_filter {
   text-align: right;
   margin-bottom: 1rem;
@@ -297,7 +307,7 @@ table.dataTable tbody tr.selected {
   border-radius: 0.5rem;
 }
 
-/* Botones export */
+/* Export buttons */
 .dt-button {
   background-color: var(--accent) !important;
   color: #000 !important;
@@ -314,47 +324,7 @@ table.dataTable tbody tr.selected {
   color: #000 !important;
 }
 
-/* === PAGINACIÓN BOOTSTRAP 5 === */
-.dataTables_wrapper .pagination {
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-.dataTables_wrapper .pagination .page-item .page-link {
-  background-color: var(--bg-secondary) !important;
-  color: var(--text-primary) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 0.375rem !important;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.dataTables_wrapper .pagination .page-item .page-link:hover {
-  background-color: var(--accent) !important;
-  color: #000 !important;
-  border-color: var(--accent) !important;
-}
-
-.dataTables_wrapper .pagination .page-item.active .page-link {
-  background-color: var(--accent) !important;
-  color: #000 !important;
-  border-color: var(--accent) !important;
-  font-weight: 600;
-}
-
-.dataTables_wrapper .pagination .page-item.disabled .page-link {
-  background-color: var(--bg-secondary) !important;
-  color: #6c757d !important;
-  border-color: var(--border) !important;
-}
-
-.dataTables_wrapper .pagination .page-item .page-link:focus {
-  box-shadow: none !important;
-  outline: none !important;
-}
-
-/* === PAGINACIÓN PERSONALIZADA DATA TABLES + BOOTSTRAP 5 === */
+/* Paginación */
 .dataTables_wrapper .pagination {
   justify-content: center;
   margin-top: 1rem;
@@ -370,12 +340,7 @@ table.dataTable tbody tr.selected {
   transition: all 0.2s ease;
 }
 
-.dataTables_wrapper .pagination .page-item:hover .page-link {
-  background-color: var(--accent) !important;
-  color: #000 !important;
-  border-color: var(--accent) !important;
-}
-
+.dataTables_wrapper .pagination .page-item:hover .page-link,
 .dataTables_wrapper .pagination .page-item.active .page-link {
   background-color: var(--accent) !important;
   color: #000 !important;
@@ -394,7 +359,7 @@ table.dataTable tbody tr.selected {
   outline: none !important;
 }
 
-/* === OVERRIDE VARIABLES DE BOOTSTRAP PARA PAGINACIÓN === */
+/* Bootstrap pagination override */
 .pagination {
   --bs-pagination-color: var(--text-primary);
   --bs-pagination-bg: var(--bg-secondary);
