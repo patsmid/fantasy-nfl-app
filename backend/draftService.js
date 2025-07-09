@@ -1,6 +1,6 @@
 import { getConfigValue, getDraftPicks, getADPData, getPlayersData, getRankings, getMainUserDraft } from './lib/draftUtils.js';
 import { getSleeperLeague } from './utils/sleeper.js';
-import { getTotalProjections, getTotalProjectionsFromSleeper } from './lib/projectionsService.js';
+import { getTotalProjections, getTotalProjectionsFromSleeper, getTotalProjectionsFromDb } from './lib/projectionsService.js';
 import { calculateVORandDropoff } from './lib/vorUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
