@@ -17,7 +17,6 @@ export async function getPlayerRawStats(playerId) {
   return data; // [{ week: 1, stats: { ... } }, { week: 2, stats: { ... } }, ...]
 }
 
-
 export async function getTotalProjectionsFromDb(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
@@ -41,24 +40,32 @@ export async function getTotalProjectionsFromDb(leagueId) {
   const projectionsMap = new Map();
 
   for (const row of data) {
-    const points = calculateProjection(row.stats, scoringSettings);
+    const { player_id, week, stats } = row;
 
-		if (Number.isNaN(points)) {
-			console.warn('❌ Proyección inválida para', row.player_id, row.stats);
-		}
+    // 🔎 DEBUG: mostrar datos crudos de 4984 por semana
+    if (player_id === '4984') {
+      console.log(`\n📅 Week ${week} - player_id 4984:\n`, stats);
+    }
 
-    if (!projectionsMap.has(row.player_id)) {
-      projectionsMap.set(row.player_id, {
-        player_id: row.player_id,
+    const points = calculateProjection(stats, scoringSettings);
+
+    if (Number.isNaN(points)) {
+      console.warn('❌ Proyección inválida para', player_id, stats);
+    }
+
+    if (!projectionsMap.has(player_id)) {
+      projectionsMap.set(player_id, {
+        player_id: player_id,
         total_ppr: 0,
       });
     }
 
-    projectionsMap.get(row.player_id).total_ppr += points;
+    projectionsMap.get(player_id).total_ppr += points;
   }
 
   return Array.from(projectionsMap.values());
 }
+
 
 export async function getTotalProjections(leagueId) {
   const { season } = await getNflState();
