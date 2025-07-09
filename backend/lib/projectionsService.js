@@ -27,13 +27,13 @@ export async function getTotalProjectionsFromDb(leagueId) {
   const playoffLength = playoffs.at(-1)?.r || 0;
   const fullSeasonLength = regularSeasonLength + playoffLength;
 
-  const { data, error } = await supabase
-    .from('projections_raw')
-    .select('player_id, stats, week, season')
-    .eq('season', season)
-    .lte('week', fullSeasonLength)
-    .order('week')
-    .range(0, 9999);
+	const { data, error } = await supabase
+	  .from('projections_raw')
+	  .select('player_id, stats, week, season')
+	  .eq('season', season)
+	  .lte('week', fullSeasonLength)
+	  .order('week', { ascending: true })
+	  .limit(10000);
 
   if (error) throw new Error('Error DB: ' + error.message);
 
@@ -242,7 +242,13 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
       if (stats.adp_dd_ppr === 1000 && stats.pos_adp_dd_ppr === undefined) continue;
 
       // 📥 Guardar proyección semanal
-      weekly.push({ player_id, season, week, stats, updated_at });
+			weekly.push({
+			  player_id: String(player_id),
+			  season: String(season),
+			  week: Number(week),
+			  stats: { ...stats },
+			  updated_at
+			});
 
       // ✅ Sumar a stats totales (previos + nuevos)
       if (!totalMap.has(player_id)) {
