@@ -58,6 +58,10 @@ export async function getTotalProjections(leagueId) {
   if (error) throw new Error('Error DB: ' + error.message);
 
   const projections = data.map(row => {
+    if (row.player_id === '4984') {
+      console.log('[📥] Datos desde DB player_id=4984:', row.stats);
+    }
+
     const total_ppr = calculateProjection(row.stats, scoringSettings);
     return {
       player_id: row.player_id,
@@ -68,15 +72,36 @@ export async function getTotalProjections(leagueId) {
   return projections;
 }
 
-
 export function calculateProjection(stats = {}, scoring = {}) {
   return Object.entries(scoring).reduce((acc, [key, multiplier]) => {
     const raw = stats[key];
     const value = typeof raw === 'string' ? parseFloat(raw) : raw;
+
     if (typeof value !== 'number' || isNaN(value)) return acc;
-    return acc + value * multiplier;
+
+    const product = value * multiplier;
+
+    if (stats?.player_id === '4984' || key === 'pass_td') {
+      console.log(`[📊] ${key}: ${value} * ${multiplier} = ${product}`);
+    }
+
+    return acc + product;
   }, 0);
 }
+
+export async function testSingleProjectionFromApi() {
+  const season = '2025';
+  const url = `https://api.sleeper.app/projections/nfl/${season}/1?season_type=regular&position[]=QB`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const player = data.find(p => p.player_id === '4984');
+  if (!player) return console.log('❌ No encontrado player_id=4984');
+
+  console.log('[🌐] Sleeper API Week 1 - 4984:', player.stats);
+}
+
 
 export async function getTotalProjectionsFromSleeper(leagueId) {
   const { season } = await getNflState();
@@ -144,17 +169,13 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const weekly = [];
   const totalMap = new Map();
 
-  // Paso 1: Borrar SOLO semanas actuales para no perder datos previos
-  await Promise.all([
-    supabase
-      .from('projections_raw')
-      .delete()
-      .eq('season', season)
-      .gte('week', fromWeek)
-      .lte('week', toWeek)
-  ]);
+  await supabase
+    .from('projections_raw')
+    .delete()
+    .eq('season', season)
+    .gte('week', fromWeek)
+    .lte('week', toWeek);
 
-  // Paso 2: Fetch concurrente
   const fetches = weeks.map(week => {
     const url = `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=${seasonType}&position[]=FLEX&position[]=K&position[]=QB&position[]=RB&position[]=REC_FLEX&position[]=SUPER_FLEX&position[]=TE&position[]=WR&position[]=WRRB_FLEX&order_by=ppr`;
     return fetch(url).then(res => (res.ok ? res.json() : []));
@@ -174,13 +195,7 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
       if (!OFFENSIVE_POSITIONS.includes(position)) continue;
       if (stats.adp_dd_ppr === 1000 && stats.pos_adp_dd_ppr === undefined) continue;
 
-      weekly.push({
-        player_id,
-        season,
-        week,
-        stats,
-        updated_at
-      });
+      weekly.push({ player_id, season, week, stats, updated_at });
 
       if (!totalMap.has(player_id)) {
         totalMap.set(player_id, {
@@ -193,9 +208,18 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
 
       const totalStats = totalMap.get(player_id).stats;
       for (const key in stats) {
-        totalStats[key] = (totalStats[key] || 0) + stats[key];
+        const val = stats[key];
+        totalStats[key] = (totalStats[key] || 0) + val;
+
+        if (player_id === '4984') {
+          console.log(`[🔁] Week ${week} - ${key}: +${val} → ${totalStats[key]}`);
+        }
       }
     }
+  }
+
+  if (totalMap.has('4984')) {
+    console.log('[✅] Total acumulado player_id=4984:', totalMap.get('4984').stats);
   }
 
   const total = Array.from(totalMap.values());
