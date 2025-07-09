@@ -169,7 +169,7 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
   const weekly = [];
   const totalMap = new Map();
 
-  // Limpiar datos antiguos
+  // 1. Borrar proyecciones semanales del rango indicado
   await supabase
     .from('projections_raw')
     .delete()
@@ -177,6 +177,20 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
     .gte('week', fromWeek)
     .lte('week', toWeek);
 
+  // 2. Obtener stats existentes en projections_total
+  const { data: existingTotals, error: errorTotals } = await supabase
+    .from('projections_total')
+    .select('player_id, stats')
+    .eq('season', season);
+
+  if (errorTotals) throw new Error('Error leyendo stats totales: ' + errorTotals.message);
+
+  const existingMap = new Map();
+  for (const row of existingTotals) {
+    existingMap.set(row.player_id, row.stats || {});
+  }
+
+  // 3. Obtener proyecciones Sleeper por semana
   const fetches = weeks.map(week => {
     const url = `https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=${seasonType}&position[]=FLEX&position[]=K&position[]=QB&position[]=RB&position[]=REC_FLEX&position[]=SUPER_FLEX&position[]=TE&position[]=WR&position[]=WRRB_FLEX&order_by=ppr`;
     return fetch(url).then(res => (res.ok ? res.json() : []));
@@ -184,6 +198,7 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
 
   const allWeeksData = await Promise.all(fetches);
 
+  // 4. Procesar por semana
   for (let i = 0; i < weeks.length; i++) {
     const week = weeks[i];
     const data = allWeeksData[i];
@@ -196,22 +211,20 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
       if (!OFFENSIVE_POSITIONS.includes(position)) continue;
       if (stats.adp_dd_ppr === 1000 && stats.pos_adp_dd_ppr === undefined) continue;
 
-      // Guardar semanal
       weekly.push({ player_id, season, week, stats, updated_at });
 
-      // Inicializar stats totales
+      // Inicializar stats totales combinando con existentes
       if (!totalMap.has(player_id)) {
         totalMap.set(player_id, {
           player_id,
           season,
-          stats: {},
+          stats: { ...(existingMap.get(player_id) || {}) },
           updated_at
         });
       }
 
       const totalStats = totalMap.get(player_id).stats;
 
-      // Sumar valores numéricos reales
       for (const key in stats) {
         const rawVal = stats[key];
         const val = typeof rawVal === 'string' ? parseFloat(rawVal) : rawVal;
@@ -227,14 +240,13 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
     }
   }
 
-  // Log final de verificación
   if (totalMap.has('4984')) {
     console.log('[✅] Total acumulado player_id=4984:', totalMap.get('4984').stats);
   }
 
   const total = Array.from(totalMap.values());
 
-  // Guardar en Supabase
+  // 5. Guardar en Supabase
   const [resWeekly, resTotal] = await Promise.all([
     supabase.from('projections_raw').insert(weekly),
     supabase.from('projections_total').upsert(total, { onConflict: ['player_id', 'season'] })
@@ -248,6 +260,7 @@ export async function fetchAndStoreProjections(fromWeek = 1, toWeek = 18) {
     totalCount: total.length
   };
 }
+
 
 export async function getWeeklyProjections(season, week) {
   const { data, error } = await supabase
