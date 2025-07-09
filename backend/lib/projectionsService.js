@@ -15,9 +15,30 @@ export async function getPlayerRawStats(playerId, leagueId) {
   if (error) throw new Error(`Error al obtener stats del jugador ${playerId}: ${error.message}`);
   if (!data || data.length === 0) return [];
 
-  // Calcular total de stats
+  // Obtener configuración de la liga y semanas a considerar
+  let totalProjected = 0;
+  let fullSeasonLength = 18; // fallback por si falla todo
+  let scoringSettings = {};
+
+  if (leagueId) {
+    try {
+      const leagueData = await getSleeperLeague(leagueId);
+      const playoffs = await getPlayoffsData(leagueId);
+      const regularSeasonLength = leagueData.settings.playoff_week_start - 1;
+      const playoffLength = playoffs.at(-1)?.r || 0;
+      fullSeasonLength = regularSeasonLength + playoffLength;
+      scoringSettings = leagueData?.scoring_settings || {};
+    } catch (err) {
+      console.warn(`⚠️ No se pudo obtener datos de la liga ${leagueId}:`, err.message);
+    }
+  }
+
+  // Filtrar semanas válidas
+  const validWeeks = data.filter(d => typeof d.week === 'number' && d.week <= fullSeasonLength);
+
+  // Calcular stats totales
   const totalStats = {};
-  for (const entry of data) {
+  for (const entry of validWeeks) {
     for (const [key, value] of Object.entries(entry.stats)) {
       if (typeof value === 'number') {
         totalStats[key] = (totalStats[key] || 0) + value;
@@ -25,33 +46,22 @@ export async function getPlayerRawStats(playerId, leagueId) {
     }
   }
 
-  // Redondear stats
+  // Redondear totales
   for (const key in totalStats) {
     totalStats[key] = Math.round((totalStats[key] + Number.EPSILON) * 100) / 100;
   }
 
-  // Obtener configuración de puntuación de la liga
-  let totalProjected = 0;
-  if (leagueId) {
-    try {
-      const leagueData = await getSleeperLeague(leagueId);
-      const scoringSettings = leagueData?.scoring_settings || {};
-
-      for (const [statKey, statValue] of Object.entries(totalStats)) {
-        const multiplier = scoringSettings[statKey];
-        if (typeof multiplier === 'number') {
-          totalProjected += statValue * multiplier;
-        }
-      }
-
-      // Redondear total proyectado
-      totalProjected = Math.round((totalProjected + Number.EPSILON) * 100) / 100;
-    } catch (err) {
-      console.warn(`⚠️ No se pudo obtener configuración de liga ${leagueId}:`, err.message);
+  // Calcular total proyectado personalizado
+  for (const [statKey, statValue] of Object.entries(totalStats)) {
+    const multiplier = scoringSettings[statKey];
+    if (typeof multiplier === 'number') {
+      totalProjected += statValue * multiplier;
     }
   }
 
-  // Agregar fila total con proyección personalizada
+  totalProjected = Math.round((totalProjected + Number.EPSILON) * 100) / 100;
+
+  // Agregar fila "total"
   data.push({
     week: 'total',
     stats: totalStats,
