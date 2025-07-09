@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import { supabase } from '../supabaseClient.js';
 import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
-export async function getPlayerRawStats(playerId) {
+export async function getPlayerRawStats(playerId, leagueId) {
   const { season } = await getNflState();
 
   const { data, error } = await supabase
@@ -13,14 +13,10 @@ export async function getPlayerRawStats(playerId) {
     .order('week');
 
   if (error) throw new Error(`Error al obtener stats del jugador ${playerId}: ${error.message}`);
-
-  // Si no hay datos, retornamos como está
   if (!data || data.length === 0) return [];
 
-  // Inicializar acumulador vacío
+  // Calcular total de stats
   const totalStats = {};
-
-  // Sumar todos los campos de stats por semana
   for (const entry of data) {
     for (const [key, value] of Object.entries(entry.stats)) {
       if (typeof value === 'number') {
@@ -29,19 +25,41 @@ export async function getPlayerRawStats(playerId) {
     }
   }
 
-  // Redondear valores a 2 decimales (opcional)
+  // Redondear stats
   for (const key in totalStats) {
     totalStats[key] = Math.round((totalStats[key] + Number.EPSILON) * 100) / 100;
   }
-  // Agregar el objeto total al final
+
+  // Obtener configuración de puntuación de la liga
+  let totalProjected = 0;
+  if (leagueId) {
+    try {
+      const leagueData = await getSleeperLeague(leagueId);
+      const scoringSettings = leagueData?.scoring_settings || {};
+
+      for (const [statKey, statValue] of Object.entries(totalStats)) {
+        const multiplier = scoringSettings[statKey];
+        if (typeof multiplier === 'number') {
+          totalProjected += statValue * multiplier;
+        }
+      }
+
+      // Redondear total proyectado
+      totalProjected = Math.round((totalProjected + Number.EPSILON) * 100) / 100;
+    } catch (err) {
+      console.warn(`⚠️ No se pudo obtener configuración de liga ${leagueId}:`, err.message);
+    }
+  }
+
+  // Agregar fila total con proyección personalizada
   data.push({
     week: 'total',
-    stats: totalStats
+    stats: totalStats,
+    total_projected: totalProjected
   });
 
   return data;
 }
-
 
 export async function getTotalProjectionsFromDb(leagueId) {
   const { season } = await getNflState();

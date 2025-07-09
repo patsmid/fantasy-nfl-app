@@ -42,18 +42,16 @@ router.post('/update', async (req, res) => {
 
 router.get('/:playerId', async (req, res) => {
   const { playerId } = req.params;
-
-  if (!playerId) {
-    return res.status(400).json({ error: 'Falta el parámetro "playerId"' });
-  }
+  const { leagueId } = req.query;
 
   try {
-    const stats = await getPlayerRawStats(playerId);
+    const stats = await getPlayerRawStats(playerId, leagueId);
     res.json(stats);
   } catch (err) {
     console.error(`❌ Error al obtener stats del jugador ${playerId}:`, err.message || err);
     res.status(500).json({ error: 'Error al obtener estadísticas del jugador' });
   }
 });
+
 
 export default router;
