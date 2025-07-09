@@ -2,6 +2,22 @@ import fetch from 'node-fetch';
 import { supabase } from '../supabaseClient.js';
 import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
 
+export async function getPlayerRawStats(playerId) {
+  const { season } = await getNflState();
+
+  const { data, error } = await supabase
+    .from('projections_raw')
+    .select('week, stats')
+    .eq('season', season)
+    .eq('player_id', playerId)
+    .order('week');
+
+  if (error) throw new Error(`Error al obtener stats del jugador ${playerId}: ${error.message}`);
+
+  return data; // [{ week: 1, stats: { ... } }, { week: 2, stats: { ... } }, ...]
+}
+
+
 export async function getTotalProjectionsFromDb(leagueId) {
   const { season } = await getNflState();
   const leagueData = await getSleeperLeague(leagueId);
