@@ -1,5 +1,5 @@
 import express from 'express';
-import { fetchAndStoreProjections, getWeeklyProjections, getTotalProjectionsDB } from './lib/projectionsService.js';
+import { fetchAndStoreProjections, getWeeklyProjections, getTotalProjectionsDB, getPlayerRawStats } from './lib/projectionsService.js';
 
 const router = express.Router();
 
@@ -40,5 +40,20 @@ router.post('/update', async (req, res) => {
   }
 });
 
+router.get('/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+
+  if (!playerId) {
+    return res.status(400).json({ error: 'Falta el parámetro "playerId"' });
+  }
+
+  try {
+    const stats = await getPlayerRawStats(playerId);
+    res.json(stats);
+  } catch (err) {
+    console.error(`❌ Error al obtener stats del jugador ${playerId}:`, err.message || err);
+    res.status(500).json({ error: 'Error al obtener estadísticas del jugador' });
+  }
+});
 
 export default router;
