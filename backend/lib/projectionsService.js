@@ -27,7 +27,7 @@ export async function getTotalProjectionsFromDb(leagueId) {
   const playoffLength = playoffs.at(-1)?.r || 0;
   const fullSeasonLength = regularSeasonLength + playoffLength;
 
-	const { dataW, error } = await supabase
+	const { dataW, errorW } = await supabase
 	  .from('projections_raw')
 	  .select('week')
 	  .eq('season', season)
