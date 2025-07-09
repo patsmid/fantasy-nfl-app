@@ -40,9 +40,9 @@ export async function getTotalProjectionsFromDb(leagueId) {
   const projectionsMap = new Map();
 
   for (const row of data) {
-    const { player_id, week, stats } = row;
+    const { player_id, week } = row;
+    const stats = typeof row.stats === 'string' ? JSON.parse(row.stats) : row.stats;
 
-    // 🔎 DEBUG: mostrar datos crudos de 4984 por semana
     if (player_id === '4984') {
       console.log(`\n📅 Week ${week} - player_id 4984:\n`, stats);
     }
@@ -65,6 +65,7 @@ export async function getTotalProjectionsFromDb(leagueId) {
 
   return Array.from(projectionsMap.values());
 }
+
 
 
 export async function getTotalProjections(leagueId) {
