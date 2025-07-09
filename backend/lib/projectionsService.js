@@ -14,8 +14,34 @@ export async function getPlayerRawStats(playerId) {
 
   if (error) throw new Error(`Error al obtener stats del jugador ${playerId}: ${error.message}`);
 
-  return data; // [{ week: 1, stats: { ... } }, { week: 2, stats: { ... } }, ...]
+  // Si no hay datos, retornamos como está
+  if (!data || data.length === 0) return [];
+
+  // Inicializar acumulador vacío
+  const totalStats = {};
+
+  // Sumar todos los campos de stats por semana
+  for (const entry of data) {
+    for (const [key, value] of Object.entries(entry.stats)) {
+      if (typeof value === 'number') {
+        totalStats[key] = (totalStats[key] || 0) + value;
+      }
+    }
+  }
+
+  // Redondear valores a 2 decimales (opcional)
+  for (const key in totalStats) {
+    totalStats[key] = Math.round((totalStats[key] + Number.EPSILON) * 100) / 100;
+  }
+  // Agregar el objeto total al final
+  data.push({
+    week: 'total',
+    stats: totalStats
+  });
+
+  return data;
 }
+
 
 export async function getTotalProjectionsFromDb(leagueId) {
   const { season } = await getNflState();
