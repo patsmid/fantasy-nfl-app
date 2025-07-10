@@ -95,6 +95,17 @@ body {
   }
 }
 
+.fab-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1030;
+}
+
+.fab-container .dropdown-menu {
+  min-width: 200px;
+}
+
 /* === TOPBAR === */
 .navbar.flock-topbar {
   background-color: var(--bg-primary) !important;
@@ -198,8 +209,13 @@ a, .btn-primary {
   color: var(--text-primary);
 }
 
-.card-header {
+/* .card-header {
   background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+} */
+
+.card-header {
+  background-color: rgba(255, 255, 255, 0.05);
   border-bottom: 1px solid var(--border);
 }
 

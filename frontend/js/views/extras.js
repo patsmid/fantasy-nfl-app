@@ -6,69 +6,85 @@ import { showSuccess, showError, showConfirm } from '../../components/alerts.js'
 
 export default async function renderExtrasView() {
   const content = document.getElementById('content-container');
-  content.innerHTML = `
-    <div class="row g-4">
-      <!-- Links -->
-      <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded flock-card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h5 class="m-0 d-flex align-items-center gap-2">
-                <i class="bi bi-bookmarks-fill text-warning"></i> Links de interés
-              </h5>
-              <button class="btn btn-sm btn-primary" id="btn-add-link">
-                <i class="bi bi-plus-circle me-1"></i> Agregar
-              </button>
-            </div>
-            <ul class="list-group list-group-flush" id="linksList"></ul>
-          </div>
-        </div>
-      </div>
+	content.innerHTML = `
+	  <div class="row g-4">
+	    <!-- Links -->
+	    <div class="col-12">
+	      <div class="card border-0 shadow-sm rounded flock-card">
+	        <div class="card-header bg-secondary bg-opacity-10 border-bottom border-secondary pb-2 mb-4">
+	          <h5 class="m-0 d-flex align-items-center gap-2 text-warning">
+	            <i class="bi bi-bookmarks-fill"></i> Links de interés
+	          </h5>
+	        </div>
+	        <div class="card-body">
+	          <div class="d-flex justify-content-end mb-3">
+	            <button class="btn btn-sm btn-primary" id="btn-add-link">
+	              <i class="bi bi-plus-circle me-1"></i> Agregar
+	            </button>
+	          </div>
+	          <ul class="list-group list-group-flush" id="linksList"></ul>
+	        </div>
+	      </div>
+	    </div>
+
+	    <!-- Notas -->
+	    <div class="col-12">
+	      <div class="card border-0 shadow-sm rounded flock-card">
+	        <div class="card-header bg-secondary bg-opacity-10 border-bottom border-secondary pb-2 mb-4">
+	          <h5 class="m-0 d-flex align-items-center gap-2 text-info">
+	            <i class="bi bi-journal-text"></i> Notas
+	          </h5>
+	        </div>
+	        <div class="card-body">
+	          <div class="d-flex justify-content-end mb-3">
+	            <button class="btn btn-sm btn-primary" id="btn-add-note">
+	              <i class="bi bi-plus-circle me-1"></i> Agregar
+	            </button>
+	          </div>
+	          <div id="notesList" class="d-flex flex-column gap-3"></div>
+	        </div>
+	      </div>
+	    </div>
+
+	    <!-- Pendientes -->
+	    <div class="col-12">
+	      <div class="card border-0 shadow-sm rounded flock-card">
+	        <div class="card-header bg-secondary bg-opacity-10 border-bottom border-secondary pb-2 mb-4">
+	          <h5 class="m-0 d-flex align-items-center gap-2 text-success">
+	            <i class="bi bi-check2-square"></i> Pendientes
+	          </h5>
+	        </div>
+	        <div class="card-body">
+	          <div class="d-flex justify-content-end mb-3">
+	            <button class="btn btn-sm btn-primary" id="btn-add-task">
+	              <i class="bi bi-plus-circle me-1"></i> Agregar
+	            </button>
+	          </div>
+	          <ul class="list-group list-group-flush" id="taskList"></ul>
+	        </div>
+	      </div>
+	    </div>
+	  </div>
+
+		<!-- Botón flotante -->
+		<div class="fab-container position-fixed bottom-0 end-0 p-4 z-1030">
+		  <div class="dropdown">
+		    <button class="btn btn-primary btn-lg rounded-circle shadow dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+		      <i class="bi bi-plus-lg fs-4"></i>
+		    </button>
+		    <ul class="dropdown-menu dropdown-menu-end shadow">
+		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-link"><i class="bi bi-bookmark-plus-fill text-warning"></i> Nuevo link</a></li>
+		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-note"><i class="bi bi-journal-plus text-info"></i> Nueva nota</a></li>
+		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-task"><i class="bi bi-check2-circle text-success"></i> Nuevo pendiente</a></li>
+		    </ul>
+		  </div>
 		</div>
 
-		<!-- Notas -->
-		<div class="row g-4">
-      <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded flock-card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h5 class="m-0 d-flex align-items-center gap-2">
-                <i class="bi bi-journal-text text-info"></i> Notas
-              </h5>
-              <button class="btn btn-sm btn-primary" id="btn-add-note">
-                <i class="bi bi-plus-circle me-1"></i> Agregar
-              </button>
-            </div>
-            <div id="notesList" class="d-flex flex-column gap-3"></div>
-          </div>
-        </div>
-      </div>
-		</div>
-
-      <!-- Pendientes -->
-		<div class="row g-4">
-			<div class="col-12">
-        <div class="card border-0 shadow-sm rounded flock-card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h5 class="m-0 d-flex align-items-center gap-2">
-                <i class="bi bi-check2-square text-success"></i> Pendientes
-              </h5>
-              <button class="btn btn-sm btn-primary" id="btn-add-task">
-                <i class="bi bi-plus-circle me-1"></i> Agregar
-              </button>
-            </div>
-            <ul class="list-group list-group-flush" id="taskList"></ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modales -->
-    ${renderLinkModal()}
-    ${renderNoteModal()}
-    ${renderTaskModal()}
-  `;
+	  <!-- Modales -->
+	  ${renderLinkModal()}
+	  ${renderNoteModal()}
+	  ${renderTaskModal()}
+	`;
 
   const modalLink = new bootstrap.Modal('#linkModal');
   const modalNote = new bootstrap.Modal('#noteModal');
@@ -140,6 +156,27 @@ export default async function renderExtrasView() {
   await loadLinks();
   await loadNotes();
   await loadTasks();
+
+	document.getElementById('fab-add-link').onclick = (e) => {
+	  e.preventDefault();
+	  document.getElementById('linkForm').reset();
+	  document.getElementById('linkId').value = '';
+	  modalLink.show();
+	};
+
+	document.getElementById('fab-add-note').onclick = (e) => {
+	  e.preventDefault();
+	  document.getElementById('noteForm').reset();
+	  document.getElementById('noteId').value = '';
+	  modalNote.show();
+	};
+
+	document.getElementById('fab-add-task').onclick = (e) => {
+	  e.preventDefault();
+	  document.getElementById('taskForm').reset();
+	  document.getElementById('taskId').value = '';
+	  modalTask.show();
+	};
 }
 
 async function loadLinks() {
