@@ -138,6 +138,61 @@ export default async function renderExtrasView() {
   await loadTasks();
 }
 
+async function loadLinks() {
+  const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/links');
+  const json = await res.json();
+  const list = document.getElementById('linksList');
+  list.innerHTML = '';
+
+  json.data.forEach(link => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-start flex-column flex-md-row gap-2';
+
+    li.innerHTML = `
+      <div class="me-auto">
+        <a href="${link.url}" target="_blank" class="text-decoration-none text-warning fw-semibold">
+          ${link.title}
+        </a>
+        <p class="mb-0 small text-secondary">${link.description || ''}</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-warning btn-edit">
+          <i class="bi bi-pencil-square"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger btn-delete">
+          <i class="bi bi-trash-fill"></i>
+        </button>
+      </div>
+    `;
+
+    li.querySelector('.btn-edit').addEventListener('click', () => {
+      document.getElementById('linkId').value = link.id;
+      document.getElementById('linkTitle').value = link.title;
+      document.getElementById('linkURL').value = link.url;
+      document.getElementById('linkDescription').value = link.description || '';
+      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('linkModal'));
+      modal.show();
+    });
+
+    li.querySelector('.btn-delete').addEventListener('click', async () => {
+      if (confirm('¿Seguro que deseas eliminar este link?')) {
+        try {
+          const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/links/${link.id}`, {
+            method: 'DELETE'
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error);
+          await loadLinks();
+        } catch (err) {
+          alert('Error al eliminar: ' + err.message);
+        }
+      }
+    });
+
+    list.appendChild(li);
+  });
+}
+
 async function loadNotes() {
   const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/notes');
   const json = await res.json();
