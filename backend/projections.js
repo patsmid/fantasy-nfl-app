@@ -1,8 +1,15 @@
 import express from 'express';
-import { fetchAndStoreProjections, getWeeklyProjections, getTotalProjectionsDB, getPlayerRawStats } from './lib/projectionsService.js';
+import {
+  fetchAndStoreProjections,
+  getWeeklyProjections,
+  getTotalProjectionsDB,
+  getPlayerRawStats,
+  getAllPlayersProjectedTotals
+} from './lib/projectionsService.js';
 
 const router = express.Router();
 
+// GET /api/projections?season=2025[&week=3]
 router.get('/', async (req, res) => {
   const { season, week } = req.query;
 
@@ -17,29 +24,30 @@ router.get('/', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('❌ Error en /api/projections:', err);
+    console.error('❌ Error en GET /api/projections:', err);
     res.status(500).json({ error: 'Error al obtener proyecciones' });
   }
 });
 
+// POST /api/projections/update
 router.post('/update', async (req, res) => {
+  const { fromWeek = 1, toWeek = 18 } = req.body;
+
+  if (fromWeek > toWeek) {
+    return res.status(400).json({ error: '"fromWeek" no puede ser mayor que "toWeek"' });
+  }
+
   try {
-    const { fromWeek = 1, toWeek = 18 } = req.body;
-
-    if (fromWeek > toWeek) {
-      return res.status(400).json({ error: '"fromWeek" no puede ser mayor que "toWeek"' });
-    }
-
     console.log(`🔄 Actualizando proyecciones de la semana ${fromWeek} a ${toWeek}`);
-
     const result = await fetchAndStoreProjections(fromWeek, toWeek);
     res.json({ success: true, ...result });
-  } catch (error) {
-    console.error('❌ Error al actualizar proyecciones:', error.message || error);
+  } catch (err) {
+    console.error('❌ Error en POST /api/projections/update:', err.message || err);
     res.status(500).json({ error: 'Error al actualizar proyecciones' });
   }
 });
 
+// GET /api/projections/:playerId?leagueId=xxxxx
 router.get('/:playerId', async (req, res) => {
   const { playerId } = req.params;
   const { leagueId } = req.query;
@@ -48,8 +56,34 @@ router.get('/:playerId', async (req, res) => {
     const stats = await getPlayerRawStats(playerId, leagueId);
     res.json(stats);
   } catch (err) {
-    console.error(`❌ Error al obtener stats del jugador ${playerId}:`, err.message || err);
+    console.error(`❌ Error en GET /api/projections/${playerId}:`, err.message || err);
     res.status(500).json({ error: 'Error al obtener estadísticas del jugador' });
+  }
+});
+
+// GET /api/projections/total?leagueId=xxxxx&limit=50&offset=0
+router.get('/total', async (req, res) => {
+  const { leagueId, limit, offset } = req.query;
+
+  if (!leagueId) {
+    return res.status(400).json({ error: 'Falta el parámetro "leagueId"' });
+  }
+
+  try {
+    const data = await getAllPlayersProjectedTotals(leagueId);
+
+    // Paginación opcional
+    const paginated = limit
+      ? data.slice(Number(offset) || 0, (Number(offset) || 0) + Number(limit))
+      : data;
+
+    res.json({
+      total: data.length,
+      results: paginated,
+    });
+  } catch (err) {
+    console.error('❌ Error en GET /api/projections/total:', err.message);
+    res.status(500).json({ error: 'Error al obtener proyecciones totales' });
   }
 });
 

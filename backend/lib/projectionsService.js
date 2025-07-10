@@ -17,7 +17,7 @@ export async function getPlayerRawStats(playerId, leagueId) {
 
   // Obtener configuración de la liga y semanas a considerar
   let totalProjected = 0;
-  let fullSeasonLength = 18; // fallback por si falla todo
+  let fullSeasonLength = 18; // fallback
   let scoringSettings = {};
 
   if (leagueId) {
@@ -46,7 +46,7 @@ export async function getPlayerRawStats(playerId, leagueId) {
     }
   }
 
-  // Redondear totales
+  // Redondear stats
   for (const key in totalStats) {
     totalStats[key] = Math.round((totalStats[key] + Number.EPSILON) * 100) / 100;
   }
@@ -61,15 +61,111 @@ export async function getPlayerRawStats(playerId, leagueId) {
 
   totalProjected = Math.round((totalProjected + Number.EPSILON) * 100) / 100;
 
-  // Agregar fila "total"
+  // Agregar fila total
   data.push({
     week: 'total',
     stats: totalStats,
-    total_projected: totalProjected
+    total_projected: totalProjected,
+    final_week: fullSeasonLength
   });
 
   return data;
 }
+
+import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
+import { supabase } from '../supabaseClient.js';
+
+export async function getAllPlayersProjectedTotals(leagueId) {
+  const { season } = await getNflState();
+
+  // 1. Configuración de la liga
+  let fullSeasonLength = 18;
+  let scoringSettings = {};
+
+  if (leagueId) {
+    try {
+      const leagueData = await getSleeperLeague(leagueId);
+      const playoffs = await getPlayoffsData(leagueId);
+      const regularSeasonLength = leagueData.settings.playoff_week_start - 1;
+      const playoffLength = playoffs.at(-1)?.r || 0;
+      fullSeasonLength = regularSeasonLength + playoffLength;
+      scoringSettings = leagueData.scoring_settings || {};
+    } catch (err) {
+      console.warn(`⚠️ No se pudo obtener datos de la liga ${leagueId}:`, err.message);
+    }
+  }
+
+  // 2. Obtener todos los datos paginando
+  let allData = [];
+  const pageSize = 1000;
+  let from = 0;
+  let to = pageSize - 1;
+
+  while (true) {
+    const { data, error, count } = await supabase
+      .from('projections_raw')
+      .select('player_id, week, stats', { count: 'exact' })
+      .eq('season', season)
+      .lte('week', fullSeasonLength)
+      .range(from, to);
+
+    if (error) throw new Error(`Error en fetch paginado: ${error.message}`);
+    if (!data || data.length === 0) break;
+
+    allData = allData.concat(data);
+
+    if (data.length < pageSize) break;
+
+    from += pageSize;
+    to += pageSize;
+  }
+
+  // 3. Agrupar y acumular stats por jugador
+  const statsByPlayer = new Map();
+
+  for (const row of allData) {
+    const { player_id, stats } = row;
+
+    if (!player_id || !stats) continue;
+
+    if (!statsByPlayer.has(player_id)) {
+      statsByPlayer.set(player_id, {});
+    }
+
+    const playerStats = statsByPlayer.get(player_id);
+
+    for (const [key, value] of Object.entries(stats)) {
+      if (typeof value === 'number') {
+        playerStats[key] = (playerStats[key] || 0) + value;
+      }
+    }
+  }
+
+  // 4. Calcular total_projected
+  const result = [];
+
+  for (const [player_id, statTotals] of statsByPlayer.entries()) {
+    let total = 0;
+
+    for (const [statKey, statValue] of Object.entries(statTotals)) {
+      const multiplier = scoringSettings[statKey];
+      if (typeof multiplier === 'number') {
+        total += statValue * multiplier;
+      }
+    }
+
+    result.push({
+      player_id,
+      total_projected: Math.round((total + Number.EPSILON) * 100) / 100,
+    });
+  }
+
+  // 5. Ordenar descendente por total_projected
+  result.sort((a, b) => b.total_projected - a.total_projected);
+
+  return result;
+}
+
 
 export async function getTotalProjectionsFromDb(leagueId) {
   const { season } = await getNflState();
@@ -152,6 +248,8 @@ export async function getTotalProjections(leagueId) {
 
   return projections;
 }
+
+
 
 export function calculateProjection(stats = {}, scoring = {}) {
   return Object.entries(scoring).reduce((acc, [key, multiplier]) => {
