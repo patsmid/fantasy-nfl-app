@@ -360,18 +360,26 @@ table.dataTable tbody tr.selected {
   outline: none !important;
 }
 
-/* === HIGHLIGHT ROWS BY TIER === */
+/* === DESTACADO DE FILAS POR TIER === */
 .tier-elite {
-  background-color: rgba(255, 122, 0, 0.12) !important; /* var(--accent) suavizado */
+  background-color: rgba(255, 122, 0, 0.15) !important; /* --accent */
+  font-weight: 600;
 }
 
 .tier-starter {
-  background-color: rgba(180, 255, 100, 0.10) !important; /* verde pastel claro */
+  background-color: rgba(80, 160, 90, 0.12) !important; /* tono verde suave */
 }
 
 .tier-bench {
-  background-color: rgba(100, 149, 237, 0.10) !important; /* azul claro */
+  background-color: rgba(70, 130, 180, 0.10) !important; /* azul tipo steelblue */
 }
+
+.table tbody tr.tier-elite:hover,
+.table tbody tr.tier-starter:hover,
+.table tbody tr.tier-bench:hover {
+  background-color: #2b2f38 !important; /* mismo hover actual */
+}
+
 
 
 /* Bootstrap pagination override */
