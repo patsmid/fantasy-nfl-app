@@ -67,7 +67,7 @@ export default async function renderExtrasView() {
 	  </div>
 
 		<!-- Botón flotante -->
-		<div class="fab-container position-fixed bottom-0 end-0 p-4 z-1030">
+		<!-- <div class="fab-container position-fixed bottom-0 end-0 p-4 z-1030">
 		  <div class="dropdown">
 		    <button class="btn btn-primary btn-lg rounded-circle shadow dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
 		      <i class="bi bi-plus-lg fs-4"></i>
@@ -78,7 +78,7 @@ export default async function renderExtrasView() {
 		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-task"><i class="bi bi-check2-circle text-success"></i> Nuevo pendiente</a></li>
 		    </ul>
 		  </div>
-		</div>
+		</div> -->
 
 	  <!-- Modales -->
 	  ${renderLinkModal()}
