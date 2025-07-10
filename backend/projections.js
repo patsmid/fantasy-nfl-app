@@ -47,20 +47,6 @@ router.post('/update', async (req, res) => {
   }
 });
 
-// GET /api/projections/:playerId?leagueId=xxxxx
-router.get('/:playerId', async (req, res) => {
-  const { playerId } = req.params;
-  const { leagueId } = req.query;
-
-  try {
-    const stats = await getPlayerRawStats(playerId, leagueId);
-    res.json(stats);
-  } catch (err) {
-    console.error(`❌ Error en GET /api/projections/${playerId}:`, err.message || err);
-    res.status(500).json({ error: 'Error al obtener estadísticas del jugador' });
-  }
-});
-
 // GET /api/projections/total?leagueId=xxxxx&limit=50&offset=0
 router.get('/total', async (req, res) => {
   const { leagueId, limit, offset } = req.query;
@@ -73,7 +59,6 @@ router.get('/total', async (req, res) => {
     const data = await getAllPlayersProjectedTotals(leagueId);
     console.log('🎯 Total jugadores procesados:', data.length);
 
-    // Paginación opcional
     const paginated = limit
       ? data.slice(Number(offset) || 0, (Number(offset) || 0) + Number(limit))
       : data;
@@ -88,5 +73,18 @@ router.get('/total', async (req, res) => {
   }
 });
 
+// GET /api/projections/player/:playerId?leagueId=xxxxx
+router.get('/player/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+  const { leagueId } = req.query;
+
+  try {
+    const stats = await getPlayerRawStats(playerId, leagueId);
+    res.json(stats);
+  } catch (err) {
+    console.error(`❌ Error en GET /api/projections/player/${playerId}:`, err.message || err);
+    res.status(500).json({ error: 'Error al obtener estadísticas del jugador' });
+  }
+});
 
 export default router;
