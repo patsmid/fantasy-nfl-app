@@ -24,8 +24,10 @@ export default async function renderExtrasView() {
           </div>
         </div>
       </div>
+		</div>
 
-      <!-- Notas -->
+		<!-- Notas -->
+		<div class="row g-4">
       <div class="col-12 col-md-6">
         <div class="card border-0 shadow-sm rounded flock-card">
           <div class="card-body">
@@ -41,9 +43,11 @@ export default async function renderExtrasView() {
           </div>
         </div>
       </div>
+		</div>
 
       <!-- Pendientes -->
-      <div class="col-12">
+		<div class="row g-4">
+			<div class="col-12">
         <div class="card border-0 shadow-sm rounded flock-card">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-4">
