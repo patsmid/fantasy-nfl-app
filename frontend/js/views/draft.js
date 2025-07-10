@@ -58,10 +58,12 @@ export default async function renderDraftView() {
                 <th>Ranking</th>
                 <th>Status</th>
                 <th>Ronda</th>
-                <th>Diferencia</th>
-                <th>VOR</th> <!-- ✅ -->
-                <th>VOR Ajustado</th> <!-- ✅ -->
-                <th>Dropoff</th> <!-- ✅ -->
+                <th>Proyección</th>
+                <th>VOR</th>
+                <th>VOR Ajustado</th>
+                <th>Dropoff</th>
+                <th>Tier Global</th>
+                <th>Tier Posición</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -133,75 +135,95 @@ export default async function renderDraftView() {
 
   let draftData = [];
 
-  async function updateTable(data) {
-    const statusFilter = statusSelect.value;
-    const filteredData = data.filter(p => {
-      const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
-      return statusMatch;
-    });
+  // ... (importaciones y setup idénticos a tu versión actual)
 
-    const dataSet = filteredData.map(p => [
-      p.adpValue ?? '',
-      p.nombre,
-      p.position,
-      p.team,
-      p.bye ?? '',
-      p.rank ?? '',
-      p.status,
-      p.adpRound ?? '',
-      p.adpDiff ?? '',
-      p.vor ?? '',
-      p.adjustedVOR ?? '',
-      p.dropoff ?? ''
-    ]);
-
-    if ($.fn.dataTable.isDataTable('#draftTable')) {
-      const table = $('#draftTable').DataTable();
-      table.clear();
-      table.rows.add(dataSet);
-      table.draw();
-    } else {
-      $('#draftTable').DataTable({
-        data: dataSet,
-        responsive: true,
-        pageLength: 25,
-        order: [[5, 'asc']],
-        language: {
-          url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-        },
-        dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip'
+    async function updateTable(data) {
+      const statusFilter = statusSelect.value;
+      const filteredData = data.filter(p => {
+        const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
+        return statusMatch;
       });
+
+      const dataSet = filteredData.map(p => [
+        p.adpValue ?? '',
+        p.nombre,
+        p.position,
+        p.team,
+        p.bye ?? '',
+        p.rank ?? '',
+        p.status,
+        p.adpRound ?? '',
+        `<span class="text-info fw-bold">${p.projection ?? ''}</span>`,
+        p.vor ?? '',
+        p.adjustedVOR ?? '',
+        p.dropoff ?? '',
+        `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
+        `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
+      ]);
+
+      if ($.fn.dataTable.isDataTable('#draftTable')) {
+        const table = $('#draftTable').DataTable();
+        table.clear();
+        table.rows.add(dataSet);
+        table.draw();
+      } else {
+        $('#draftTable').DataTable({
+          data: dataSet,
+          responsive: true,
+          pageLength: 25,
+          order: [[5, 'asc']],
+          language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+          },
+          dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
+          columnDefs: [
+            { targets: [8, 12, 13], orderable: false },
+            { targets: [8, 12, 13], className: 'text-nowrap text-center' }
+          ],
+          rowCallback: function (row, data) {
+            const tier = $(data[12]).text().toLowerCase();
+            $(row).removeClass('tier-elite tier-starter tier-bench');
+
+            if (tier.includes('elite')) {
+              $(row).addClass('tier-elite');
+            } else if (tier.includes('starter')) {
+              $(row).addClass('tier-starter');
+            } else if (tier.includes('bench')) {
+              $(row).addClass('tier-bench');
+            }
+          }
+        });
+      }
+    }
+
+  async function loadDraftData() {
+    try {
+      const leagueId = leagueSelect.value;
+      const position = positionSelect.value;
+      const byeCondition = byeInput.value || 0;
+      const idExpert = expertSelect.value;
+
+      if (!leagueId || !idExpert) {
+        return showError('Selecciona una liga y un experto');
+      }
+
+      localStorage.setItem('draftLeague', leagueId);
+      localStorage.setItem('draftPosition', position);
+      localStorage.setItem('draftBye', byeCondition);
+      localStorage.setItem('draftExpert', idExpert);
+
+      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+
+      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+      draftData = res.data;
+      updateTable(draftData);
+
+      Swal.close();
+    } catch (err) {
+      Swal.close();
+      showError('Error al actualizar draft: ' + err.message);
     }
   }
-
-	async function loadDraftData() {
-	  try {
-	    const leagueId = leagueSelect.value;
-	    const position = positionSelect.value;
-	    const byeCondition = byeInput.value || 0;
-	    const idExpert = expertSelect.value;
-
-	    if (!leagueId || !idExpert) {
-	      return showError('Selecciona una liga y un experto');
-	    }
-
-	    localStorage.setItem('draftLeague', leagueId);
-	    localStorage.setItem('draftPosition', position);
-	    localStorage.setItem('draftBye', byeCondition);
-	    localStorage.setItem('draftExpert', idExpert);
-
-	    showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-
-	    const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-	    draftData = res.data;
-	    updateTable(draftData);
-
-	    Swal.close();
-	  } catch (err) {
-	    Swal.close();
-	    showError('Error al actualizar draft: ' + err.message);
-	  }
-	}
 
   if (savedLeague && savedPosition && savedExpert) {
     loadDraftData();

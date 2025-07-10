@@ -360,6 +360,20 @@ table.dataTable tbody tr.selected {
   outline: none !important;
 }
 
+/* === HIGHLIGHT ROWS BY TIER === */
+.tier-elite {
+  background-color: rgba(255, 122, 0, 0.12) !important; /* var(--accent) suavizado */
+}
+
+.tier-starter {
+  background-color: rgba(180, 255, 100, 0.10) !important; /* verde pastel claro */
+}
+
+.tier-bench {
+  background-color: rgba(100, 149, 237, 0.10) !important; /* azul claro */
+}
+
+
 /* Bootstrap pagination override */
 .pagination {
   --bs-pagination-color: var(--text-primary);
