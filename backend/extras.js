@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/links', async (req, res) => {
   const { data, error } = await supabase.from('links').select('*').order('updated_at', { ascending: false });
   if (error) return res.status(500).json({ error });
-  res.json({ data });
+  res.json({ success: true, data });
 });
 
 // Crear un nuevo link
