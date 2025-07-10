@@ -49,7 +49,7 @@ export default async function renderPlayersView() {
     pageLength: 10,
     lengthMenu: [10, 25, 50, 100],
     language: {
-      url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+      url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
     }
   });
 

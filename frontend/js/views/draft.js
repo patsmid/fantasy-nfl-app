@@ -173,7 +173,7 @@ export default async function renderDraftView() {
           pageLength: 25,
           order: [[5, 'asc']],
           language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+            url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
           },
           dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
           columnDefs: [

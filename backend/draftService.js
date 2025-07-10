@@ -38,6 +38,7 @@ export async function getDraftData(
   const adpType = getADPtype(scoring, dynasty, superFlex);
   const drafted = await getDraftPicks(leagueData.draft_id);
   const mainUserId = await getConfigValue('main_user_id');
+	const season = await getConfigValue('season');
   const myDraft = getMainUserDraft(drafted, mainUserId);
 
   // 4. Jugadores y ADP
@@ -47,6 +48,7 @@ export async function getDraftData(
 
   // 5. Rankings del experto
   const rankings = await getRankings({
+		season,
     dynasty,
     scoring,
     idExpert,

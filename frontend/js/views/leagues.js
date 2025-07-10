@@ -18,12 +18,14 @@ export default async function () {
           <table id="leaguesTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark text-uppercase text-secondary small">
               <tr>
-                <th style="width: 6rem;">ID</th>
+                <th>ID</th>
                 <th>Nombre</th>
-                <th style="width: 8rem;">Dynasty</th>
-                <th style="width: 8rem;">Draft ID</th>
-                <th style="width: 7rem;">Rosters</th>
-                <th style="width: 8rem;">Status</th>
+                <th>League ID</th>
+                <th>Dynasty</th>
+                <th>BestBall</th>
+                <th>Draft ID</th>
+                <th>Rosters</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -54,11 +56,15 @@ async function loadLeagues() {
   const tbody = document.querySelector('#leaguesTable tbody');
   tbody.innerHTML = '';
 
+  // Ordenar por display_order ASC
+  leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
   leagues.forEach(l => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="text-center text-white">${l.id}</td>
       <td class="fw-semibold">${l.name}</td>
+      <td class="fw-semibold">${l.league_id}</td>
       <td class="text-center">
         <div class="form-check form-switch mb-0">
           <input
@@ -70,14 +76,17 @@ async function loadLeagues() {
           >
         </div>
       </td>
+      <td class="text-center">${l.bestball ? '<span class="badge bg-info">Sí</span>' : '<span class="text-muted">No</span>'}</td>
       <td class="text-center text-white">${l.draft_id || ''}</td>
       <td class="text-center text-white">${l.total_rosters || ''}</td>
-      <td class="text-center text-capitalize text-secondary"><span class="badge bg-success text-uppercase">${l.status}</span></td>
+      <td class="text-center text-capitalize">
+        <span class="badge bg-success text-uppercase">${l.status}</span>
+      </td>
     `;
     tbody.appendChild(tr);
   });
 
-  // Listener de dynasty
+  // Listener de interruptores dynasty
   document.querySelectorAll('.toggle-dynasty').forEach(input => {
     input.addEventListener('change', async () => {
       const id = input.dataset.id;
@@ -94,17 +103,16 @@ async function loadLeagues() {
     });
   });
 
-  // DataTable con idioma español
+  // Inicializa o reinicia DataTable en español
+  if (window.leaguesTable instanceof DataTable) {
+    window.leaguesTable.destroy();
+  }
   window.leaguesTable = new DataTable('#leaguesTable', {
-    destroy: true,
     responsive: true,
     perPage: 10,
-    sortable: true,
-    labels: {
-      placeholder: 'Buscar ligas...',
-      perPage: '{select} por página',
-      noRows: 'No se encontraron ligas',
-      info: 'Mostrando {start} a {end} de {rows} ligas',
-    }
+    language: {
+      url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+    },
+    dom: 'tip'
   });
 }

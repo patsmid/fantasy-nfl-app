@@ -31,12 +31,12 @@ export async function getPlayersData(playerIds) {
   return data;
 }
 
-export async function getRankings({ dynasty, scoring, idExpert, position }) {
+export async function getRankings({ season, dynasty, scoring, idExpert, position }) {
   const week = 0;
   const posObj = positions.find(p => p.nombre === position) || positions.find(p => p.nombre === 'TODAS');
   const posValue = posObj.valor;
   const type = dynasty ? 'DK' : 'PRESEASON';
-  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=2025&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
+  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
   const res = await fetch(url);
   return await res.json();
 }
