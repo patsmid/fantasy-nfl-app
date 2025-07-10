@@ -19,7 +19,7 @@ import {
 } from './utils/sleeper.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
-import linksRouter from './links.js';
+import extrasRouter from './routes/extras.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -85,7 +85,7 @@ app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
 app.use('/projections', projectionsRouter);
-app.use('/links', linksRouter);
+app.use('/extras', extrasRouter);
 
 // 🌐 Default
 app.get('/', (req, res) => {
