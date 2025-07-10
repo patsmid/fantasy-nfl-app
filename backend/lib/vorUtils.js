@@ -25,7 +25,7 @@ export function calculateVORandDropoff(projections, starterPositions, numTeams) 
 
   const posBuckets = {};
   for (const p of projections) {
-    if (!p || !p.position || typeof p.total_ppr !== 'number') continue;
+    if (!p || !p.position || typeof p.total_projected !== 'number') continue;
     if (!posBuckets[p.position]) posBuckets[p.position] = [];
     posBuckets[p.position].push(p);
   }
@@ -34,19 +34,19 @@ export function calculateVORandDropoff(projections, starterPositions, numTeams) 
 
   for (const [pos, list] of Object.entries(posBuckets)) {
     const libres = list.filter(p => p.status === 'LIBRE' || !p.status);
-    const sorted = libres.sort((a, b) => b.total_ppr - a.total_ppr);
+    const sorted = libres.sort((a, b) => b.total_projected - a.total_projected);
 
     const N = starterCounts[pos] ? Math.round(starterCounts[pos] * numTeams) : numTeams;
     const replacementIndex = Math.min(N - 1, sorted.length - 1);
-    const replacementValue = sorted[replacementIndex]?.total_ppr || 0;
+    const replacementValue = sorted[replacementIndex]?.total_projected || 0;
 
     const scarcityFactor = 1 + ((starterCounts[pos] || 0) / numTeams);
 
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
-      const vor = p.total_ppr - replacementValue;
+      const vor = p.total_projected - replacementValue;
       const dropoff = i + 1 < list.length
-        ? list[i].total_ppr - list[i + 1].total_ppr
+        ? list[i].total_projected - list[i + 1].total_projected
         : 0;
 
       result.push({

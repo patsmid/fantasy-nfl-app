@@ -59,13 +59,18 @@ export async function getDraftData(
   // 7. Cálculo de VOR y Dropoff (solo jugadores LIBRES)
   const draftedMap = new Map(drafted.map((p) => [String(p.player_id), p]));
 
-  const projectionsWithStatus = projections.map((p) => ({
+  // Crear un mapa rápido de posiciones por player_id
+  const positionMap = new Map(playersData.map(p => [String(p.player_id), p.position]));
+
+  // Enriquecer proyecciones con posición
+  const projectionsWithPosition = projections.map(p => ({
     ...p,
+    position: positionMap.get(String(p.player_id)) || null,
     status: draftedMap.has(p.player_id) ? 'DRAFTEADO' : 'LIBRE'
   }));
 
   const vorList = calculateVORandDropoff(
-    projectionsWithStatus,
+    projectionsWithPosition,
     starterPositions,
     numTeams
   );
