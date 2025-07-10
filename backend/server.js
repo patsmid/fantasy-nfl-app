@@ -19,7 +19,7 @@ import {
 } from './utils/sleeper.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
-import extrasRouter from './routes/extras.js';
+import extrasRouter from './extras.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
