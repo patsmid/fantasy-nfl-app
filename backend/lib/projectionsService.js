@@ -72,9 +72,6 @@ export async function getPlayerRawStats(playerId, leagueId) {
   return data;
 }
 
-import { getNflState, getSleeperLeague, getPlayoffsData } from '../utils/sleeper.js';
-import { supabase } from '../supabaseClient.js';
-
 export async function getAllPlayersProjectedTotals(leagueId) {
   const { season } = await getNflState();
 
