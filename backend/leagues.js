@@ -31,7 +31,7 @@ export async function updateLeagues(req, res) {
       draft_id: l.draft_id || null,
       total_rosters: l.total_rosters || null,
       status: l.status || null,
-      dynasty: l.type === 2,                         // dynasty según type
+      dynasty: l.settings?.type === 2,                         // dynasty según type
       bestball: l.settings?.best_ball === 1,        // bestball booleano
       display_order: l.display_order || 0,          // display_order desde API
       updated_at: new Date().toISOString()
@@ -53,7 +53,6 @@ export async function updateLeagues(req, res) {
 }
 
 // controllers/leagues.js
-
 export async function getLeaguesFromDB(req, res) {
   try {
     const { data, error } = await supabase

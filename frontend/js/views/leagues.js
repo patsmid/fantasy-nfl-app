@@ -76,7 +76,7 @@ async function loadLeagues() {
           >
         </div>
       </td>
-      <td class="text-center">${l.bestball ? '<span class="badge bg-info">Sí</span>' : '<span class="text-muted">No</span>'}</td>
+      <td class="text-center">${l.bestball ? '<span class="badge bg-info">Sí</span>' : '<span class="badge bg-info">No</span>'}</td>
       <td class="text-center text-white">${l.draft_id || ''}</td>
       <td class="text-center text-white">${l.total_rosters || ''}</td>
       <td class="text-center text-capitalize">
@@ -104,15 +104,17 @@ async function loadLeagues() {
   });
 
   // Inicializa o reinicia DataTable en español
-  if (window.leaguesTable instanceof DataTable) {
-    window.leaguesTable.destroy();
-  }
-  window.leaguesTable = new DataTable('#leaguesTable', {
-    responsive: true,
-    perPage: 10,
-    language: {
-      url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-    },
-    dom: 'tip'
-  });
+	if ($.fn.DataTable.isDataTable('#leaguesTable')) {
+	  $('#leaguesTable').DataTable().clear().destroy();
+	}
+
+	// Inicializar de nuevo
+	$('#leaguesTable').DataTable({
+	  responsive: true,
+	  pageLength: 10,
+	  language: {
+	    url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+	  },
+	  dom: 'tip'
+	});
 }
