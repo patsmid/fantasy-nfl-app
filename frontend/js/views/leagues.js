@@ -1,4 +1,5 @@
 import { fetchLeagues, updateLeagues, updateLeaguesDynasty } from '../api.js';
+import { showSuccess, showError } from '../../components/alerts.js';
 
 export default async function () {
   const content = document.getElementById('content-container');
@@ -42,6 +43,9 @@ export default async function () {
       btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Actualizando...`;
       await updateLeagues();
       await loadLeagues();
+      showSuccess('Ligas actualizadas correctamente');
+    } catch (err) {
+      showError('Error al actualizar ligas: ' + err.message);
     } finally {
       btn.disabled = false;
       btn.innerHTML = `<i class="bi bi-arrow-clockwise"></i> Actualizar`;
@@ -54,71 +58,67 @@ export default async function () {
 async function loadLeagues() {
   const leagues = await fetchLeagues();
   const tbody = document.querySelector('#leaguesTable tbody');
-  tbody.innerHTML = '';
 
   // Ordenar por display_order ASC
   leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
 
-  leagues.forEach(l => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="text-center text-white">${l.id}</td>
-      <td class="fw-semibold">${l.name}</td>
-      <td class="fw-semibold">${l.league_id}</td>
-      <td class="text-center">
-        <div class="form-check form-switch mb-0">
-          <input
-            type="checkbox"
-            class="form-check-input toggle-dynasty"
-            data-id="${l.id}"
-            ${l.dynasty ? 'checked' : ''}
-            aria-label="Dynasty liga ${l.name}"
-          >
-        </div>
-      </td>
-      <td class="text-center">
-        <span class="badge ${l.bestball ? 'bg-success' : 'bg-danger'}">
-          ${l.bestball ? 'Sí' : 'No'}
-        </span>
-      </td>
-      <td class="text-center text-white">${l.draft_id || ''}</td>
-      <td class="text-center text-white">${l.total_rosters || ''}</td>
-      <td class="text-center text-capitalize">
-        <span class="badge bg-success text-uppercase">${l.status}</span>
-      </td>
+  const rows = leagues.map(l => {
+    const dynastySwitch = `
+      <div class="form-check form-switch mb-0">
+        <input
+          type="checkbox"
+          class="form-check-input toggle-dynasty"
+          data-id="${l.id}"
+          ${l.dynasty ? 'checked' : ''}
+          aria-label="Dynasty liga ${l.name}">
+      </div>
     `;
-    tbody.appendChild(tr);
+
+    const bestBallBadge = l.bestball
+      ? '<span class="badge bg-success">Sí</span>'
+      : '<span class="badge bg-danger">No</span>';
+
+    return [
+      `<div class="text-white text-center">${l.id}</div>`,
+      `<span class="fw-semibold">${l.name}</span>`,
+      `<span class="fw-semibold">${l.league_id}</span>`,
+      dynastySwitch,
+      `<div class="text-center">${bestBallBadge}</div>`,
+      `<div class="text-white text-center">${l.draft_id || ''}</div>`,
+      `<div class="text-white text-center">${l.total_rosters || ''}</div>`,
+      `<div class="text-center"><span class="badge bg-success text-uppercase">${l.status}</span></div>`
+    ];
   });
 
-  // Listener de interruptores dynasty
-  document.querySelectorAll('.toggle-dynasty').forEach(input => {
-    input.addEventListener('change', async () => {
-      const id = input.dataset.id;
-      const dynasty = input.checked;
-      try {
-        await updateLeaguesDynasty(id, dynasty);
-      } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Error al actualizar dynasty: ' + err.message,
-        });
-      }
-    });
-  });
-
-  // Destruir DataTable si ya existe
+  // Inicializa o reinicia DataTable
   if ($.fn.DataTable.isDataTable('#leaguesTable')) {
-    $('#leaguesTable').DataTable().clear().destroy();
+    const table = $('#leaguesTable').DataTable();
+    table.clear().rows.add(rows).draw();
+  } else {
+		$('#leaguesTable').DataTable({
+		  data: rows,
+		  responsive: true,
+		  paging: false,
+		  language: {
+		    url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+		  },
+		  dom: 'tip'
+		});
   }
 
-  // Inicializar DataTable nuevamente
-  $('#leaguesTable').DataTable({
-    responsive: true,
-    pageLength: 30,
-    language: {
-      url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-    },
-    dom: 'tip'
-  });
+  // Volver a enlazar los listeners de interruptores dynasty
+  setTimeout(() => {
+    document.querySelectorAll('.toggle-dynasty').forEach(input => {
+      input.addEventListener('change', async () => {
+        const id = input.dataset.id;
+        const dynasty = input.checked;
+        try {
+          await updateLeaguesDynasty(id, dynasty);
+          showSuccess('Dynasty actualizado correctamente');
+        } catch (err) {
+          showError('Error al actualizar dynasty: ' + err.message);
+        }
+      });
+    });
+  }, 100);
 }
