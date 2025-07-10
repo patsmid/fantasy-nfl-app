@@ -71,6 +71,7 @@ router.get('/total', async (req, res) => {
 
   try {
     const data = await getAllPlayersProjectedTotals(leagueId);
+    console.log('🎯 Total jugadores procesados:', data.length);
 
     // Paginación opcional
     const paginated = limit

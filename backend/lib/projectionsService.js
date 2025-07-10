@@ -102,9 +102,10 @@ export async function getAllPlayersProjectedTotals(leagueId) {
     const { data, error, count } = await supabase
       .from('projections_raw')
       .select('player_id, week, stats', { count: 'exact' })
-      .eq('season', season)
+      .eq('season', String(season))
       .lte('week', fullSeasonLength)
       .range(from, to);
+       console.log(`📄 Página ${from}–${to}:`, data.length, 'registros');
 
     if (error) throw new Error(`Error en fetch paginado: ${error.message}`);
     if (!data || data.length === 0) break;
