@@ -18,9 +18,10 @@ export function buildFinalPlayers({
 
   for (const pick of myDraft) {
     const name = `${pick.metadata.first_name} ${pick.metadata.last_name}`;
-    const ranked = fuzzySearch(name, rankings.players);
+		const isValidRankingList = Array.isArray(rankings.players) && rankings.players.length > 0;
+		const ranked = isValidRankingList ? fuzzySearch(name, rankings.players) : [];
     if (ranked[0]) {
-      myByeWeeks.push(ranked[0].bye_week);
+      if (ranked[0]?.bye_week) myByeWeeks.push(ranked[0].bye_week);
       myTeams.push(ranked[0].player_team_id);
     }
   }
@@ -53,7 +54,9 @@ export function buildFinalPlayers({
     const teamGood = goodOffense.includes(playerInfo.team) ? ' ✔️' : '';
     const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
     const adpRound = Math.ceil(adpValue / num_teams) + 0.01 * (adpValue - num_teams * (Math.ceil(adpValue / num_teams) - 1));
-
+		let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
+		if (adjustedVor === 0) nombre += ' 🕳';
+		
     const projection = projectionMap.get(playerId) || 0;
     const vorData = vorMap.get(String(playerId)) || {};
     const rawVor = vorData.vor || 0;
@@ -64,11 +67,11 @@ export function buildFinalPlayers({
     if (!positionBuckets[playerInfo.position]) {
       positionBuckets[playerInfo.position] = [];
     }
-    positionBuckets[playerInfo.position].push({ player_id: playerId, adjustedVOR, dropoff });
+		positionBuckets[playerInfo.position].push({ player_id: playerId, adjustedVOR: adjustedVor, dropoff });
 
     players.push({
       player_id: playerId,
-      nombre: `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`,
+      nombre,
       position: playerInfo.position,
       team: playerInfo.team,
       bye,
@@ -81,7 +84,8 @@ export function buildFinalPlayers({
       vor: Number(rawVor.toFixed(2)),
       adjustedVOR: Number(adjustedVor.toFixed(2)),
       dropoff: Number(dropoff.toFixed(2)),
-      tierBonus
+      tierBonus,
+  		hasProjection: adjustedVor > 0
     });
   }
 
@@ -94,13 +98,14 @@ export function buildFinalPlayers({
   const globalGapThreshold = avgGlobalDropoff * 1.25;
 
   let currentGlobalTier = 1;
-  for (let i = 0; i < sortedByVOR.length; i++) {
-    const p = sortedByVOR[i];
-    const drop = p.dropoff || 0;
-    if (i > 0 && drop >= globalGapThreshold) currentGlobalTier++;
-    p.tier_global = currentGlobalTier;
-    p.tier_global_label = getTierLabel(currentGlobalTier);
-  }
+	for (let i = 0; i < sortedByVOR.length; i++) {
+	  const p = sortedByVOR[i];
+	  const drop = i > 0 ? sortedByVOR[i - 1].adjustedVOR - p.adjustedVOR : 0;
+	  if (i > 0 && drop >= globalGapThreshold) currentGlobalTier++;
+	  p.tier_global = currentGlobalTier;
+	  p.tier_global_label = getTierLabel(currentGlobalTier);
+	}
+
 
   // Tiers por posición basados en dropoff
   const tierByPlayerId = new Map();
@@ -114,12 +119,12 @@ export function buildFinalPlayers({
     const gapThreshold = avgDropoff * 1.25;
 
     let currentTier = 1;
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i];
-      const drop = p.dropoff || 0;
-      if (i > 0 && drop >= gapThreshold) currentTier++;
-      tierByPlayerId.set(p.player_id, currentTier);
-    }
+		for (let i = 0; i < sorted.length; i++) {
+		  const p = sorted[i];
+		  const drop = i > 0 ? sorted[i - 1].adjustedVOR - p.adjustedVOR : 0;
+		  if (i > 0 && drop >= gapThreshold) currentTier++;
+		  tierByPlayerId.set(p.player_id, currentTier);
+		}
   }
 
   for (const p of players) {
