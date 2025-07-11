@@ -54,15 +54,16 @@ export function buildFinalPlayers({
     const teamGood = goodOffense.includes(playerInfo.team) ? ' ✔️' : '';
     const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
     const adpRound = Math.ceil(adpValue / num_teams) + 0.01 * (adpValue - num_teams * (Math.ceil(adpValue / num_teams) - 1));
-		let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
-		if (adjustedVor === 0) nombre += ' 🕳';
-		
+
     const projection = projectionMap.get(playerId) || 0;
     const vorData = vorMap.get(String(playerId)) || {};
     const rawVor = vorData.vor || 0;
     const adjustedVor = vorData.adjustedVOR || 0;
     const dropoff = vorData.dropoff || 0;
     const tierBonus = !!vorData.tierBonus;
+
+		let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
+		if (adjustedVor === 0) nombre += ' 🕳';
 
     if (!positionBuckets[playerInfo.position]) {
       positionBuckets[playerInfo.position] = [];
