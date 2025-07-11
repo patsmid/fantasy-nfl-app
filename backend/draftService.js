@@ -47,12 +47,16 @@ export async function getDraftData(
   const playersData = await getPlayersData(playerIds);
 
   // 5. Rankings del experto
+  let finalPosition = position;
+  if (superFlex && position === true) {
+  	finalPosition = 'SUPER FLEX';
+	}
   const rankings = await getRankings({
 		season,
     dynasty,
     scoring,
     idExpert,
-    position
+    position: finalPosition,
   });
 	const ranks_published = rankings.published;
   // 6. Proyecciones totales (calculadas desde stats y scoring)
