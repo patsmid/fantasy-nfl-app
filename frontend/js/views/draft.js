@@ -93,14 +93,20 @@ export default async function renderDraftView() {
     plugins: ['dropdown_input'],
     dropdownInput: false,
     create: false,
-    persist: false
+    persist: false,
+		onChange() {
+			this.blur();
+		}
   });
 
   await renderLeagueSelect('#select-league', {
     plugins: ['dropdown_input'],
     dropdownInput: false,
     create: false,
-    persist: false
+    persist: false,
+		onChange() {
+			this.blur();
+		}
   });
 
   const expertTS = document.querySelector('#select-expert')?.tomselect;
@@ -135,66 +141,64 @@ export default async function renderDraftView() {
 
   let draftData = [];
 
-  // ... (importaciones y setup idénticos a tu versión actual)
+  async function updateTable(data) {
+    const statusFilter = statusSelect.value;
+    const filteredData = data.filter(p => {
+      const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
+      return statusMatch;
+    });
 
-    async function updateTable(data) {
-      const statusFilter = statusSelect.value;
-      const filteredData = data.filter(p => {
-        const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
-        return statusMatch;
-      });
+    const dataSet = filteredData.map(p => [
+      p.adpValue ?? '',
+      p.nombre,
+      p.position,
+      p.team,
+      p.bye ?? '',
+      p.rank ?? '',
+      p.status,
+      p.adpRound ?? '',
+      `<span class="text-info fw-bold">${p.projection ?? ''}</span>`,
+      p.vor ?? '',
+      p.adjustedVOR ?? '',
+      p.dropoff ?? '',
+      `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
+      `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
+    ]);
 
-      const dataSet = filteredData.map(p => [
-        p.adpValue ?? '',
-        p.nombre,
-        p.position,
-        p.team,
-        p.bye ?? '',
-        p.rank ?? '',
-        p.status,
-        p.adpRound ?? '',
-        `<span class="text-info fw-bold">${p.projection ?? ''}</span>`,
-        p.vor ?? '',
-        p.adjustedVOR ?? '',
-        p.dropoff ?? '',
-        `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
-        `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
-      ]);
+    if ($.fn.dataTable.isDataTable('#draftTable')) {
+      const table = $('#draftTable').DataTable();
+      table.clear();
+      table.rows.add(dataSet);
+      table.draw();
+    } else {
+      $('#draftTable').DataTable({
+        data: dataSet,
+        responsive: true,
+        pageLength: 25,
+        order: [[5, 'asc']],
+        language: {
+          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+        },
+        dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
+        columnDefs: [
+          { targets: [8, 12, 13], orderable: false },
+          { targets: [8, 12, 13], className: 'text-nowrap text-center' }
+        ],
+        rowCallback: function (row, data) {
+          const tier = $(data[12]).text().toLowerCase();
+          $(row).removeClass('tier-elite tier-starter tier-bench');
 
-      if ($.fn.dataTable.isDataTable('#draftTable')) {
-        const table = $('#draftTable').DataTable();
-        table.clear();
-        table.rows.add(dataSet);
-        table.draw();
-      } else {
-        $('#draftTable').DataTable({
-          data: dataSet,
-          responsive: true,
-          pageLength: 25,
-          order: [[5, 'asc']],
-          language: {
-            url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-          },
-          dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
-          columnDefs: [
-            { targets: [8, 12, 13], orderable: false },
-            { targets: [8, 12, 13], className: 'text-nowrap text-center' }
-          ],
-          rowCallback: function (row, data) {
-            const tier = $(data[12]).text().toLowerCase();
-            $(row).removeClass('tier-elite tier-starter tier-bench');
-
-            if (tier.includes('elite')) {
-              $(row).addClass('tier-elite');
-            } else if (tier.includes('starter')) {
-              $(row).addClass('tier-starter');
-            } else if (tier.includes('bench')) {
-              $(row).addClass('tier-bench');
-            }
+          if (tier.includes('elite')) {
+            $(row).addClass('tier-elite');
+          } else if (tier.includes('starter')) {
+            $(row).addClass('tier-starter');
+          } else if (tier.includes('bench')) {
+            $(row).addClass('tier-bench');
           }
-        });
-      }
+        }
+      });
     }
+  }
 
   async function loadDraftData() {
     try {
