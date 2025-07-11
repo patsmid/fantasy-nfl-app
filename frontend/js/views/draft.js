@@ -45,7 +45,7 @@ export default async function renderDraftView() {
             </select>
           </div>
         </form>
-				<div id="ranks-updated-label" class="text-end mb-2 text-muted small"></div>
+				<div id="ranks-updated-label" class="text-end mb-3"></div>
         <div class="table-responsive">
           <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
@@ -218,7 +218,6 @@ export default async function renderDraftView() {
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
 
-      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
 			const ranksLabel = document.getElementById('ranks-updated-label');
 			if (ranksLabel && res?.params?.ranks_published) {
 			  const fecha = new Date(res.params.ranks_published);
@@ -227,9 +226,14 @@ export default async function renderDraftView() {
 			    timeStyle: 'short'
 			  });
 
-			  ranksLabel.textContent = `Ranks actualizados: ${fechaFormateada}`;
+			  ranksLabel.innerHTML = `
+			    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill bg-dark border border-secondary text-light shadow-sm">
+			      <i class="bi bi-calendar-check-fill text-success"></i>
+			      <span><strong>Ranks actualizados:</strong> ${fechaFormateada}</span>
+			    </div>
+			  `;
 			}
-			
+
       draftData = res.data;
       updateTable(draftData);
 
