@@ -218,21 +218,23 @@ export default async function renderDraftView() {
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
 
-			const ranksLabel = document.getElementById('ranks-updated-label');
-			if (ranksLabel && res?.params?.ranks_published) {
-			  const fecha = new Date(res.params.ranks_published);
-			  const fechaFormateada = fecha.toLocaleString('es-MX', {
-			    dateStyle: 'medium',
-			    timeStyle: 'short'
-			  });
+      const res = await fetchDraftData({ leagueId, position, byeCondition, idExpert });
 
-			  ranksLabel.innerHTML = `
-			    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill bg-dark border border-secondary text-light shadow-sm">
-			      <i class="bi bi-calendar-check-fill text-success"></i>
-			      <span><strong>Ranks actualizados:</strong> ${fechaFormateada}</span>
-			    </div>
-			  `;
-			}
+      const ranksLabel = document.getElementById('ranks-updated-label');
+      if (ranksLabel && res?.params?.ranks_published) {
+        const fecha = new Date(res.params.ranks_published);
+        const fechaFormateada = fecha.toLocaleString('es-MX', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
+        ranksLabel.innerHTML = `
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill bg-dark border border-secondary text-light shadow-sm">
+            <i class="bi bi-calendar-check-fill text-success"></i>
+            <span><strong>Ranks actualizados:</strong> ${fechaFormateada}</span>
+          </div>
+        `;
+      }
 
       draftData = res.data;
       updateTable(draftData);
@@ -243,6 +245,7 @@ export default async function renderDraftView() {
       showError('Error al actualizar draft: ' + err.message);
     }
   }
+
 
   if (savedLeague && savedPosition && savedExpert) {
     loadDraftData();
