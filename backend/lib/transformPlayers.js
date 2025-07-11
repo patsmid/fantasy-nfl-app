@@ -90,39 +90,35 @@ export function buildFinalPlayers({
     });
   }
 
-  // Tiers globales basados en dropoff
+	// Tiers globales basados en dropoff con mínimo por tier
   const sortedByVOR = [...players].sort((a, b) => b.adjustedVOR - a.adjustedVOR);
   const globalDropoffs = sortedByVOR.map((p, i, arr) =>
     i + 1 < arr.length ? p.adjustedVOR - arr[i + 1].adjustedVOR : 0
   ).filter(d => d > 0);
   const avgGlobalDropoff = globalDropoffs.reduce((a, b) => a + b, 0) / globalDropoffs.length || 1;
   const globalGapThreshold = avgGlobalDropoff * 0.75;
+  const MIN_GLOBAL_PER_TIER = 3;
 
-	const MIN_PLAYERS_PER_TIER = 3;
   let currentGlobalTier = 1;
-	let countInTier = 0;
+  let globalCountInTier = 0;
 
-	for (let i = 0; i < sortedByVOR.length; i++) {
-	  const p = sortedByVOR[i];
-	  const drop = i > 0 ? sortedByVOR[i - 1].adjustedVOR - p.adjustedVOR : 0;
-	  countInTier++;
+  for (let i = 0; i < sortedByVOR.length; i++) {
+    const p = sortedByVOR[i];
+    const drop = i > 0 ? sortedByVOR[i - 1].adjustedVOR - p.adjustedVOR : 0;
+    globalCountInTier++;
 
-	  if (
-	    i > 0 &&
-	    drop >= globalGapThreshold &&
-	    countInTier >= MIN_PLAYERS_PER_TIER
-	  ) {
-	    currentGlobalTier++;
-	    countInTier = 1;
-	  }
+    if (i > 0 && drop >= globalGapThreshold && globalCountInTier >= MIN_GLOBAL_PER_TIER) {
+      currentGlobalTier++;
+      globalCountInTier = 1;
+    }
 
-	  p.tier_global = currentGlobalTier;
-	  p.tier_global_label = getTierLabel(currentGlobalTier);
-	}
+    p.tier_global = currentGlobalTier;
+    p.tier_global_label = getTierLabel(currentGlobalTier);
+  }
 
-  // Tiers por posición basados en dropoff
+  // Tiers por posición basados en dropoff con mínimo por tier
   const tierByPlayerId = new Map();
-	const MIN_PER_TIER_POS = 2;
+  const MIN_POS_PER_TIER = 2;
 
   for (const [pos, list] of Object.entries(positionBuckets)) {
     const sorted = list.sort((a, b) => b.adjustedVOR - a.adjustedVOR);
@@ -131,22 +127,25 @@ export function buildFinalPlayers({
     ).filter(d => d > 0);
     const avgDropoff = dropoffs.reduce((a, b) => a + b, 0) / dropoffs.length || 1;
     const gapThreshold = avgDropoff * 0.75;
-		let tier = 1;
- 		let countIn = 0;
 
-		for (let i = 0; i < sorted.length; i++) {
-	    const p = sorted[i];
-	    const drop = i > 0 ? sorted[i - 1].adjustedVOR - p.adjustedVOR : 0;
-	    countIn++;
+    let currentTier = 1;
+    let countInTier = 0;
 
-	    if (i > 0 && drop >= gapTh && countIn >= MIN_PER_TIER_POS) {
-	      tier++;
-	      countIn = 1;
-	    }
-	    tierByPlayerId.set(p.player_id, tier);
-	  }
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      const drop = i > 0 ? sorted[i - 1].adjustedVOR - p.adjustedVOR : 0;
+      countInTier++;
+
+      if (i > 0 && drop >= gapThreshold && countInTier >= MIN_POS_PER_TIER) {
+        currentTier++;
+        countInTier = 1;
+      }
+
+      tierByPlayerId.set(p.player_id, currentTier);
+    }
   }
 
+  // Asignar tier_pos
   for (const p of players) {
     const tierPos = tierByPlayerId.get(p.player_id) || 5;
     p.tier_pos = tierPos;
