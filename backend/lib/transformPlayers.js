@@ -113,7 +113,10 @@ export function buildFinalPlayers({
     }
 
     p.tier_global = currentGlobalTier;
-    p.tier_global_label = getTierLabel(currentGlobalTier);
+  }
+  const maxGlobalTier = Math.max(...players.map(p => p.tier_global || 0));
+  for (const p of players) {
+    p.tier_global_label = getTierLabel(p.tier_global, maxGlobalTier);
   }
 
   // Tiers por posición basados en dropoff con mínimo por tier
@@ -149,18 +152,36 @@ export function buildFinalPlayers({
   for (const p of players) {
     const tierPos = tierByPlayerId.get(p.player_id) || 5;
     p.tier_pos = tierPos;
-    p.tier_pos_label = getTierLabel(tierPos);
+  }
+
+  // Calcular total de tiers por posición (el máximo encontrado)
+  const maxTierPos = Math.max(...players.map(p => p.tier_pos || 0));
+
+  // Asignar etiquetas basadas en total dinámico
+  for (const p of players) {
+    p.tier_pos_label = getTierLabel(p.tier_pos, maxTierPos);
   }
 
   return players.sort((a, b) => a.rank - b.rank);
 }
 
-function getTierLabel(tier) {
-  switch (tier) {
-    case 1: return '🔥 Elite';
-    case 2: return '⭐ Starter';
-    case 3: return '✅ Confiable';
-    case 4: return '🔄 Relleno';
-    default: return '⚠️ Riesgo';
-  }
+function getTierLabel(tier, totalTiers = 5) {
+  const labels = [
+    '🔥 Elite',
+    '💎 Top',
+    '⭐ Starter',
+    '✅ Confiable',
+    '🔄 Relleno',
+    '📦 Profundidad',
+    '⚠️ Riesgo',
+    '🪑 Banca'
+  ];
+
+  // Si hay más tiers que etiquetas, repetir las últimas
+  const available = labels.slice(0, totalTiers).concat(
+    Array(Math.max(0, totalTiers - labels.length)).fill(labels[labels.length - 1])
+  );
+
+  const index = Math.min(tier - 1, available.length - 1);
+  return available[index];
 }
