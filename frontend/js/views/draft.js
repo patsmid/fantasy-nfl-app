@@ -45,7 +45,7 @@ export default async function renderDraftView() {
             </select>
           </div>
         </form>
-				<div id="ranks-updated-label" class="text-end mb-3"></div>
+				<div id="ranks-updated-label" class="text-start mb-3"></div>
         <div class="table-responsive">
           <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
