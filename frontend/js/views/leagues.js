@@ -43,7 +43,6 @@ export default async function () {
       btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Actualizando...`;
       await updateLeagues();
       await loadLeagues();
-      showSuccess('Ligas actualizadas correctamente');
     } catch (err) {
       showError('Error al actualizar ligas: ' + err.message);
     } finally {

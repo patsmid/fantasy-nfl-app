@@ -37,6 +37,7 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   const posValue = posObj.valor;
   const type = dynasty ? 'DK' : 'PRESEASON';
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
+	console.log(url);
   const res = await fetch(url);
   return await res.json();
 }

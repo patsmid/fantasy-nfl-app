@@ -27,7 +27,9 @@ export async function getDraftData(
   const tipoLiga = await getConfigValue('dynasty');
   const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
 
-  const scoring =
+	console.log('Es dynasty: '+dynasty);
+
+	const scoring =
     leagueData.scoring_settings?.rec === 1
       ? 'PPR'
       : leagueData.scoring_settings?.rec === 0.5
