@@ -229,7 +229,8 @@ export default async function renderDraftView() {
         });
 
         ranksLabel.innerHTML = `
-          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill bg-dark border border-secondary text-light shadow-sm">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
             <i class="bi bi-calendar-check-fill text-success"></i>
             <span><strong>Ranks actualizados:</strong> ${fechaFormateada}</span>
           </div>
