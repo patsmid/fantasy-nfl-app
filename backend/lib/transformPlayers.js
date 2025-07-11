@@ -27,7 +27,6 @@ export function buildFinalPlayers({
 
   const players = [];
   const positionBuckets = {};
-  let maxGlobalVor = 0;
 
   for (const adp of adpData) {
     const playerId = String(adp.sleeper_player_id);
@@ -56,17 +55,16 @@ export function buildFinalPlayers({
     const adpRound = Math.ceil(adpValue / num_teams) + 0.01 * (adpValue - num_teams * (Math.ceil(adpValue / num_teams) - 1));
 
     const projection = projectionMap.get(playerId) || 0;
-    const rawVor = vorMap.get(String(playerId))?.vor || 0;
-    const adjustedVor = vorMap.get(String(playerId))?.adjustedVOR || 0;
-    const dropoff = vorMap.get(playerId)?.dropoff || 0;
+    const vorData = vorMap.get(String(playerId)) || {};
+    const rawVor = vorData.vor || 0;
+    const adjustedVor = vorData.adjustedVOR || 0;
+    const dropoff = vorData.dropoff || 0;
+    const tierBonus = !!vorData.tierBonus;
 
-    // Bucket por posición
     if (!positionBuckets[playerInfo.position]) {
       positionBuckets[playerInfo.position] = [];
     }
-    positionBuckets[playerInfo.position].push({ player_id: playerId, vor: rawVor });
-
-    if (rawVor > maxGlobalVor) maxGlobalVor = rawVor;
+    positionBuckets[playerInfo.position].push({ player_id: playerId, adjustedVOR, dropoff });
 
     players.push({
       player_id: playerId,
@@ -82,40 +80,48 @@ export function buildFinalPlayers({
       projection: Number(projection.toFixed(2)),
       vor: Number(rawVor.toFixed(2)),
       adjustedVOR: Number(adjustedVor.toFixed(2)),
-      dropoff: Number(dropoff.toFixed(2))
+      dropoff: Number(dropoff.toFixed(2)),
+      tierBonus
     });
   }
 
-  // Tiers dinámicos globales
-  for (const p of players) {
-    const vor = p.vor;
-    let tier = 5;
-    if (vor >= 0.8 * maxGlobalVor) tier = 1;
-    else if (vor >= 0.6 * maxGlobalVor) tier = 2;
-    else if (vor >= 0.4 * maxGlobalVor) tier = 3;
-    else if (vor >= 0.2 * maxGlobalVor) tier = 4;
-    p.tier_global = tier;
-    p.tier_global_label = getTierLabel(tier);
+  // Tiers globales basados en dropoff
+  const sortedByVOR = [...players].sort((a, b) => b.adjustedVOR - a.adjustedVOR);
+  const globalDropoffs = sortedByVOR.map((p, i, arr) =>
+    i + 1 < arr.length ? p.adjustedVOR - arr[i + 1].adjustedVOR : 0
+  ).filter(d => d > 0);
+  const avgGlobalDropoff = globalDropoffs.reduce((a, b) => a + b, 0) / globalDropoffs.length || 1;
+  const globalGapThreshold = avgGlobalDropoff * 1.25;
+
+  let currentGlobalTier = 1;
+  for (let i = 0; i < sortedByVOR.length; i++) {
+    const p = sortedByVOR[i];
+    const drop = p.dropoff || 0;
+    if (i > 0 && drop >= globalGapThreshold) currentGlobalTier++;
+    p.tier_global = currentGlobalTier;
+    p.tier_global_label = getTierLabel(currentGlobalTier);
   }
 
-  // Tiers dinámicos por posición
+  // Tiers por posición basados en dropoff
   const tierByPlayerId = new Map();
 
   for (const [pos, list] of Object.entries(positionBuckets)) {
-    const sorted = list.sort((a, b) => b.vor - a.vor);
-    const maxPosVor = sorted[0]?.vor || 0;
+    const sorted = list.sort((a, b) => b.adjustedVOR - a.adjustedVOR);
+    const dropoffs = sorted.map((p, i, arr) =>
+      i + 1 < arr.length ? p.adjustedVOR - arr[i + 1].adjustedVOR : 0
+    ).filter(d => d > 0);
+    const avgDropoff = dropoffs.reduce((a, b) => a + b, 0) / dropoffs.length || 1;
+    const gapThreshold = avgDropoff * 1.25;
 
-    for (const { player_id, vor } of sorted) {
-      let tier = 5;
-      if (vor >= 0.8 * maxPosVor) tier = 1;
-      else if (vor >= 0.6 * maxPosVor) tier = 2;
-      else if (vor >= 0.4 * maxPosVor) tier = 3;
-      else if (vor >= 0.2 * maxPosVor) tier = 4;
-      tierByPlayerId.set(player_id, tier);
+    let currentTier = 1;
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      const drop = p.dropoff || 0;
+      if (i > 0 && drop >= gapThreshold) currentTier++;
+      tierByPlayerId.set(p.player_id, currentTier);
     }
   }
 
-  // Asignar tier_pos
   for (const p of players) {
     const tierPos = tierByPlayerId.get(p.player_id) || 5;
     p.tier_pos = tierPos;

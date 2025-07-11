@@ -9,7 +9,7 @@ import {
 
 import { getSleeperLeague } from './utils/sleeper.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
-import { calculateVORandDropoff } from './lib/vorUtils.js';
+import { addEstimatedStdDev, calculateVORandDropoff } from './lib/vorUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
 
@@ -56,7 +56,7 @@ export async function getDraftData(
     idExpert,
     position
   });
-
+	const ranks_published = rankins.published;
   // 6. Proyecciones totales (calculadas desde stats y scoring)
   const projections = await getAllPlayersProjectedTotals(leagueId);
 
@@ -73,6 +73,7 @@ export async function getDraftData(
     status: draftedMap.has(p.player_id) ? 'DRAFTEADO' : 'LIBRE'
   }));
 
+	const enrichedProjections = addEstimatedStdDev(projectionsWithPosition);
   const vorList = calculateVORandDropoff(
     projectionsWithPosition,
     starterPositions,
@@ -104,7 +105,8 @@ export async function getDraftData(
       idExpert,
       scoring,
       dynasty,
-      superFlex
+      superFlex,
+			ranks_published
     },
     data: players
   };
