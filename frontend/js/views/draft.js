@@ -218,7 +218,7 @@ export default async function renderDraftView() {
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
 
-      const res = await fetchDraftData({ leagueId, position, byeCondition, idExpert });
+      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
 
       const ranksLabel = document.getElementById('ranks-updated-label');
       if (ranksLabel && res?.params?.ranks_published) {
