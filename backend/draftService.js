@@ -56,7 +56,7 @@ export async function getDraftData(
     idExpert,
     position
   });
-	const ranks_published = rankins.published;
+	const ranks_published = rankings.published;
   // 6. Proyecciones totales (calculadas desde stats y scoring)
   const projections = await getAllPlayersProjectedTotals(leagueId);
 
