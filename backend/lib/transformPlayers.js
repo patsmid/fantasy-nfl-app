@@ -96,20 +96,33 @@ export function buildFinalPlayers({
     i + 1 < arr.length ? p.adjustedVOR - arr[i + 1].adjustedVOR : 0
   ).filter(d => d > 0);
   const avgGlobalDropoff = globalDropoffs.reduce((a, b) => a + b, 0) / globalDropoffs.length || 1;
-  const globalGapThreshold = avgGlobalDropoff * 1.25;
+  const globalGapThreshold = avgGlobalDropoff * 0.75;
 
+	const MIN_PLAYERS_PER_TIER = 3;
   let currentGlobalTier = 1;
+	let countInTier = 0;
+
 	for (let i = 0; i < sortedByVOR.length; i++) {
 	  const p = sortedByVOR[i];
 	  const drop = i > 0 ? sortedByVOR[i - 1].adjustedVOR - p.adjustedVOR : 0;
-	  if (i > 0 && drop >= globalGapThreshold) currentGlobalTier++;
+	  countInTier++;
+
+	  if (
+	    i > 0 &&
+	    drop >= globalGapThreshold &&
+	    countInTier >= MIN_PLAYERS_PER_TIER
+	  ) {
+	    currentGlobalTier++;
+	    countInTier = 1;
+	  }
+
 	  p.tier_global = currentGlobalTier;
 	  p.tier_global_label = getTierLabel(currentGlobalTier);
 	}
 
-
   // Tiers por posición basados en dropoff
   const tierByPlayerId = new Map();
+	const MIN_PER_TIER_POS = 2;
 
   for (const [pos, list] of Object.entries(positionBuckets)) {
     const sorted = list.sort((a, b) => b.adjustedVOR - a.adjustedVOR);
@@ -117,15 +130,21 @@ export function buildFinalPlayers({
       i + 1 < arr.length ? p.adjustedVOR - arr[i + 1].adjustedVOR : 0
     ).filter(d => d > 0);
     const avgDropoff = dropoffs.reduce((a, b) => a + b, 0) / dropoffs.length || 1;
-    const gapThreshold = avgDropoff * 1.25;
+    const gapThreshold = avgDropoff * 0.75;
+		let tier = 1;
+ 		let countIn = 0;
 
-    let currentTier = 1;
 		for (let i = 0; i < sorted.length; i++) {
-		  const p = sorted[i];
-		  const drop = i > 0 ? sorted[i - 1].adjustedVOR - p.adjustedVOR : 0;
-		  if (i > 0 && drop >= gapThreshold) currentTier++;
-		  tierByPlayerId.set(p.player_id, currentTier);
-		}
+	    const p = sorted[i];
+	    const drop = i > 0 ? sorted[i - 1].adjustedVOR - p.adjustedVOR : 0;
+	    countIn++;
+
+	    if (i > 0 && drop >= gapTh && countIn >= MIN_PER_TIER_POS) {
+	      tier++;
+	      countIn = 1;
+	    }
+	    tierByPlayerId.set(p.player_id, tier);
+	  }
   }
 
   for (const p of players) {
