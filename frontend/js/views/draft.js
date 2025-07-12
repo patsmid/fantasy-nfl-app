@@ -7,7 +7,7 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="card border-0 shadow-sm rounded flock-card w-100">
+    <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h4 class="m-0 d-flex align-items-center gap-2">
@@ -174,7 +174,7 @@ export default async function renderDraftView() {
       $('#draftTable').DataTable({
         data: dataSet,
         responsive: true,
-        pageLength: 35,
+        pageLength: 25,
         order: [[5, 'asc']],
         language: {
           url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
@@ -182,20 +182,7 @@ export default async function renderDraftView() {
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
         columnDefs: [
           { targets: [8, 12, 13], orderable: false },
-          { targets: [8, 12, 13], className: 'text-nowrap text-center' },
-          { responsivePriority: 1, targets: 1 },   // Jugador → siempre visible
-          { responsivePriority: 2, targets: 2 },   // Posición
-          { responsivePriority: 3, targets: 0 },   // ADP
-          { responsivePriority: 4, targets: 5 },   // Ranking
-          { responsivePriority: 5, targets: 7 },   // Ronda
-          { responsivePriority: 6, targets: 9 },   // VOR
-          { responsivePriority: 7, targets: 10 },  // VOR Ajustado
-          { responsivePriority: 8, targets: 3 },   // Equipo (ocultar primero)
-          { responsivePriority: 9, targets: 12 },  // Tier Global
-          { responsivePriority: 10, targets: 13 }, // Tier Posición
-          { responsivePriority: 11, targets: 6 },  // Status
-          { responsivePriority: 12, targets: 11 }, // Dropoff
-          { responsivePriority: 13, targets: 4 },  // Bye
+          { targets: [8, 12, 13], className: 'text-nowrap text-center' }
         ],
         rowCallback: function (row, data) {
           const tier = $(data[12]).text().toLowerCase();
