@@ -62,9 +62,10 @@ function setActiveSidebarItem(viewName) {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  loadSidebar();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadSidebar();
 
+  // Aquí agregamos el listener después que el DOM esté listo y el sidebar cargado
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   if (toggleDesktopBtn) {
     toggleDesktopBtn.addEventListener('click', () => {
@@ -72,17 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const content = document.getElementById('content-container');
       const topbar = document.querySelector('.navbar.flock-topbar');
 
-      // Usa getComputedStyle para obtener el display actual real
-      const sidebarStyle = getComputedStyle(sidebar).display;
+      sidebar.classList.toggle('d-none');
 
-      if (sidebarStyle === 'none') {
-        sidebar.style.display = 'flex'; // o el valor que tenía, probablemente 'flex'
-        content.style.marginLeft = '250px';
-        topbar.style.left = '250px';
-      } else {
-        sidebar.style.display = 'none';
+      if (sidebar.classList.contains('d-none')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
+      } else {
+        content.style.marginLeft = '250px';
+        topbar.style.left = '250px';
       }
     });
   } else {
