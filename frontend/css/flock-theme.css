@@ -492,9 +492,10 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before {
 
 /* ⚠️ FIX crítico para evitar scroll horizontal innecesario */
 .table-wrapper {
-  display: block;
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 /* Asegura que la tabla no exceda el ancho */
