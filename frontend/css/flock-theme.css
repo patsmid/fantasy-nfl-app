@@ -39,6 +39,16 @@ body {
   scrollbar-color: var(--accent) transparent;
 }
 
+/* Ocultar sidebar y expandir contenido */
+body.sidebar-collapsed #sidebar {
+  display: none !important;
+}
+
+body.sidebar-collapsed #content-container {
+  padding-left: 1rem; /* Ajusta el espacio si quieres más */
+}
+
+
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
 }
@@ -126,6 +136,7 @@ body {
   align-items: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   border-radius: 0;
+  transition: left 0.3s ease;
 }
 
 @media (max-width: 991px) {
@@ -162,7 +173,8 @@ body {
 #content-container {
   padding: 1.5rem;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
+  transition: margin-left 0.3s ease;
 }
 
 @media (min-width: 992px) {

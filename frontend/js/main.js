@@ -19,7 +19,7 @@ async function loadSidebar() {
 }
 
 function activateSidebarLinks() {
-  // Seleccionamos los links del sidebar desktop y mobile
+  // Links del sidebar
   const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   links.forEach(link => {
     link.addEventListener('click', async (e) => {
@@ -28,14 +28,14 @@ function activateSidebarLinks() {
       await loadView(view);
       setActiveSidebarItem(view);
 
-      // Cerrar offcanvas si está abierto (en móvil)
+      // Cierra el offcanvas móvil si está abierto
       const sidebarMobileEl = document.getElementById('sidebarMobile');
       const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
       if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
-  // Botón hamburguesa para móvil
+  // Botón móvil
   const toggleBtn = document.getElementById('toggle-sidebar');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
@@ -51,12 +51,10 @@ async function loadView(viewName) {
     await viewModule.default();
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
-    // Opcional: mostrar alerta o contenido fallback
   }
 }
 
 function setActiveSidebarItem(viewName) {
-  // Activamos el link en desktop y mobile
   document.querySelectorAll('[data-view]').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-view') === viewName);
   });
@@ -64,4 +62,25 @@ function setActiveSidebarItem(viewName) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadSidebar();
+
+  const btnToggleSidebar = document.getElementById('toggle-sidebar-desktop');
+  const icon = btnToggleSidebar?.querySelector('i');
+  const body = document.body;
+
+  // Restaurar estado previo
+  const collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (collapsed) {
+    body.classList.add('sidebar-collapsed');
+    icon?.classList.replace('bi-layout-sidebar-inset-reverse', 'bi-layout-sidebar-inset');
+  }
+
+  // Evento de toggle
+  btnToggleSidebar?.addEventListener('click', () => {
+    const collapsedNow = body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', collapsedNow);
+
+    // Cambiar ícono con animación
+    icon?.classList.toggle('bi-layout-sidebar-inset-reverse', !collapsedNow);
+    icon?.classList.toggle('bi-layout-sidebar-inset', collapsedNow);
+  });
 });

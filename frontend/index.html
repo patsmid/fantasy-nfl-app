@@ -37,18 +37,22 @@
     <!-- Contenedor principal -->
     <div class="flex-grow-1 d-flex flex-column min-vh-100">
       <!-- Topbar -->
-			<nav class="navbar flock-topbar">
-			  <div class="container-fluid d-flex align-items-center">
-			    <!-- Logo solo en móvil -->
-			    <div class="navbar-brand d-lg-none">🏈 Fantasy NFL</div>
+      <nav class="navbar flock-topbar">
+        <div class="container-fluid d-flex align-items-center">
+          <!-- Logo (opcional para escritorio) -->
+          <div class="navbar-brand d-lg-none">🏈 Fantasy NFL</div>
 
-			    <!-- Botón hamburguesa móvil a la derecha -->
-			    <button class="btn btn-outline-secondary d-lg-none ms-auto" id="toggle-sidebar" aria-label="Menú">
-			      <i class="bi bi-list fs-3"></i>
-			    </button>
-			  </div>
-			</nav>
+          <!-- ✅ Botón hamburguesa de escritorio -->
+          <button class="btn btn-outline-secondary d-none d-lg-inline-block me-2" id="toggle-sidebar-desktop" aria-label="Ocultar sidebar">
+            <i id="sidebar-icon" class="bi bi-layout-sidebar-inset-reverse"></i>
+          </button>
 
+          <!-- Botón hamburguesa móvil -->
+          <button class="btn btn-outline-secondary d-lg-none ms-auto" id="toggle-sidebar" aria-label="Menú">
+            <i class="bi bi-list fs-3"></i>
+          </button>
+        </div>
+      </nav>
       <!-- Contenido dinámico -->
       <main id="content-container" class="p-4 flex-grow-1" tabindex="-1" aria-live="polite"></main>
     </div>
