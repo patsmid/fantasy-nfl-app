@@ -489,3 +489,22 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before {
   --bs-pagination-disabled-bg: var(--bg-secondary);
   --bs-pagination-disabled-border-color: var(--border);
 }
+
+/* ⚠️ FIX crítico para evitar scroll horizontal innecesario */
+.table-wrapper {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Asegura que la tabla no exceda el ancho */
+#draftTable {
+  table-layout: auto !important;
+  width: 100% !important;
+}
+
+/* Previene overflow global */
+body, html {
+  max-width: 100vw;
+  overflow-x: hidden;
+}

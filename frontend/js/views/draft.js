@@ -47,7 +47,8 @@ export default async function renderDraftView() {
         </form>
 				<div id="ranks-updated-label" class="text-start mb-3"></div>
 
-        <table id="draftTable" class="table table-dark table-hover align-middle w-100">
+        <div class="table-wrapper">
+          <table id="draftTable" class="table table-dark table-hover align-middle nowrap">
             <thead class="table-dark">
               <tr>
                 <th>ADP</th>
@@ -67,8 +68,8 @@ export default async function renderDraftView() {
               </tr>
             </thead>
             <tbody></tbody>
-          </table>
-
+            </table>
+          </div>
       </div>
     </div>
   `;
@@ -188,15 +189,15 @@ export default async function renderDraftView() {
           { responsivePriority: 2, targets: 0 },   // ADP
           { responsivePriority: 3, targets: 5 },   // Ranking
           { responsivePriority: 4, targets: 7 },   // Ronda
-          { responsivePriority: 5, targets: 9 },   // VOR
-          { responsivePriority: 6, targets: 10 },  // VOR Ajustado
-          { responsivePriority: 7, targets: 3 },   // Equipo (ocultar primero)
-          { responsivePriority: 8, targets: 2 },   // Posición
-          { responsivePriority: 9, targets: 12 },  // Tier Global
-          { responsivePriority: 10, targets: 13 }, // Tier Posición
-          { responsivePriority: 11, targets: 6 },  // Status
-          { responsivePriority: 12, targets: 11 }, // Dropoff
-          { responsivePriority: 13, targets: 4 },  // Bye
+          { responsivePriority: 5, targets: 4 },   // Bye
+          { responsivePriority: 6, targets: 8 },   // Proyección
+          { responsivePriority: 7, targets: 11 },  // Dropoff
+          { responsivePriority: 8, targets: 6 },   // Status ❌ Ocultar primero
+          { responsivePriority: 9, targets: 9 },   // VOR ❌
+          { responsivePriority: 10, targets: 13 }, // Tier Posición ❌
+          { responsivePriority: 11, targets: 12 }, // Tier Global ❌
+          { responsivePriority: 12, targets: 2 },  // Posición ❌
+          { responsivePriority: 13, targets: 3 },  // Equipo ❌
         ],
 
         rowCallback: function (row, data) {
