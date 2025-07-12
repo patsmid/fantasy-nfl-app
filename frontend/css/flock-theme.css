@@ -44,10 +44,6 @@ body {
   border-radius: 4px;
 }
 
-.card.flock-card {
-  overflow-x: hidden;
-}
-
 .flock-logo {
   font-size: 1.4rem;
   font-weight: 600;
@@ -109,13 +105,6 @@ body {
 
 .fab-container .dropdown-menu {
   min-width: 200px;
-}
-
-.badge {
-  max-width: 100px;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 /* === TOPBAR === */
@@ -452,24 +441,7 @@ table.dataTable tbody tr.selected {
   background-color: #2b2f38 !important; /* mismo hover actual */
 }
 
-/* Permite que DataTable se adapte con el plugin responsive */
-table.dataTable {
-  width: 100% !important;
-}
 
-/* Previene que las celdas desborden por texto largo */
-table.dataTable td {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  max-width: 180px; /* ajusta si es necesario */
-}
-
-/* Permite que DataTables responsive use collapsible rows */
-table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before {
-  top: 50%;
-  transform: translateY(-50%);
-}
 
 /* Bootstrap pagination override */
 .pagination {
@@ -488,24 +460,4 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before {
   --bs-pagination-disabled-color: #6c757d;
   --bs-pagination-disabled-bg: var(--bg-secondary);
   --bs-pagination-disabled-border-color: var(--border);
-}
-
-/* ⚠️ FIX crítico para evitar scroll horizontal innecesario */
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-/* Asegura que la tabla no exceda el ancho */
-#draftTable {
-  table-layout: auto !important;
-  width: 100% !important;
-}
-
-/* Previene overflow global */
-body, html {
-  max-width: 100vw;
-  overflow-x: hidden;
 }
