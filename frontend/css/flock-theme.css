@@ -8,10 +8,6 @@
 }
 
 /* === BASE === */
-html, body {
-  overflow-x: hidden;
-}
-
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -38,16 +34,6 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
 }
-
-/* Ocultar sidebar y expandir contenido */
-body.sidebar-collapsed #sidebar {
-  display: none !important;
-}
-
-body.sidebar-collapsed #content-container {
-  padding-left: 1rem; /* Ajusta el espacio si quieres más */
-}
-
 
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
@@ -136,7 +122,6 @@ body.sidebar-collapsed #content-container {
   align-items: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   border-radius: 0;
-  transition: left 0.3s ease;
 }
 
 @media (max-width: 991px) {
@@ -171,12 +156,7 @@ body.sidebar-collapsed #content-container {
 
 /* === CONTENIDO PRINCIPAL === */
 #content-container {
-  flex-grow: 1;
-  padding: 1rem;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  transition: margin-left 0.3s ease;
+  padding: 1.5rem;
 }
 
 @media (min-width: 992px) {
@@ -184,8 +164,6 @@ body.sidebar-collapsed #content-container {
     display: flex;
   }
   #content-container {
-    max-width: calc(100% - 250px);
-    overflow-x: auto;
     margin-left: 250px;
     margin-top: 56px;
   }
@@ -418,25 +396,7 @@ table.dataTable tbody tr.selected {
   background-color: #2b2f38 !important; /* mismo hover actual */
 }
 
-body.sidebar-collapsed .navbar.flock-topbar {
-  left: 0;
-}
 
-body.sidebar-collapsed #content-container {
-  margin-left: 0;
-  max-width: 100%;
-  padding-left: 1rem; /* opcional para margen */
-  overflow-x: auto;
-}
-
-#content-container table {
-  width: 100%;
-  max-width: 100%;
-  table-layout: auto;
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
-}
 
 /* Bootstrap pagination override */
 .pagination {
