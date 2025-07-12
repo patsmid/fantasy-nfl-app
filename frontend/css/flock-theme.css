@@ -184,6 +184,8 @@ body.sidebar-collapsed #content-container {
     display: flex;
   }
   #content-container {
+    max-width: calc(100% - 250px);
+    overflow-x: auto;
     margin-left: 250px;
     margin-top: 56px;
   }
@@ -422,6 +424,18 @@ body.sidebar-collapsed .navbar.flock-topbar {
 
 body.sidebar-collapsed #content-container {
   margin-left: 0;
+  max-width: 100%;
+  padding-left: 1rem; /* opcional para margen */
+  overflow-x: auto;
+}
+
+#content-container table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: auto;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 /* Bootstrap pagination override */
