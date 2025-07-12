@@ -8,6 +8,10 @@
 }
 
 /* === BASE === */
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -157,6 +161,8 @@ body {
 /* === CONTENIDO PRINCIPAL === */
 #content-container {
   padding: 1.5rem;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 @media (min-width: 992px) {
