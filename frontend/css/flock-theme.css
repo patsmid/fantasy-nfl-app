@@ -163,6 +163,35 @@ body {
   transition: all 0.3s ease;
 }
 
+#toggle-sidebar-desktop {
+  color: var(--text-secondary);
+  border-color: transparent;
+  background: transparent;
+  transition: color 0.3s ease;
+  font-size: 1.25rem;
+  padding: 0.3rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#toggle-sidebar-desktop:hover {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+#toggle-sidebar-desktop.active,
+#toggle-sidebar-desktop.sidebar-open {
+  color: var(--accent);
+}
+
+/* Aseguramos que el ícono también cambie de color */
+#toggle-sidebar-desktop .bi {
+  transition: color 0.3s ease;
+  color: inherit;
+}
+
+
 /* === CONTENIDO PRINCIPAL === */
 #content-container {
   padding: 1.5rem;

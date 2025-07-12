@@ -66,33 +66,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadSidebar();
 
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
-  const sidebarIcon = document.getElementById('sidebar-icon'); // ícono dentro del botón
+  const sidebarIcon = document.getElementById('sidebar-icon');
 
-  if (toggleDesktopBtn && sidebarIcon) {
-    toggleDesktopBtn.addEventListener('click', () => {
-      const sidebar = document.getElementById('sidebar');
-      const content = document.getElementById('content-container');
-      const topbar = document.querySelector('.navbar.flock-topbar');
+  toggleDesktopBtn.addEventListener('click', () => {
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content-container');
+    const topbar = document.querySelector('.navbar.flock-topbar');
 
-      sidebar.classList.toggle('sidebar-hidden');
+    sidebar.classList.toggle('sidebar-hidden');
 
-      if (sidebar.classList.contains('sidebar-hidden')) {
-        content.style.marginLeft = '0';
-        topbar.style.left = '0';
+    if (sidebar.classList.contains('sidebar-hidden')) {
+      content.style.marginLeft = '0';
+      topbar.style.left = '0';
 
-        // Cambiar icono a hamburguesa (sidebar cerrado)
-        sidebarIcon.classList.remove('bi-arrow-left');
-        sidebarIcon.classList.add('bi-list');
-      } else {
-        content.style.marginLeft = '250px';
-        topbar.style.left = '250px';
+      sidebarIcon.classList.remove('bi-arrow-left');
+      sidebarIcon.classList.add('bi-list');
 
-        // Cambiar icono a flecha izquierda (sidebar abierto)
-        sidebarIcon.classList.remove('bi-list');
-        sidebarIcon.classList.add('bi-arrow-left');
-      }
-    });
-  } else {
-    console.warn('No se encontró el botón toggle-sidebar-desktop o el icono.');
-  }
+      toggleDesktopBtn.classList.remove('sidebar-open'); // sidebar cerrado
+    } else {
+      content.style.marginLeft = '250px';
+      topbar.style.left = '250px';
+
+      sidebarIcon.classList.remove('bi-list');
+      sidebarIcon.classList.add('bi-arrow-left');
+
+      toggleDesktopBtn.classList.add('sidebar-open'); // sidebar abierto, clase naranja
+    }
+  });
+
 });
