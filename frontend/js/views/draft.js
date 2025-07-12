@@ -62,8 +62,7 @@ export default async function renderDraftView() {
                 <th>VOR</th>
                 <th>VOR Ajustado</th>
                 <th>Dropoff</th>
-                <th>Tier Global</th>
-                <th>Tier Posición</th>
+
               </tr>
             </thead>
             <tbody></tbody>
@@ -160,9 +159,8 @@ export default async function renderDraftView() {
       `<span class="text-info fw-bold">${p.projection ?? ''}</span>`,
       p.vor ?? '',
       p.adjustedVOR ?? '',
-      p.dropoff ?? '',
-      `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
-      `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
+      p.dropoff ?? ''
+
     ]);
 
     if ($.fn.dataTable.isDataTable('#draftTable')) {
