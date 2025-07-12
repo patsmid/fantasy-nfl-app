@@ -46,8 +46,8 @@ export default async function renderDraftView() {
           </div>
         </form>
 				<div id="ranks-updated-label" class="text-start mb-3"></div>
-        <div class="table-responsive">
-          <table id="draftTable" class="table table-dark table-hover align-middle w-100">
+
+        <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
               <tr>
                 <th>ADP</th>
@@ -68,7 +68,7 @@ export default async function renderDraftView() {
             </thead>
             <tbody></tbody>
           </table>
-        </div>
+
       </div>
     </div>
   `;
@@ -174,7 +174,7 @@ export default async function renderDraftView() {
       $('#draftTable').DataTable({
         data: dataSet,
         responsive: true,
-        pageLength: 25,
+        pageLength: 35,
         order: [[5, 'asc']],
         language: {
           url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
@@ -182,8 +182,10 @@ export default async function renderDraftView() {
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
         columnDefs: [
           { targets: [8, 12, 13], orderable: false },
-          { targets: [8, 12, 13], className: 'text-nowrap text-center' }
+          { targets: [8, 12, 13], className: 'text-nowrap text-center' },
+          { responsivePriority: 1, targets: 1 },
         ],
+
         rowCallback: function (row, data) {
           const tier = $(data[12]).text().toLowerCase();
           $(row).removeClass('tier-elite tier-starter tier-bench');
