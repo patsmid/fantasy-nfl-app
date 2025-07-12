@@ -81,13 +81,21 @@ export default async function renderDraftView() {
 
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
-  const savedPosition = localStorage.getItem('draftPosition');
   const savedExpert = localStorage.getItem('draftExpert');
-  const savedBye = localStorage.getItem('draftBye');
+
+  let leagueConfig = {};
+  try {
+    leagueConfig = JSON.parse(localStorage.getItem('draftLeagueConfigs')) || {};
+  } catch {
+    leagueConfig = {};
+  }
+
+  const savedPosition = savedLeague && leagueConfig[savedLeague]?.position;
+  const savedBye = savedLeague && leagueConfig[savedLeague]?.bye;
 
   if (savedStatus) statusSelect.value = savedStatus;
   if (savedPosition) positionSelect.value = savedPosition;
-  if (savedBye) byeInput.value = savedBye;
+  if (savedBye !== undefined) byeInput.value = savedBye;
 
   await renderExpertSelect('#select-expert', {
     plugins: ['dropdown_input'],
@@ -123,6 +131,12 @@ export default async function renderDraftView() {
     leagueTS.setValue(savedLeague || '');
     leagueTS.on('change', value => {
       localStorage.setItem('draftLeague', value);
+      const newConfig = JSON.parse(localStorage.getItem('draftLeagueConfigs') || '{}');
+      const newPos = newConfig[value]?.position || 'ALL';
+      const newBye = newConfig[value]?.bye || '';
+
+      positionSelect.value = newPos;
+      byeInput.value = newBye;
       loadDraftData();
     });
   }
@@ -212,8 +226,20 @@ export default async function renderDraftView() {
       }
 
       localStorage.setItem('draftLeague', leagueId);
-      localStorage.setItem('draftPosition', position);
-      localStorage.setItem('draftBye', byeCondition);
+      let config = {};
+      try {
+        config = JSON.parse(localStorage.getItem('draftLeagueConfigs')) || {};
+      } catch {
+        config = {};
+      }
+
+      // Guardar valores por liga
+      config[leagueId] = {
+        position,
+        bye: byeCondition
+      };
+
+      localStorage.setItem('draftLeagueConfigs', JSON.stringify(config));
       localStorage.setItem('draftExpert', idExpert);
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
