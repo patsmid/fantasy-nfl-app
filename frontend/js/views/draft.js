@@ -7,7 +7,7 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
-    <div class="card border-0 shadow-sm rounded flock-card">
+    <div class="card border-0 shadow-sm rounded flock-card w-100">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h4 class="m-0 d-flex align-items-center gap-2">
