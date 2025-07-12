@@ -132,7 +132,7 @@ export default async function renderDraftView() {
     leagueTS.on('change', value => {
       localStorage.setItem('draftLeague', value);
       const newConfig = JSON.parse(localStorage.getItem('draftLeagueConfigs') || '{}');
-      const newPos = newConfig[value]?.position || 'ALL';
+      const newPos = newConfig[value]?.position || 'TODAS';
       const newBye = newConfig[value]?.bye || '';
 
       positionSelect.value = newPos;
