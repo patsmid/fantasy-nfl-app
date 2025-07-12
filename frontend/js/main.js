@@ -65,9 +65,10 @@ function setActiveSidebarItem(viewName) {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSidebar();
 
-  // Aquí agregamos el listener después que el DOM esté listo y el sidebar cargado
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
-  if (toggleDesktopBtn) {
+  const sidebarIcon = document.getElementById('sidebar-icon'); // ícono dentro del botón
+
+  if (toggleDesktopBtn && sidebarIcon) {
     toggleDesktopBtn.addEventListener('click', () => {
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('content-container');
@@ -78,12 +79,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (sidebar.classList.contains('sidebar-hidden')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
+
+        // Cambiar icono a hamburguesa (sidebar cerrado)
+        sidebarIcon.classList.remove('bi-arrow-left');
+        sidebarIcon.classList.add('bi-list');
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
+
+        // Cambiar icono a flecha izquierda (sidebar abierto)
+        sidebarIcon.classList.remove('bi-list');
+        sidebarIcon.classList.add('bi-arrow-left');
       }
     });
   } else {
-    console.warn('No se encontró el botón toggle-sidebar-desktop');
+    console.warn('No se encontró el botón toggle-sidebar-desktop o el icono.');
   }
 });
