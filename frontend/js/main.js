@@ -65,3 +65,21 @@ function setActiveSidebarItem(viewName) {
 document.addEventListener('DOMContentLoaded', () => {
   loadSidebar();
 });
+
+document.getElementById('toggle-sidebar-desktop').addEventListener('click', () => {
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content-container');
+  const topbar = document.querySelector('.navbar.flock-topbar');
+
+  sidebar.classList.toggle('d-none');
+
+  if (sidebar.classList.contains('d-none')) {
+    // Sidebar oculto: expandir contenido y topbar a todo el ancho
+    content.style.marginLeft = '0';
+    topbar.style.left = '0';
+  } else {
+    // Sidebar visible: volver a margen normal
+    content.style.marginLeft = '250px';
+    topbar.style.left = '250px';
+  }
+});

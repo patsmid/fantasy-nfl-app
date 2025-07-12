@@ -159,6 +159,10 @@ body {
   padding: 1.5rem;
 }
 
+#content-container, .navbar.flock-topbar {
+  transition: margin-left 0.3s ease, left 0.3s ease;
+}
+
 @media (min-width: 992px) {
   .flock-sidebar {
     display: flex;
