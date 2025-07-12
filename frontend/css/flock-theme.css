@@ -48,7 +48,7 @@ body.sidebar-collapsed #content-container {
   padding-left: 1rem; /* Ajusta el espacio si quieres más */
 }
 
-/* Scrollbar */
+
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
 }
@@ -61,7 +61,7 @@ body.sidebar-collapsed #content-container {
   font-size: 1.4rem;
   font-weight: 600;
   margin: 0 0 2rem;
-  margin-bottom: 1rem;
+	margin-bottom: 1rem;
   padding-left: 0.25rem;
   user-select: none;
 }
@@ -179,7 +179,6 @@ body.sidebar-collapsed #content-container {
   transition: margin-left 0.3s ease;
 }
 
-/* Ajustes desktop y sidebar visible */
 @media (min-width: 992px) {
   .flock-sidebar {
     display: flex;
@@ -187,27 +186,15 @@ body.sidebar-collapsed #content-container {
   #content-container {
     margin-left: 250px;
     margin-top: 56px;
-    max-width: calc(100% - 250px);
-    overflow-x: auto;
-  }
-  /* Cuando sidebar está oculto */
-  body.sidebar-collapsed #content-container {
-    margin-left: 0;
-    max-width: 100%;
-    overflow-x: auto;
-    padding-left: 1rem;
   }
 }
 
-/* Móvil y pantallas pequeñas */
 @media (max-width: 991px) {
   .flock-sidebar {
     display: none !important;
   }
   #content-container {
-    margin: 56px 1rem 0 1rem;
-    max-width: 100%;
-    overflow-x: auto;
+    margin: 56px 0 0;
   }
   .offcanvas.offcanvas-start {
     top: 56px;
@@ -454,13 +441,4 @@ body.sidebar-collapsed #content-container {
   --bs-pagination-disabled-color: #6c757d;
   --bs-pagination-disabled-bg: var(--bg-secondary);
   --bs-pagination-disabled-border-color: var(--border);
-}
-
-/* Evitar que tablas rompan layout y permitir scroll horizontal */
-#content-container table {
-  width: 100%;
-  table-layout: fixed;
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
 }
