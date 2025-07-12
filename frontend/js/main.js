@@ -73,9 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const content = document.getElementById('content-container');
       const topbar = document.querySelector('.navbar.flock-topbar');
 
-      sidebar.classList.toggle('d-none');
+      sidebar.classList.toggle('sidebar-hidden');
 
-      if (sidebar.classList.contains('d-none')) {
+      if (sidebar.classList.contains('sidebar-hidden')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
       } else {
