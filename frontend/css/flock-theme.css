@@ -10,9 +10,6 @@
 /* === BASE === */
 html, body {
   overflow-x: hidden;
-  height: 100%;
-  margin: 0;
-  padding: 0;
 }
 
 body {
@@ -20,17 +17,6 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* === CONTENEDOR GENERAL === */
-#app {
-  display: flex;
-  flex-grow: 1;
-  height: calc(100vh - 56px); /* 56px es la altura topbar */
-  overflow: hidden;
 }
 
 /* === SIDEBAR DESKTOP === */
@@ -38,11 +24,12 @@ body {
   width: 250px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  padding: 1.5rem 1rem 1rem 1rem;
+  padding: 1.5rem 1rem;
+  padding-top: 1rem;
   position: fixed;
-  top: 56px; /* para que no tape la topbar */
+  top: 0;
   left: 0;
-  height: calc(100vh - 56px);
+  height: 100vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -50,21 +37,87 @@ body {
   z-index: 1030;
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
-  transition: width 0.3s ease;
 }
 
-/* Ocultar sidebar al colapsar */
+/* Ocultar sidebar y expandir contenido */
 body.sidebar-collapsed #sidebar {
   display: none !important;
 }
 
-/* Scrollbar custom */
+body.sidebar-collapsed #content-container {
+  padding-left: 1rem; /* Ajusta el espacio si quieres más */
+}
+
+
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
 }
 .flock-sidebar::-webkit-scrollbar-thumb {
   background-color: var(--accent);
   border-radius: 4px;
+}
+
+.flock-logo {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0 0 2rem;
+	margin-bottom: 1rem;
+  padding-left: 0.25rem;
+  user-select: none;
+}
+
+/* === NAV LINKS === */
+.flock-nav .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.flock-nav .nav-link:hover {
+  background-color: #2b2f38;
+  color: var(--accent);
+}
+
+.flock-nav .nav-link.active {
+  background-color: #1c1f2e;
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+  padding-left: calc(1rem - 3px);
+  font-weight: 600;
+}
+
+.flock-nav .nav-link.active i {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    color: var(--accent);
+    text-shadow: 0 0 4px var(--accent);
+  }
+  50% {
+    color: #ff9a33;
+    text-shadow: 0 0 8px #ff9a33;
+  }
+}
+
+.fab-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1030;
+}
+
+.fab-container .dropdown-menu {
+  min-width: 200px;
 }
 
 /* === TOPBAR === */
@@ -86,46 +139,69 @@ body.sidebar-collapsed #sidebar {
   transition: left 0.3s ease;
 }
 
-/* Topbar cuando sidebar colapsado */
-body.sidebar-collapsed .navbar.flock-topbar {
-  left: 0;
+@media (max-width: 991px) {
+  .navbar.flock-topbar {
+    left: 0;
+  }
+}
+
+.navbar .navbar-brand {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  user-select: none;
+}
+
+#toggle-sidebar {
+  color: var(--text-primary);
+  border-color: var(--border);
+  position: relative;
+  z-index: 1050;
+  font-size: 1.25rem;
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+#toggle-sidebar:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* === CONTENIDO PRINCIPAL === */
 #content-container {
   flex-grow: 1;
-  margin-left: 250px;
   padding: 1rem;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-width: calc(100% - 250px);
-  margin-top: 56px;
-  transition: margin-left 0.3s ease, max-width 0.3s ease;
-}
-
-/* Expandir contenido cuando sidebar oculto */
-body.sidebar-collapsed #content-container {
-  margin-left: 0;
+  width: 100%;
   max-width: 100%;
-  padding-left: 1rem;
+  overflow-x: auto;
+  transition: margin-left 0.3s ease;
 }
 
-/* === RESPONSIVE === */
+@media (min-width: 992px) {
+  .flock-sidebar {
+    display: flex;
+  }
+  #content-container {
+    margin-left: 250px;
+    margin-top: 56px;
+  }
+}
+
 @media (max-width: 991px) {
   .flock-sidebar {
     display: none !important;
   }
   #content-container {
-    margin-left: 0;
-    max-width: 100%;
-    margin-top: 56px;
+    margin: 56px 0 0;
   }
   .offcanvas.offcanvas-start {
     top: 56px;
   }
 }
 
-/* === BOTONES, TARJETAS, TABLAS, DATATABLES === */
+/* === BOTONES === */
 a, .btn-primary {
   background-color: var(--accent);
   border-color: var(--accent);
@@ -146,11 +222,17 @@ a, .btn-primary {
   background-color: #218838;
 }
 
+/* === TARJETAS Y TABLAS === */
 .container, .card {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
 }
+
+/* .card-header {
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+} */
 
 .card-header {
   background-color: rgba(255, 255, 255, 0.05);
@@ -185,6 +267,7 @@ a, .btn-primary {
   padding-top: 0.5rem;
 }
 
+/* Cabecera */
 table.dataTable thead th {
   background-color: var(--bg-primary);
   color: var(--accent);
@@ -194,6 +277,7 @@ table.dataTable thead th {
   text-transform: uppercase;
 }
 
+/* Filas */
 table.dataTable tbody td {
   vertical-align: middle;
   font-size: 0.95rem;
@@ -210,6 +294,7 @@ table.dataTable tbody tr.selected {
   background-color: #1c1f2e;
 }
 
+/* Buscador */
 .dataTables_wrapper .dataTables_filter {
   text-align: right;
   margin-bottom: 1rem;
@@ -230,6 +315,7 @@ table.dataTable tbody tr.selected {
   box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25);
 }
 
+/* Selector de registros */
 .dataTables_wrapper .dataTables_length select {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
@@ -243,11 +329,13 @@ table.dataTable tbody tr.selected {
   margin-bottom: 0.5rem;
 }
 
+/* Info */
 .dataTables_wrapper .dataTables_info {
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
+/* Spinner */
 .dataTables_wrapper .dataTables_processing {
   background-color: rgba(22, 24, 29, 0.8);
   color: var(--accent);
@@ -256,6 +344,7 @@ table.dataTable tbody tr.selected {
   border-radius: 0.5rem;
 }
 
+/* Export buttons */
 .dt-button {
   background-color: var(--accent) !important;
   color: #000 !important;
@@ -272,6 +361,7 @@ table.dataTable tbody tr.selected {
   color: #000 !important;
 }
 
+/* Paginación */
 .dataTables_wrapper .pagination {
   justify-content: center;
   margin-top: 1rem;
@@ -324,4 +414,31 @@ table.dataTable tbody tr.selected {
 .table tbody tr.tier-starter:hover,
 .table tbody tr.tier-bench:hover {
   background-color: #2b2f38 !important; /* mismo hover actual */
+}
+
+body.sidebar-collapsed .navbar.flock-topbar {
+  left: 0;
+}
+
+body.sidebar-collapsed #content-container {
+  margin-left: 0;
+}
+
+/* Bootstrap pagination override */
+.pagination {
+  --bs-pagination-color: var(--text-primary);
+  --bs-pagination-bg: var(--bg-secondary);
+  --bs-pagination-border-color: var(--border);
+  --bs-pagination-hover-color: #000;
+  --bs-pagination-hover-bg: var(--accent);
+  --bs-pagination-hover-border-color: var(--accent);
+  --bs-pagination-focus-color: #000;
+  --bs-pagination-focus-bg: var(--accent);
+  --bs-pagination-focus-box-shadow: none;
+  --bs-pagination-active-color: #000;
+  --bs-pagination-active-bg: var(--accent);
+  --bs-pagination-active-border-color: var(--accent);
+  --bs-pagination-disabled-color: #6c757d;
+  --bs-pagination-disabled-bg: var(--bg-secondary);
+  --bs-pagination-disabled-border-color: var(--border);
 }
