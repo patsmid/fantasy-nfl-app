@@ -183,7 +183,20 @@ export default async function renderDraftView() {
         columnDefs: [
           { targets: [8, 12, 13], orderable: false },
           { targets: [8, 12, 13], className: 'text-nowrap text-center' },
-          { responsivePriority: 1, targets: 1 },
+          // Prioridades de visibilidad en móvil
+          { responsivePriority: 1, targets: 1 },   // Jugador → siempre visible
+          { responsivePriority: 2, targets: 0 },   // ADP
+          { responsivePriority: 3, targets: 5 },   // Ranking
+          { responsivePriority: 4, targets: 7 },   // Ronda
+          { responsivePriority: 5, targets: 9 },   // VOR
+          { responsivePriority: 6, targets: 10 },  // VOR Ajustado
+          { responsivePriority: 7, targets: 3 },   // Equipo (ocultar primero)
+          { responsivePriority: 8, targets: 2 },   // Posición
+          { responsivePriority: 9, targets: 12 },  // Tier Global
+          { responsivePriority: 10, targets: 13 }, // Tier Posición
+          { responsivePriority: 11, targets: 6 },  // Status
+          { responsivePriority: 12, targets: 11 }, // Dropoff
+          { responsivePriority: 13, targets: 4 },  // Bye
         ],
 
         rowCallback: function (row, data) {

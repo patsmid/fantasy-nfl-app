@@ -38,9 +38,14 @@ body {
 .flock-sidebar::-webkit-scrollbar {
   width: 8px;
 }
+
 .flock-sidebar::-webkit-scrollbar-thumb {
   background-color: var(--accent);
   border-radius: 4px;
+}
+
+.card.flock-card {
+  overflow-x: hidden;
 }
 
 .flock-logo {
@@ -104,6 +109,13 @@ body {
 
 .fab-container .dropdown-menu {
   min-width: 200px;
+}
+
+.badge {
+  max-width: 100px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* === TOPBAR === */
@@ -440,7 +452,24 @@ table.dataTable tbody tr.selected {
   background-color: #2b2f38 !important; /* mismo hover actual */
 }
 
+/* Permite que DataTable se adapte con el plugin responsive */
+table.dataTable {
+  width: 100% !important;
+}
 
+/* Previene que las celdas desborden por texto largo */
+table.dataTable td {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 180px; /* ajusta si es necesario */
+}
+
+/* Permite que DataTables responsive use collapsible rows */
+table.dataTable.dtr-inline.collapsed > tbody > tr > td:first-child:before {
+  top: 50%;
+  transform: translateY(-50%);
+}
 
 /* Bootstrap pagination override */
 .pagination {
