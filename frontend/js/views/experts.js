@@ -18,9 +18,9 @@ export default async function renderExpertsView() {
           <table id="expertsTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
               <tr>
-                <th>ID</th>
                 <th>ID Experto</th>
                 <th>Nombre</th>
+                <th>Fuente</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -40,13 +40,24 @@ export default async function renderExpertsView() {
           </div>
           <div class="modal-body">
             <input type="hidden" id="modal-id">
-            <div class="mb-3">
+
+            <div class="mb-3" id="id-experto-group">
               <label for="modal-id-experto" class="form-label">ID Experto</label>
-              <input type="number" class="form-control" id="modal-id-experto" required>
+              <input type="number" class="form-control" id="modal-id-experto">
             </div>
+
             <div class="mb-3">
               <label for="modal-experto" class="form-label">Nombre</label>
               <input type="text" class="form-control" id="modal-experto" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="modal-source" class="form-label">Fuente</label>
+              <select class="form-select" id="modal-source" required>
+                <option value="" disabled selected>Selecciona fuente...</option>
+                <option value="fantasypros">FantasyPros</option>
+                <option value="flock">Flock Fantasy</option>
+              </select>
             </div>
           </div>
           <div class="modal-footer border-top border-secondary">
@@ -61,9 +72,23 @@ export default async function renderExpertsView() {
   const modalEl = document.getElementById('expertModal');
   const modal = new bootstrap.Modal(modalEl);
 
+  const sourceSelect = document.getElementById('modal-source');
+  const idExpertoGroup = document.getElementById('id-experto-group');
+
+  // Mostrar/ocultar campo ID Experto según fuente
+  sourceSelect.addEventListener('change', () => {
+    if (sourceSelect.value === 'flock') {
+      idExpertoGroup.style.display = 'none';
+    } else {
+      idExpertoGroup.style.display = '';
+    }
+  });
+
   document.getElementById('btn-add-expert').addEventListener('click', () => {
     document.getElementById('expertForm').reset();
     document.getElementById('modal-id').value = '';
+    idExpertoGroup.style.display = ''; // mostrar por default
+    document.getElementById('modal-source').value = '';
     document.getElementById('expertModalLabel').textContent = 'Agregar experto';
     modal.show();
   });
@@ -73,12 +98,13 @@ export default async function renderExpertsView() {
     const id = document.getElementById('modal-id').value;
     const id_experto = document.getElementById('modal-id-experto').value;
     const experto = document.getElementById('modal-experto').value;
+    const source = document.getElementById('modal-source').value;
 
     try {
       if (id) {
-        await updateExpert(id, { id_experto, experto });
+        await updateExpert(id, { id_experto, experto, source });
       } else {
-        await createExpert({ id_experto, experto });
+        await createExpert({ id_experto, experto, source });
       }
       modal.hide();
       await loadExperts(modal);
@@ -98,15 +124,22 @@ async function loadExperts(modal) {
   experts.forEach(e => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${e.id}</td>
-      <td>${e.id_experto}</td>
+      <td>${e.source === 'flock' ? e.experto : e.id_experto || ''}</td>
       <td>${e.experto}</td>
+      <td><span class="badge bg-secondary">${e.source || '–'}</span></td>
       <td>
         <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-warning btn-edit" data-id="${e.id}" data-id_experto="${e.id_experto}" data-experto="${e.experto}" title="Editar">
+          <button class="btn btn-sm btn-outline-warning btn-edit"
+            data-id="${e.id}"
+            data-id_experto="${e.id_experto || ''}"
+            data-experto="${e.experto}"
+            data-source="${e.source || ''}"
+            title="Editar">
             <i class="bi bi-pencil-square"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${e.id}" title="Eliminar">
+          <button class="btn btn-sm btn-outline-danger btn-delete"
+            data-id="${e.id}"
+            title="Eliminar">
             <i class="bi bi-trash"></i>
           </button>
         </div>
@@ -115,7 +148,6 @@ async function loadExperts(modal) {
     tbody.appendChild(tr);
   });
 
-  // Inicializa o reinicia DataTable en español
   if ($.fn.DataTable.isDataTable('#expertsTable')) {
     $('#expertsTable').DataTable().clear().destroy();
   }
@@ -134,6 +166,16 @@ async function loadExperts(modal) {
       document.getElementById('modal-id').value = btn.dataset.id;
       document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
       document.getElementById('modal-experto').value = btn.dataset.experto;
+      document.getElementById('modal-source').value = btn.dataset.source || '';
+
+      // Mostrar u ocultar el campo ID Experto al editar
+      const idExpertoGroup = document.getElementById('id-experto-group');
+      if (btn.dataset.source === 'flock') {
+        idExpertoGroup.style.display = 'none';
+      } else {
+        idExpertoGroup.style.display = '';
+      }
+
       document.getElementById('expertModalLabel').textContent = 'Editar experto';
 
       const modalEl = document.getElementById('expertModal');
