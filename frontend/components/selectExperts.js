@@ -17,7 +17,8 @@ export async function renderExpertSelect(selector, options = {}) {
     .forEach(expert => {
       const opt = document.createElement('option');
       opt.value = expert.id_experto;
-      opt.textContent = `${expert.experto} (${expert.source || 'N/A'})`;
+      opt.textContent = `${expert.experto}`;
+      opt.dataset.source = expert.source || ''; // <- Aquí se agrega el data-source
       selectElement.appendChild(opt);
     });
 

@@ -107,7 +107,7 @@ export default async function renderRankingsView() {
       $('#rankingsTable').DataTable({
         responsive: true,
         pageLength: 25,
-        order: [[0, 'asc']], // Orden por columna Rank
+        order: [[0, 'asc']],
         language: {
           url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
         },
