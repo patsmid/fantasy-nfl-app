@@ -1,5 +1,5 @@
 import { fetchExperts, createExpert, updateExpert, deleteExpert } from '../api.js';
-import { showSuccess, showError, showConfirm, showLoadingBar } from '../components/alerts.js';
+import { showSuccess, showError, showConfirm, showLoadingBar } from '../../components/alerts.js';
 
 export default async function renderExpertsView() {
   const content = document.getElementById('content-container');
