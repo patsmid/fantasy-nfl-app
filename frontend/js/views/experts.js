@@ -76,6 +76,7 @@ export default async function renderExpertsView() {
     </div>
   `;
 
+  // Asegúrate de que los elementos existen después de insertar el HTML
   const modalEl = document.getElementById('expertModal');
   const modal = new bootstrap.Modal(modalEl);
   const sourceSelect = document.getElementById('modal-source');
@@ -131,7 +132,6 @@ async function loadExperts() {
     const tbody = document.querySelector('#expertsTable tbody');
     tbody.innerHTML = '';
 
-    // Ordenar por display_order (nulls al final)
     experts.sort((a, b) => {
       if (a.display_order === null) return 1;
       if (b.display_order === null) return -1;
@@ -173,7 +173,7 @@ async function loadExperts() {
 
     $('#expertsTable').DataTable({
       responsive: true,
-      pageLength: 10,
+      pageLength: 20,
       language: {
         url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
       },
@@ -187,6 +187,7 @@ async function loadExperts() {
         document.getElementById('modal-experto').value = btn.dataset.experto;
         document.getElementById('modal-source').value = btn.dataset.source || '';
         document.getElementById('modal-display-order').value = btn.dataset.display_order || '';
+        const idExpertoGroup = document.getElementById('id-experto-group');
         idExpertoGroup.style.display = btn.dataset.source === 'flock' ? 'none' : '';
         document.getElementById('expertModalLabel').textContent = 'Editar experto';
         const modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('expertModal'));
