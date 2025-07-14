@@ -72,7 +72,7 @@ export default async function renderRankingsView() {
 
     try {
       showLoadingBar('Consultando rankings...');
-      const res = await fetch(`/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expert}`);
+      const res = await fetch(`https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expert}`);
       const result = await res.json();
       Swal.close();
 

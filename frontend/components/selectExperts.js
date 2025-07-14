@@ -7,12 +7,19 @@ export async function renderExpertSelect(selector, options = {}) {
 
   selectElement.innerHTML = '<option value="">Selecciona un experto</option>';
 
-  experts.forEach(expert => {
-    const opt = document.createElement('option');
-    opt.value = expert.id_experto;
-    opt.textContent = expert.experto;
-    selectElement.appendChild(opt);
-  });
+  // Ordenar por display_order
+  experts
+    .sort((a, b) => {
+      if (a.display_order === null) return 1;
+      if (b.display_order === null) return -1;
+      return a.display_order - b.display_order;
+    })
+    .forEach(expert => {
+      const opt = document.createElement('option');
+      opt.value = expert.id_experto;
+      opt.textContent = `${expert.experto} (${expert.source || 'N/A'})`;
+      selectElement.appendChild(opt);
+    });
 
   selectElement.tomselect = new TomSelect(selector, {
     placeholder: 'Selecciona un experto...',

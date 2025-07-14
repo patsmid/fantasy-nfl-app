@@ -132,11 +132,11 @@ async function loadExperts() {
     const tbody = document.querySelector('#expertsTable tbody');
     tbody.innerHTML = '';
 
-    experts.sort((a, b) => {
-      if (a.display_order === null) return 1;
-      if (b.display_order === null) return -1;
-      return a.display_order - b.display_order;
-    });
+		experts.sort((a, b) => {
+		  if (a.display_order === null) return 1;
+		  if (b.display_order === null) return -1;
+		  return a.display_order - b.display_order;
+		});
 
     experts.forEach(e => {
       const tr = document.createElement('tr');
@@ -179,6 +179,7 @@ async function loadExperts() {
     $('#expertsTable').DataTable({
       responsive: true,
       pageLength: 20,
+			order: [[3, 'asc']],
       language: {
         url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
       },
