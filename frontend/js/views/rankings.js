@@ -111,7 +111,7 @@ export default async function renderRankingsView() {
         language: {
           url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
         },
-        dom: 'tip'
+        // dom: 'tip'
       });
 
     } catch (err) {
