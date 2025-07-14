@@ -19,6 +19,7 @@ import {
 } from './utils/sleeper.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
+import rankingsRouter from './rankings.js';
 import extrasRouter from './extras.js';
 
 const app = express();
@@ -86,6 +87,7 @@ app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 app.use('/draft', draftRouter);
 app.use('/projections', projectionsRouter);
 app.use('/extras', extrasRouter);
+app.use('/rankings', rankingsRouter);
 
 // 🌐 Default
 app.get('/', (req, res) => {
