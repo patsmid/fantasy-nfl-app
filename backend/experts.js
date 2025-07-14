@@ -8,7 +8,7 @@ export async function getAllExperts(req, res) {
     const { data, error } = await supabase
       .from('experts')
       .select('*')
-      .order('id');
+      .order('display_order');
 
     if (error) throw error;
 
@@ -44,52 +44,49 @@ export async function getExpertById(req, res) {
 /**
  * Crear nuevo experto
  */
-export async function createExpert(req, res) {
-  const { id_experto, experto } = req.body;
-  if (!id_experto || !experto) {
-    return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
-  }
+ export async function createExpert(req, res) {
+   const { id_experto, experto, source, display_order } = req.body;
+   if (!experto || !source) {
+     return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
+   }
 
-  try {
-    const { data, error } = await supabase
-      .from('experts')
-      .insert({ id_experto, experto })
-      .select()
-      .maybeSingle();
+   try {
+     const { data, error } = await supabase
+       .from('experts')
+       .insert({ id_experto, experto, source, display_order })
+       .select()
+       .maybeSingle();
 
-    if (error) throw error;
+     if (error) throw error;
 
-    res.status(201).json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en createExpert:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-}
+     res.status(201).json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en createExpert:', err.message || err);
+     res.status(500).json({ success: false, error: err.message });
+   }
+ }
 
-/**
- * Actualizar experto
- */
-export async function updateExpert(req, res) {
-  const id = parseInt(req.params.id);
-  const { id_experto, experto } = req.body;
+ export async function updateExpert(req, res) {
+   const id = parseInt(req.params.id);
+   const { id_experto, experto, source, display_order } = req.body;
 
-  try {
-    const { data, error } = await supabase
-      .from('experts')
-      .update({ id_experto, experto })
-      .eq('id', id)
-      .select()
-      .maybeSingle();
+   try {
+     const { data, error } = await supabase
+       .from('experts')
+       .update({ id_experto, experto, source, display_order })
+       .eq('id', id)
+       .select()
+       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ success: false, error: 'Experto no encontrado' });
+     if (error) throw error;
+     if (!data) return res.status(404).json({ success: false, error: 'Experto no encontrado' });
 
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en updateExpert:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-}
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en updateExpert:', err.message || err);
+     res.status(500).json({ success: false, error: err.message });
+   }
+ }
 
 /**
  * Eliminar experto
