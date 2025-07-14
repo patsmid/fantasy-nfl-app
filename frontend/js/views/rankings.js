@@ -5,10 +5,14 @@ export default async function renderRankingsView() {
   const content = document.getElementById('content-container');
 
   const experts = await fetchExperts();
-  const expertOptions = experts
-    .filter(e => e.source === 'flock')
-    .map(e => `<option value="${e.id_experto}">${e.experto}</option>`)
-    .join('');
+	const expertOptions = experts
+	  .sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999))
+	  .map(e => {
+	    const value = e.source === 'flock' ? e.experto : e.id_experto;
+	    const label = `${e.experto} (${e.source || 'otro'})`;
+	    return `<option value="${value}">${label}</option>`;
+	  })
+	  .join('');
 
   content.innerHTML = `
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -49,14 +53,15 @@ export default async function renderRankingsView() {
 
         <div class="table-responsive">
           <table id="rankingsTable" class="table table-dark table-striped align-middle w-100">
-            <thead>
-              <tr>
-                <th>Jugador</th>
-                <th>Posición</th>
-                <th>Equipo</th>
-                <th>Ranking promedio</th>
-              </tr>
-            </thead>
+						<thead>
+						  <tr>
+						    <th>Rank</th>
+						    <th>Jugador</th>
+						    <th>Posición</th>
+						    <th>Equipo</th>
+						    <th>Ranking promedio</th>
+						  </tr>
+						</thead>
             <tbody></tbody>
           </table>
         </div>
@@ -78,19 +83,22 @@ export default async function renderRankingsView() {
 
       if (!Array.isArray(result)) throw new Error('Respuesta inválida');
 
-      const tbody = document.querySelector('#rankingsTable tbody');
-      tbody.innerHTML = '';
+			const tbody = document.querySelector('#rankingsTable tbody');
+			tbody.innerHTML = '';
 
-      result.forEach(p => {
-        tbody.innerHTML += `
-          <tr>
-            <td>${p.player_name}</td>
-            <td>${p.position}</td>
-            <td>${p.team}</td>
-            <td>${p.average_rank}</td>
-          </tr>
-        `;
-      });
+			result.forEach(p => {
+			  const rankValue = expert ? p.rank : p.average_rank;
+
+			  tbody.innerHTML += `
+			    <tr>
+			      <td>${rankValue}</td>
+			      <td>${p.player_name}</td>
+			      <td>${p.position}</td>
+			      <td>${p.team}</td>
+			      <td>${p.average_rank}</td>
+			    </tr>
+			  `;
+			});
     } catch (err) {
       showError('Error al obtener rankings: ' + err.message);
     }
