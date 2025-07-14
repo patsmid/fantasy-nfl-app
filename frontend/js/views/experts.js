@@ -144,7 +144,12 @@ async function loadExperts() {
         <td>${e.source === 'flock' ? e.experto : e.id_experto || ''}</td>
         <td>${e.experto}</td>
         <td><span class="badge bg-secondary">${e.source || '–'}</span></td>
-        <td>${e.display_order ?? ''}</td>
+				<td>
+				  <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary display-order-input"
+				         value="${e.display_order ?? ''}"
+				         data-id="${e.id}"
+				         style="width: 80px;" />
+				</td>
         <td>
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-warning btn-edit"
@@ -212,4 +217,19 @@ async function loadExperts() {
   } catch (err) {
     showError('Error al cargar expertos: ' + err.message);
   }
+
+	// Permitir edición directa de display_order
+	document.querySelectorAll('.display-order-input').forEach(input => {
+	  input.addEventListener('change', async () => {
+	    const id = input.dataset.id;
+	    const newValue = parseInt(input.value) || null;
+	    try {
+	      await updateExpert(id, { display_order: newValue });
+	      showSuccess('Orden actualizado');
+	    } catch (err) {
+	      showError('Error al actualizar orden: ' + err.message);
+	    }
+	  });
+	});
+
 }

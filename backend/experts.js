@@ -23,7 +23,7 @@ export async function getAllExperts(req, res) {
  * Obtener experto por ID
  */
 export async function getExpertById(req, res) {
-  const id = parseInt(req.params.id);
+  const id = req.params.id;
   try {
     const { data, error } = await supabase
       .from('experts')
@@ -67,7 +67,7 @@ export async function getExpertById(req, res) {
  }
 
  export async function updateExpert(req, res) {
-   const id = parseInt(req.params.id);
+   const id = req.params.id;
    const { id_experto, experto, source, display_order } = req.body;
 
    try {
@@ -92,7 +92,7 @@ export async function getExpertById(req, res) {
  * Eliminar experto
  */
 export async function deleteExpert(req, res) {
-  const id = parseInt(req.params.id);
+  const id = req.params.id;
   try {
     const { error } = await supabase
       .from('experts')
