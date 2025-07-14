@@ -1,4 +1,5 @@
 import { fetchExperts, createExpert, updateExpert, deleteExpert } from '../api.js';
+import { showSuccess, showError, showConfirm, showLoadingBar } from '../components/alerts.js';
 
 export default async function renderExpertsView() {
   const content = document.getElementById('content-container');
@@ -106,92 +107,108 @@ export default async function renderExpertsView() {
       const payload = { id_experto, experto, source, display_order };
       if (id) {
         await updateExpert(id, payload);
+        showSuccess('Experto actualizado correctamente');
       } else {
         await createExpert(payload);
+        showSuccess('Experto creado correctamente');
       }
       modal.hide();
-      await loadExperts(modal);
+      await loadExperts();
     } catch (err) {
-      alert('Error al guardar experto: ' + err.message);
+      showError(err.message);
     }
   });
 
-  await loadExperts(modal);
+  await loadExperts();
 }
 
-async function loadExperts(modal) {
-  const experts = await fetchExperts();
-  const tbody = document.querySelector('#expertsTable tbody');
-  tbody.innerHTML = '';
+async function loadExperts() {
+  try {
+    showLoadingBar('Cargando expertos...');
+    const experts = await fetchExperts();
+    Swal.close();
 
-  experts.forEach(e => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${e.source === 'flock' ? e.experto : e.id_experto || ''}</td>
-      <td>${e.experto}</td>
-      <td><span class="badge bg-secondary">${e.source || '–'}</span></td>
-      <td>${e.display_order ?? ''}</td>
-      <td>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-warning btn-edit"
-            data-id="${e.id}"
-            data-id_experto="${e.id_experto || ''}"
-            data-experto="${e.experto}"
-            data-source="${e.source || ''}"
-            data-display_order="${e.display_order ?? ''}"
-            title="Editar">
-            <i class="bi bi-pencil-square"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger btn-delete"
-            data-id="${e.id}"
-            title="Eliminar">
-            <i class="bi bi-trash"></i>
-          </button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
+    const tbody = document.querySelector('#expertsTable tbody');
+    tbody.innerHTML = '';
 
-  if ($.fn.DataTable.isDataTable('#expertsTable')) {
-    $('#expertsTable').DataTable().clear().destroy();
-  }
-
-  $('#expertsTable').DataTable({
-    responsive: true,
-    pageLength: 10,
-    language: {
-      url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-    },
-    dom: 'tip'
-  });
-
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('modal-id').value = btn.dataset.id;
-      document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
-      document.getElementById('modal-experto').value = btn.dataset.experto;
-      document.getElementById('modal-source').value = btn.dataset.source || '';
-      document.getElementById('modal-display-order').value = btn.dataset.display_order || '';
-
-      idExpertoGroup.style.display = btn.dataset.source === 'flock' ? 'none' : '';
-      document.getElementById('expertModalLabel').textContent = 'Editar experto';
-
-      const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modalInstance.show();
+    // Ordenar por display_order (nulls al final)
+    experts.sort((a, b) => {
+      if (a.display_order === null) return 1;
+      if (b.display_order === null) return -1;
+      return a.display_order - b.display_order;
     });
-  });
 
-  document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('¿Estás seguro de eliminar este experto?')) {
-        try {
-          await deleteExpert(btn.dataset.id);
-          await loadExperts(modal);
-        } catch (err) {
-          alert('Error al eliminar experto: ' + err.message);
+    experts.forEach(e => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${e.source === 'flock' ? e.experto : e.id_experto || ''}</td>
+        <td>${e.experto}</td>
+        <td><span class="badge bg-secondary">${e.source || '–'}</span></td>
+        <td>${e.display_order ?? ''}</td>
+        <td>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-warning btn-edit"
+              data-id="${e.id}"
+              data-id_experto="${e.id_experto || ''}"
+              data-experto="${e.experto}"
+              data-source="${e.source || ''}"
+              data-display_order="${e.display_order ?? ''}"
+              title="Editar">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger btn-delete"
+              data-id="${e.id}"
+              title="Eliminar">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if ($.fn.DataTable.isDataTable('#expertsTable')) {
+      $('#expertsTable').DataTable().clear().destroy();
+    }
+
+    $('#expertsTable').DataTable({
+      responsive: true,
+      pageLength: 10,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+      },
+      dom: 'tip'
+    });
+
+    document.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('modal-id').value = btn.dataset.id;
+        document.getElementById('modal-id-experto').value = btn.dataset.id_experto;
+        document.getElementById('modal-experto').value = btn.dataset.experto;
+        document.getElementById('modal-source').value = btn.dataset.source || '';
+        document.getElementById('modal-display-order').value = btn.dataset.display_order || '';
+        idExpertoGroup.style.display = btn.dataset.source === 'flock' ? 'none' : '';
+        document.getElementById('expertModalLabel').textContent = 'Editar experto';
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('expertModal'));
+        modalInstance.show();
+      });
+    });
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const result = await showConfirm({ text: 'Esta acción no se puede deshacer.' });
+        if (result.isConfirmed) {
+          try {
+            await deleteExpert(btn.dataset.id);
+            showSuccess('Experto eliminado');
+            await loadExperts();
+          } catch (err) {
+            showError(err.message);
+          }
         }
-      }
+      });
     });
-  });
+  } catch (err) {
+    showError('Error al cargar expertos: ' + err.message);
+  }
 }
