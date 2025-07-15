@@ -47,7 +47,7 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   const json = await res.json();
 
   return {
-    source: expertSource,
+    source: 'fantasypros',
     published: json.published,
     players: json.players || []
   };
@@ -82,7 +82,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
       return {
         data: rawData,
         last_updated: Object.fromEntries(
-          Object.entries(lastUpdatedAll).map(([name, iso]) => [name, formatDate(iso)])
+          Object.entries(lastUpdatedAll).map(([name, iso]) => [name, iso])
         )
       };
     }
@@ -99,7 +99,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 
     return {
       data: filteredData,
-      last_updated: lastUpdatedAll[expert] ? formatDate(lastUpdatedAll[expert]) : null
+      last_updated: lastUpdatedAll[expert] ? (lastUpdatedAll[expert]) : null
     };
   } catch (err) {
     console.error('❌ Error en getFlockRankings:', err.message);
