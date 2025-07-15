@@ -1,4 +1,3 @@
-// services/espnService.js
 import fetch from 'node-fetch';
 
 export async function getNFLTeamsByeWeek() {
@@ -8,7 +7,12 @@ export async function getNFLTeamsByeWeek() {
     const res = await fetch(url);
     const data = await res.json();
 
-    if (!data.proTeams) return [];
+    console.log('🧾 ESPN raw response:', JSON.stringify(data, null, 2));
+
+    if (!data.proTeams) {
+      console.warn('⚠️ No proTeams found in response');
+      return [];
+    }
 
     const teams = data.proTeams.map(team => ({
       team: team.name,
@@ -18,7 +22,7 @@ export async function getNFLTeamsByeWeek() {
 
     return teams;
   } catch (err) {
-    console.error('Error fetching data from ESPN:', err.message);
+    console.error('❌ Error fetching data from ESPN:', err.message);
     return [];
   }
 }
