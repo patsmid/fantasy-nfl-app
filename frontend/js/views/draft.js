@@ -248,6 +248,7 @@ export default async function renderDraftView() {
 
       const ranksLabel = document.getElementById('ranks-updated-label');
       if (ranksLabel && res?.params?.ranks_published) {
+        const source = res.params.source; 
         const fecha = new Date(res.params.ranks_published);
         const fechaFormateada = fecha.toLocaleString('es-MX', {
           dateStyle: 'medium',
