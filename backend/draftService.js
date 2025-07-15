@@ -52,7 +52,7 @@ export async function getDraftData(
     finalPosition = 'SUPER FLEX';
   }
 
-  const { players: rankings, published: ranks_published } = await getRankings({
+  const { players: rankings, published: ranks_published, source: source } = await getRankings({
     season,
     dynasty,
     scoring,
@@ -109,7 +109,8 @@ export async function getDraftData(
       scoring,
       dynasty,
       superFlex,
-			ranks_published
+			ranks_published,
+      source
     },
     data: players
   };

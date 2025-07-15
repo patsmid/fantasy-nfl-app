@@ -15,7 +15,8 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
     });
 
     return {
-      published: `Flock (${last_updated || 'sin fecha'})`,
+      source: expertSource,
+      published: last_updated,
       players: data
     };
 
@@ -46,7 +47,8 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   const json = await res.json();
 
   return {
-    published: `FantasyPros (${json.published || season})`,
+    source: expertSource,
+    published: json.published,
     players: json.players || []
   };
 }
