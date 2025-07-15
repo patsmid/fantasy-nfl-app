@@ -1,4 +1,4 @@
-// services/espnService.js
+import { supabase } from '../supabaseClient.js';
 import fetch from 'node-fetch';
 
 export async function getNFLTeamsByeWeek() {
@@ -25,4 +25,19 @@ export async function getNFLTeamsByeWeek() {
     console.error('❌ Error fetching data from ESPN:', err.message);
     return [];
   }
+}
+
+export async function upsertTeams(teams) {
+  const { data, error } = await supabase
+    .from('teams')
+    .upsert(teams, {
+      onConflict: ['abbr'],
+    });
+
+  if (error) {
+    console.error('❌ Error al guardar en Supabase:', error.message);
+    return { success: false, error };
+  }
+
+  return { success: true, data };
 }

@@ -17,7 +17,7 @@ import {
   getSleeperADP, getLatestADPDate, getADPTypes,
   updateSleeperADP, getUniqueSleeperADPValues
 } from './utils/sleeper.js';
-import { getNFLTeamsByeWeek } from './lib/teamsService.js';
+import { getNFLTeamsByeWeek, upsertTeams } from './lib/teamsService.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -87,6 +87,26 @@ app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 app.get('/teams/byeweek', async (req, res) => {
   const data = await getNFLTeamsByeWeek();
   res.json(data);
+});
+
+app.post('/teams/save', async (req, res) => {
+  try {
+    const teams = await getNFLTeamsByeWeek();
+
+    if (!teams.length) {
+      return res.status(400).json({ error: 'No se obtuvieron datos de ESPN' });
+    }
+
+    const result = await upsertTeams(teams);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error.message });
+    }
+
+    res.json({ message: 'Equipos guardados correctamente', count: result.data.length });
+  } catch (err) {
+    console.error('❌ Error en /api/teams/save:', err.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // 📋 Rutas modulares
