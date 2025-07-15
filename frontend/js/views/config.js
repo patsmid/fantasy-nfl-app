@@ -2,61 +2,102 @@ import { fetchConfig, updateConfig } from '../api.js';
 
 export default async function () {
   const content = document.getElementById('content-container');
-  content.innerHTML = `
-    <div class="card border-0 shadow-sm rounded flock-card">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h4 class="m-0 d-flex align-items-center gap-2">
-            <i class="bi bi-gear-fill text-warning"></i> Configuración
-          </h4>
-          <button class="btn btn-sm btn-primary" id="btn-add-config">
-            <i class="bi bi-plus-circle me-1"></i> Agregar
-          </button>
-        </div>
+	content.innerHTML = `
+	<div class="card border-0 shadow-sm rounded flock-card">
+	  <div class="card-body">
+	    <ul class="nav nav-tabs mb-3" id="configTabs" role="tablist">
+	      <li class="nav-item" role="presentation">
+	        <button class="nav-link active" id="config-tab" data-bs-toggle="tab" data-bs-target="#config-panel" type="button" role="tab">
+	          <i class="bi bi-gear-fill me-1"></i> Configuración
+	        </button>
+	      </li>
+	      <li class="nav-item" role="presentation">
+	        <button class="nav-link" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams-panel" type="button" role="tab">
+	          <i class="bi bi-people-fill me-1"></i> Equipos NFL
+	        </button>
+	      </li>
+	    </ul>
 
-        <div class="table-responsive">
-          <table id="configTable" class="table table-dark table-hover align-middle w-100">
-            <thead class="table-dark">
-              <tr>
-                <th>Clave</th>
-                <th>Valor</th>
-                <th>Última actualización</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+	    <div class="tab-content" id="configTabsContent">
+	      <!-- Configuración -->
+	      <div class="tab-pane fade show active" id="config-panel" role="tabpanel">
+	        <div class="d-flex justify-content-between align-items-center mb-3">
+	          <h5 class="m-0 d-flex align-items-center gap-2">
+	            <i class="bi bi-sliders2 text-warning"></i> Configuración
+	          </h5>
+	          <button class="btn btn-sm btn-primary" id="btn-add-config">
+	            <i class="bi bi-plus-circle me-1"></i> Agregar
+	          </button>
+	        </div>
+	        <div class="table-responsive">
+	          <table id="configTable" class="table table-dark table-hover align-middle w-100">
+	            <thead class="table-dark">
+	              <tr>
+	                <th>Clave</th>
+	                <th>Valor</th>
+	                <th>Última actualización</th>
+	                <th>Acciones</th>
+	              </tr>
+	            </thead>
+	            <tbody></tbody>
+	          </table>
+	        </div>
+	      </div>
 
-    <!-- Modal -->
-    <div class="modal fade" id="configModal" tabindex="-1">
-      <div class="modal-dialog">
-        <form class="modal-content bg-dark text-white border border-secondary rounded" id="configForm">
-          <div class="modal-header border-bottom border-secondary">
-            <h5 class="modal-title">Configuración</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="configId" />
-            <div class="mb-3">
-              <label for="configKey" class="form-label">Clave</label>
-              <input type="text" class="form-control" id="configKey" name="key" required />
-            </div>
-            <div class="mb-3">
-              <label for="configValue" class="form-label">Valor</label>
-              <input type="text" class="form-control" id="configValue" name="value" />
-            </div>
-          </div>
-          <div class="modal-footer border-top border-secondary">
-            <button type="submit" class="btn btn-success">Guardar</button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
+	      <!-- Equipos -->
+	      <div class="tab-pane fade" id="teams-panel" role="tabpanel">
+	        <div class="d-flex justify-content-between align-items-center mb-3">
+	          <h5 class="m-0 d-flex align-items-center gap-2">
+	            <i class="bi bi-shield-fill text-warning"></i> Equipos NFL
+	          </h5>
+	          <button class="btn btn-sm btn-warning" id="btn-update-teams">
+	            <i class="bi bi-arrow-repeat me-1"></i> Actualizar equipos
+	          </button>
+	        </div>
+	        <div class="table-responsive">
+	          <table id="teamsTable" class="table table-dark table-hover align-middle w-100">
+	            <thead class="table-dark">
+	              <tr>
+	                <th>Equipo</th>
+	                <th>Abreviación</th>
+	                <th>Bye Week</th>
+	              </tr>
+	            </thead>
+	            <tbody></tbody>
+	          </table>
+	        </div>
+	      </div>
+	    </div>
+	  </div>
+	</div>
+
+	<!-- Modal -->
+	<div class="modal fade" id="configModal" tabindex="-1">
+	  <div class="modal-dialog">
+	    <form class="modal-content bg-dark text-white border border-secondary rounded" id="configForm">
+	      <div class="modal-header border-bottom border-secondary">
+	        <h5 class="modal-title">Configuración</h5>
+	        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+	      </div>
+	      <div class="modal-body">
+	        <input type="hidden" id="configId" />
+	        <div class="mb-3">
+	          <label for="configKey" class="form-label">Clave</label>
+	          <input type="text" class="form-control" id="configKey" name="key" required />
+	        </div>
+	        <div class="mb-3">
+	          <label for="configValue" class="form-label">Valor</label>
+	          <input type="text" class="form-control" id="configValue" name="value" />
+	        </div>
+	      </div>
+	      <div class="modal-footer border-top border-secondary">
+	        <button type="submit" class="btn btn-success">Guardar</button>
+	        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+	      </div>
+	    </form>
+	  </div>
+	</div>
+	`;
 
   const modalEl = document.getElementById('configModal');
   const modal = new bootstrap.Modal(modalEl);
@@ -67,6 +108,23 @@ export default async function () {
     document.getElementById('configKey').readOnly = false;
     modal.show();
   });
+
+	document.getElementById('btn-update-teams').addEventListener('click', async () => {
+		try {
+			showLoadingBar('Actualizando equipos...');
+
+			const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/teams/save', {
+				method: 'POST'
+			});
+
+			const json = await res.json();
+			if (!res.ok) throw new Error(json.error || 'Error desconocido');
+
+			showSuccess(`Equipos actualizados (${json.count})`);
+		} catch (err) {
+			showError('Error al actualizar equipos: ' + err.message);
+		}
+	});
 
   document.getElementById('configForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -95,6 +153,7 @@ export default async function () {
   });
 
   await loadConfig();
+	await loadTeams();
 }
 
 async function loadConfig() {
@@ -154,4 +213,48 @@ async function loadConfig() {
       modal.show();
     });
   });
+}
+
+async function loadTeams() {
+  try {
+    const res = await fetch('https://fantasy-nfl-backend.onrender.com/teams');
+    const teams = await res.json();
+
+    const tbody = document.querySelector('#teamsTable tbody');
+    tbody.innerHTML = '';
+
+    teams.forEach(team => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${team.team}</td>
+        <td>${team.abbr}</td>
+        <td>${team.bye}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Inicializa o reinicia DataTable
+    if (!$.fn.DataTable.isDataTable('#teamsTable')) {
+      $('#teamsTable').DataTable({
+        responsive: true,
+        pageLength: 10,
+        language: {
+          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+        },
+        dom: 'tip'
+      });
+    } else {
+      $('#teamsTable').DataTable().clear().destroy();
+      $('#teamsTable').DataTable({
+        responsive: true,
+        pageLength: 10,
+        language: {
+          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+        },
+        dom: 'tip'
+      });
+    }
+  } catch (err) {
+    showError('Error al cargar equipos: ' + err.message);
+  }
 }

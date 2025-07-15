@@ -84,7 +84,7 @@ app.get('/sleeperADP/types', getADPTypes);
 app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
-app.get('/teams/byeweek', async (req, res) => {
+app.get('/teams', async (req, res) => {
   const data = await getNFLTeamsByeWeek();
   res.json(data);
 });

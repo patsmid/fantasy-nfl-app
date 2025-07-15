@@ -153,6 +153,30 @@ export default async function renderExtrasView() {
     }
   };
 
+	document.getElementById('linkForm').onsubmit = async (e) => {
+		e.preventDefault();
+		const id = document.getElementById('linkId').value;
+		const title = document.getElementById('linkTitle').value.trim();
+		const url = document.getElementById('linkURL').value.trim();
+		const description = document.getElementById('linkDescription').value.trim();
+		try {
+			const method = id ? 'PUT' : 'POST';
+			const endpoint = id ? `/extras/links/${id}` : '/extras/links';
+			const res = await fetch(`https://fantasy-nfl-backend.onrender.com${endpoint}`, {
+				method,
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title, url, description })
+			});
+			const json = await res.json();
+			if (!json.success) throw new Error(json.error);
+			bootstrap.Modal.getOrCreateInstance('#linkModal').hide();
+			showSuccess('Link guardado correctamente');
+			await loadLinks();
+		} catch (err) {
+			showError('Error al guardar link: ' + err.message);
+		}
+	};
+
   await loadLinks();
   await loadNotes();
   await loadTasks();
