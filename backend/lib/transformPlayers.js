@@ -18,8 +18,8 @@ export function buildFinalPlayers({
 
   for (const pick of myDraft) {
     const name = `${pick.metadata.first_name} ${pick.metadata.last_name}`;
-		const isValidRankingList = Array.isArray(rankings.players) && rankings.players.length > 0;
-		const ranked = isValidRankingList ? fuzzySearch(name, rankings.players) : [];
+		const isValidRankingList = Array.isArray(rankings) && rankings.length > 0;
+		const ranked = isValidRankingList ? fuzzySearch(name, rankings) : [];
     if (ranked[0]) {
       if (ranked[0]?.bye_week) myByeWeeks.push(ranked[0].bye_week);
       myTeams.push(ranked[0].player_team_id);
@@ -39,7 +39,15 @@ export function buildFinalPlayers({
     const adpBefore = adp.adp_value_prev || 500;
     const status = draftedMap.has(playerId) ? '' : 'LIBRE';
 
-    const playerRankMatch = fuzzySearch(fullName, rankings.players);
+    let playerRankMatch = [];
+
+    // Si el objeto rankings incluye player_id, úsalo
+    if (rankings.some(r => r.player_id === playerInfo.player_id || String(r.player_id) === String(playerInfo.player_id))) {
+      playerRankMatch = rankings.filter(r => String(r.player_id) === String(playerInfo.player_id));
+    } else {
+      playerRankMatch = fuzzySearch(fullName, rankings);
+    }
+
     const playerRank = playerRankMatch[0] || {};
     const rank = !playerRankMatch.length
       ? 9999

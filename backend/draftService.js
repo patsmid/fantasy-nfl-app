@@ -52,7 +52,7 @@ export async function getDraftData(
     finalPosition = 'SUPER FLEX';
   }
 
-  const { players: rankings, ranks_published: ranks_published } = await getRankings({
+  const { players: rankings, published: ranks_published } = await getRankings({
     season,
     dynasty,
     scoring,
