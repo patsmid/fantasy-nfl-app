@@ -79,14 +79,15 @@ export default async function renderRankingsView() {
       showLoadingBar('Consultando rankings...');
       const res = await fetch(`https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expert}`);
       const result = await res.json();
+      const data = result.data;
       Swal.close();
 
-      if (!Array.isArray(result)) throw new Error('Respuesta inválida');
+      if (!Array.isArray(data)) throw new Error('Respuesta inválida');
 
       const tbody = document.querySelector('#rankingsTable tbody');
       tbody.innerHTML = '';
 
-      result.forEach(p => {
+      data.forEach(p => {
         const rankValue = expert ? p.rank : p.average_rank;
 
         tbody.innerHTML += `
