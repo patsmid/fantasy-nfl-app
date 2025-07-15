@@ -107,3 +107,25 @@ export async function deleteExpert(req, res) {
     res.status(500).json({ success: false, error: err.message });
   }
 }
+
+/**
+ * Obtiene la fuente (source) de un experto usando su ID.
+ * @param {number|string} idExpert - ID numérico (FantasyPros) o string (Flock)
+ * @returns {Promise<string|null>} - 'fantasypros', 'flock' o null si no se encuentra
+ */
+export async function getExpertSource(idExpert) {
+  const queryField = typeof idExpert === 'string' ? 'experto' : 'id_experto';
+
+  const { data, error } = await supabase
+    .from('experts')
+    .select('source')
+    .eq(queryField, idExpert)
+    .maybeSingle();
+
+  if (error) {
+    console.error('❌ Error obteniendo source del experto:', error.message);
+    return null;
+  }
+
+  return data?.source ?? null;
+}

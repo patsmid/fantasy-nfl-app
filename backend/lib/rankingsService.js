@@ -11,12 +11,31 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
+
     const json = await res.json();
-    const data = json.data || [];
+    const rawData = json.data || [];
+    const lastUpdatedAll = json.last_updated || {};
 
-    if (!expert) return data;
+    // Función para formatear fecha legible en español
+    const formatDate = (isoString) => {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('es-MX', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    };
 
-    return data
+    if (!expert) {
+      return {
+        data: rawData,
+        last_updated: Object.fromEntries(
+          Object.entries(lastUpdatedAll).map(([name, iso]) => [name, formatDate(iso)])
+        )
+      };
+    }
+
+    const filteredData = rawData
       .filter(p => expert in p.ranks)
       .map(p => ({
         ...p,
@@ -25,9 +44,17 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
         positional_tier: p.positional_tiers?.[expert] || null
       }))
       .sort((a, b) => a.rank - b.rank);
+
+    return {
+      data: filteredData,
+      last_updated: lastUpdatedAll[expert] ? formatDate(lastUpdatedAll[expert]) : null
+    };
   } catch (err) {
     console.error('❌ Error en getFlockRankings:', err.message);
-    return [];
+    return {
+      data: [],
+      last_updated: expert ? null : {}
+    };
   }
 }
 
