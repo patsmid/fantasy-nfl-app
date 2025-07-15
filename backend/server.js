@@ -17,6 +17,7 @@ import {
   getSleeperADP, getLatestADPDate, getADPTypes,
   updateSleeperADP, getUniqueSleeperADPValues
 } from './utils/sleeper.js';
+import { getNFLTeamsByeWeek } from './lib/teamsService.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -82,6 +83,11 @@ app.get('/sleeperADP/latest-date', getLatestADPDate);
 app.get('/sleeperADP/types', getADPTypes);
 app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
+
+app.get('/teams/byeweek', async (req, res) => {
+  const data = await getNFLTeamsByeWeek();
+  res.json(data);
+});
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
