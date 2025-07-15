@@ -1,5 +1,55 @@
 import { getNflState } from '../utils/sleeper.js';
 import { positions } from '../utils/constants.js';
+import { getExpertSource } from '../experts.js';
+
+export async function getRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
+  const expertSource = await getExpertSource(idExpert);
+  const nflState = await getNflState();
+
+  if (expertSource === 'flock') {
+    const superflex = position === 'SUPER FLEX';
+    const { data, last_updated } = await getFlockRankings({
+      dynasty,
+      superflex,
+      expert: idExpert
+    });
+
+    return {
+      published: `Flock (${last_updated || 'sin fecha'})`,
+      players: data
+    };
+
+  }
+
+  // Fallback: FantasyPros (default)
+  let week = nflState.season_type === 'pre' ? 0 : nflState.week;
+  if (weekStatic !== null && weekStatic !== '') {
+    week = parseInt(weekStatic);
+  }
+
+  let pos = position;
+  if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
+    pos = 'TODAS_PRE';
+  }
+
+  const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
+  const posValue = posObj.valor;
+
+  let type = 'PRESEASON';
+  if (week > 0) type = 'WEEKLY';
+  if (dynasty) type = 'DK';
+
+  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
+  console.log('📊 URL FantasyPros Rankings:', url);
+
+  const res = await fetch(url);
+  const json = await res.json();
+
+  return {
+    published: `FantasyPros (${json.published || season})`,
+    players: json.players || []
+  };
+}
 
 export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   let format = 'REDRAFT';

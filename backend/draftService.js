@@ -3,17 +3,15 @@ import {
   getDraftPicks,
   getADPData,
   getPlayersData,
-  getRankings,
   getMainUserDraft
 } from './lib/draftUtils.js';
-import { getFlockRankings, getFantasyProsRankings } from './lib/rankingsService.js';
+import { getRankings } from './lib/rankingsService.js';
 
 import { getSleeperLeague } from './utils/sleeper.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoff } from './lib/vorUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
-import { getExpertSource } from './experts.js';
 
 export async function getDraftData(
   leagueId,
@@ -54,30 +52,14 @@ export async function getDraftData(
     finalPosition = 'SUPER FLEX';
   }
 
-  let rankings = [];
-  let ranks_published = null;
+  const { players: rankings, ranks_published: ranks_published } = await getRankings({
+    season,
+    dynasty,
+    scoring,
+    idExpert,
+    position: finalPosition
+  });
 
-  const source = await getExpertSource(idExpert);
-
-  if (source === 'flock') {
-    rankings = await getFlockRankings({
-      dynasty,
-      superflex,
-      expert: idExpert
-    });
-
-    ranks_published = rankings.last_updated || null;
-  } else {
-    rankings = await getFantasyProsRankings({
-      season,
-      dynasty,
-      scoring,
-      idExpert,
-      position: finalPosition
-    });
-
-    ranks_published = rankings.published || null;
-  }
   // 6. Proyecciones totales (calculadas desde stats y scoring)
   const projections = await getAllPlayersProjectedTotals(leagueId);
 
