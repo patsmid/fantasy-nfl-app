@@ -7,6 +7,7 @@ export async function getPlayers(req, res) {
     const start = parseInt(req.query.start) || 0;
     const length = parseInt(req.query.length) || 10;
     const draw = parseInt(req.query.draw) || 1;
+    const searchValue = req.query.search?.value?.trim() || '';
 
     const from = start;
     const to = start + length - 1;
@@ -22,17 +23,27 @@ export async function getPlayers(req, res) {
       'status',
       'injury_status',
       'years_exp',
-      'bye_week' // ✅ nuevo campo incluido
+      'bye_week'
     ];
 
     let query = supabase
       .from('players')
       .select('*', { count: 'exact' })
-      // ✅ Filtrar team no vacío ni nulo
       .not('team', 'is', null)
       .not('team', 'eq', '');
 
-    // Aplicar filtros por columnas
+    // 🔍 Filtro global extendido: nombre + position + team
+    if (searchValue) {
+      query = query.or(
+        `full_name.ilike.%${searchValue}%,` +
+        `first_name.ilike.%${searchValue}%,` +
+        `last_name.ilike.%${searchValue}%,` +
+        `position.ilike.%${searchValue}%,` +
+        `team.ilike.%${searchValue}%`
+      );
+    }
+
+    // (Opcional) filtros personalizados por columna
     columns.forEach((col, index) => {
       const value = req.query[`filter_col_${index}`];
       if (value && value.trim() !== '') {
@@ -50,7 +61,6 @@ export async function getPlayers(req, res) {
 
     if (error) throw error;
 
-    // Generar full_name si está nulo
     const processedData = data.map((player) => ({
       ...player,
       full_name:
