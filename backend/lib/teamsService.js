@@ -41,3 +41,58 @@ export async function upsertTeams(teams) {
 
   return { success: true, data };
 }
+
+export async function updatePlayersByeWeeks() {
+  const teams = await getNFLTeamsByeWeek();
+  if (!teams.length) {
+    console.error('❌ No se obtuvieron equipos con bye weeks');
+    return { success: false, message: 'Sin datos de equipos' };
+  }
+
+  for (const team of teams) {
+    const { abbr, bye } = team;
+
+    const { error } = await supabase
+      .from('players')
+      .update({ bye_week: bye })
+      .eq('team', abbr);
+
+    if (error) {
+      console.error(`❌ Error actualizando jugadores del equipo ${abbr}:`, error.message);
+      return { success: false, error };
+    }
+  }
+
+  console.log('✅ Bye weeks actualizados correctamente en tabla players');
+  return { success: true };
+}
+
+export async function bulkUpdatePlayersByeWeeks() {
+  const teams = await getNFLTeamsByeWeek();
+  if (!teams.length) {
+    console.error('❌ No se obtuvieron equipos con bye weeks');
+    return { success: false, message: 'Sin datos de equipos' };
+  }
+
+  // Armar la cláusula VALUES en formato SQL seguro
+  const valuesClause = teams
+    .map(team => `('${team.abbr}', ${team.bye})`)
+    .join(', ');
+
+  const sql = `
+    UPDATE players
+    SET bye_week = t.bye
+    FROM (VALUES ${valuesClause}) AS t(abbr, bye)
+    WHERE players.team = t.abbr
+  `;
+
+  const { error } = await supabase.rpc('execute_sql', { query_text: sql });
+
+  if (error) {
+    console.error('❌ Error actualizando bye_week masivamente:', error.message);
+    return { success: false, error };
+  }
+
+  console.log('✅ Bye weeks actualizados correctamente en tabla players');
+  return { success: true };
+}

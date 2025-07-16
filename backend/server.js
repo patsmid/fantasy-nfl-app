@@ -17,7 +17,7 @@ import {
   getSleeperADP, getLatestADPDate, getADPTypes,
   updateSleeperADP, getUniqueSleeperADPValues
 } from './utils/sleeper.js';
-import { getNFLTeamsByeWeek, upsertTeams } from './lib/teamsService.js';
+import { getNFLTeamsByeWeek, upsertTeams, bulkUpdatePlayersByeWeeks } from './lib/teamsService.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -102,12 +102,22 @@ app.post('/teams/save', async (req, res) => {
       return res.status(500).json({ error: result.error.message });
     }
 
-    res.json({ message: 'Equipos guardados correctamente', count: result.data.length });
+    // Actualizar bye_week en tabla players
+    const updateResult = await bulkUpdatePlayersByeWeeks();
+    if (!updateResult.success) {
+      return res.status(500).json({ error: updateResult.error.message });
+    }
+
+    res.json({
+      message: 'Equipos y bye weeks actualizados correctamente',
+      teamsCount: result.data.length
+    });
   } catch (err) {
-    console.error('❌ Error en /api/teams/save:', err.message);
+    console.error('❌ Error en /teams/save:', err.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
