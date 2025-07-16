@@ -122,6 +122,31 @@ app.post('/teams/save', async (req, res) => {
   }
 });
 
+// server.js o routes/teams.js
+
+app.put('/teams/:id', async (req, res) => {
+  const { id } = req.params;
+  const { team, abbr, bye } = req.body;
+
+  if (!team || !abbr || isNaN(bye)) {
+    return res.status(400).json({ error: 'Datos inválidos' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('teams')
+      .update({ team, abbr, bye })
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Error al actualizar equipo' });
+  }
+});
+
+
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);

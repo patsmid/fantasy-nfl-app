@@ -75,3 +75,48 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   const res = await fetch(url);
   return await res.json();
 }
+
+export async function getFantasyCalcADPData({
+  scoring = 'ppr',
+  teams = '10',
+  dynasty = true,
+  type = 'Startup',
+  pos = 'TODAS'
+}) {
+  const today = new Date();
+  const startDate = formatDate(subtractDays(today, 30));
+  const endDate = formatDate(today);
+
+  const positions = [
+    { nombre: 'QB', valor: 'QB' },
+    { nombre: 'RB', valor: 'RB' },
+    { nombre: 'WR', valor: 'WR' },
+    { nombre: 'TE', valor: 'TE' },
+    { nombre: 'OP', valor: 'OP' },
+    { nombre: 'TODAS', valor: 'ALL' }
+  ];
+
+  const position = positions.find(p => p.nombre === pos)?.valor || 'ALL';
+  const superFlex = (position === 'OP') ? 2 : 1;
+  const pprValue = scoring.toLowerCase() === 'half' ? '0.5' : '1';
+
+  const baseUrl = 'https://api.fantasycalc.com/adp';
+  const query = `isDynasty=${dynasty}&numTeams=${teams}&ppr=${pprValue}&numQbs=${superFlex}&draftType=${type}&startDate=${startDate}&endDate=${endDate}`;
+  const url = `${baseUrl}?${query}`;
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (type === 'Startup') {
+    const rookieUrl = `${baseUrl}?isDynasty=${dynasty}&numTeams=${teams}&ppr=${pprValue}&numQbs=${superFlex}&draftType=Rookie&startDate=${startDate}&endDate=${endDate}`;
+    const rookieResponse = await fetch(rookieUrl);
+    const rookieData = await rookieResponse.json();
+
+    return {
+      veterans: data.adp,
+      rookies: rookieData.adp
+    };
+  }
+
+  return data.adp;
+}

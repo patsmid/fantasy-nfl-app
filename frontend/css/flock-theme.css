@@ -192,7 +192,6 @@ body {
   color: inherit;
 }
 
-
 /* === CONTENIDO PRINCIPAL === */
 #content-container {
   overflow-x: auto;
@@ -441,7 +440,22 @@ table.dataTable tbody tr.selected {
   background-color: #2b2f38 !important; /* mismo hover actual */
 }
 
+/* === Personalización de nav-tabs para tema oscuro === */
+.nav-tabs .nav-link {
+  color: #ccc;
+  background-color: transparent;
+  border: none;
+}
 
+.nav-tabs .nav-link.active {
+  color: #ffa500;
+  background-color: #1c1c1c;
+  border-bottom: 2px solid #ffa500;
+}
+
+.nav-tabs {
+  border-bottom: 1px solid #444;
+}
 
 /* Bootstrap pagination override */
 .pagination {

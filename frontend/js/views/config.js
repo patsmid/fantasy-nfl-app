@@ -97,6 +97,37 @@ export default async function () {
 	    </form>
 	  </div>
 	</div>
+
+		<!-- Modal Editar Equipo -->
+	<div class="modal fade" id="teamModal" tabindex="-1">
+	  <div class="modal-dialog">
+	    <form class="modal-content bg-dark text-white border border-secondary rounded" id="teamForm">
+	      <div class="modal-header border-bottom border-secondary">
+	        <h5 class="modal-title">Editar Equipo</h5>
+	        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+	      </div>
+	      <div class="modal-body">
+	        <input type="hidden" id="teamId" />
+	        <div class="mb-3">
+	          <label for="teamName" class="form-label">Nombre del equipo</label>
+	          <input type="text" class="form-control" id="teamName" required />
+	        </div>
+	        <div class="mb-3">
+	          <label for="teamAbbr" class="form-label">Abreviación</label>
+	          <input type="text" class="form-control" id="teamAbbr" required />
+	        </div>
+	        <div class="mb-3">
+	          <label for="teamBye" class="form-label">Bye Week</label>
+	          <input type="number" class="form-control" id="teamBye" min="1" max="14" required />
+	        </div>
+	      </div>
+	      <div class="modal-footer border-top border-secondary">
+	        <button type="submit" class="btn btn-success">Guardar</button>
+	        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+	      </div>
+	    </form>
+	  </div>
+	</div>
 	`;
 
   const modalEl = document.getElementById('configModal');
@@ -151,6 +182,31 @@ export default async function () {
       alert('Error: ' + err.message);
     }
   });
+
+	document.getElementById('teamForm').addEventListener('submit', async (e) => {
+	  e.preventDefault();
+	  const id = document.getElementById('teamId').value;
+	  const team = document.getElementById('teamName').value.trim();
+	  const abbr = document.getElementById('teamAbbr').value.trim();
+	  const bye = parseInt(document.getElementById('teamBye').value);
+
+	  try {
+			const res = await fetch(`https://fantasy-nfl-backend.onrender.com/teams/${id}`, {
+			  method: 'PUT',
+			  headers: { 'Content-Type': 'application/json' },
+			  body: JSON.stringify({ team, abbr, bye })
+			});
+
+	    const json = await res.json();
+	    if (!res.ok) throw new Error(json.error || 'Error al actualizar equipo');
+
+	    bootstrap.Modal.getInstance(document.getElementById('teamModal')).hide();
+	    await loadTeams();
+	    showSuccess('Equipo actualizado');
+	  } catch (err) {
+	    showError('Error al guardar equipo: ' + err.message);
+	  }
+	});
 
   await loadConfig();
 	await loadTeams();
@@ -223,15 +279,24 @@ async function loadTeams() {
     const tbody = document.querySelector('#teamsTable tbody');
     tbody.innerHTML = '';
 
-    teams.forEach(team => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-semibold">${team.team}</td>
-        <td>${team.abbr}</td>
-        <td>${team.bye}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+		teams.forEach(team => {
+		  const tr = document.createElement('tr');
+		  tr.innerHTML = `
+		    <td class="fw-semibold">${team.team}</td>
+		    <td>${team.abbr}</td>
+		    <td>${team.bye}</td>
+		    <td>
+		      <button class="btn btn-sm btn-outline-warning btn-edit-team"
+		              data-id="${team.id}"
+		              data-team="${team.team}"
+		              data-abbr="${team.abbr}"
+		              data-bye="${team.bye}">
+		        <i class="bi bi-pencil-square"></i>
+		      </button>
+		    </td>
+		  `;
+		  tbody.appendChild(tr);
+		});
 
     // Inicializa o reinicia DataTable
     if (!$.fn.DataTable.isDataTable('#teamsTable')) {
@@ -257,4 +322,14 @@ async function loadTeams() {
   } catch (err) {
     showError('Error al cargar equipos: ' + err.message);
   }
+
+	document.querySelectorAll('.btn-edit-team').forEach(btn => {
+	  btn.addEventListener('click', () => {
+	    document.getElementById('teamId').value = btn.dataset.id;
+	    document.getElementById('teamName').value = btn.dataset.team;
+	    document.getElementById('teamAbbr').value = btn.dataset.abbr;
+	    document.getElementById('teamBye').value = btn.dataset.bye;
+	    bootstrap.Modal.getOrCreateInstance(document.getElementById('teamModal')).show();
+	  });
+	});
 }
