@@ -94,29 +94,45 @@ app.get('/sleeperADP/types', getADPTypes);
 app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
+// 🔹 Obtener equipos desde Supabase
 app.get('/teams', async (req, res) => {
   try {
     const data = await getTeamsFromSupabase();
     res.json(data);
   } catch (err) {
-    console.error('Error al obtener equipos:', err.message);
     res.status(500).json({ error: 'Error al obtener equipos desde Supabase' });
   }
 });
 
+// 🔹 Guardar/actualizar equipos desde ESPN
 app.post('/teams/save', async (req, res) => {
   try {
-    const result = await saveTeamsFromESPN();
+    const teams = await getNFLTeamsByeWeek();
+    if (!teams.length) {
+      return res.status(400).json({ error: 'No se obtuvieron datos de ESPN' });
+    }
+
+    const result = await upsertTeams(teams);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error.message });
+    }
+
+    const updateResult = await bulkUpdatePlayersByeWeeks();
+    if (!updateResult.success) {
+      return res.status(500).json({ error: updateResult.error.message });
+    }
+
     res.json({
-      message: result.message,
+      message: 'Equipos y bye weeks actualizados correctamente',
       teamsCount: result.data.length
     });
   } catch (err) {
     console.error('❌ Error en /teams/save:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
+// 🔹 Editar equipo por ID
 app.put('/teams/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -126,6 +142,7 @@ app.put('/teams/:id', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
