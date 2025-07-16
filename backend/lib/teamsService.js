@@ -15,7 +15,7 @@ export async function getNFLTeamsByeWeek() {
 
     const data = await res.json();
 
-    const teams = data.settings?.proTeams?.map(team => ({
+    const teams = data?.settings?.proTeams?.map(team => ({
       team: team.name,
       abbr: team.abbrev?.toUpperCase() ?? '',
       bye: team.byeWeek
@@ -24,7 +24,7 @@ export async function getNFLTeamsByeWeek() {
     return teams;
   } catch (err) {
     console.error('❌ Error fetching data from ESPN:', err.message);
-    return [];
+    return []; // <= asegura que devuelve un arreglo vacío
   }
 }
 
