@@ -1,4 +1,5 @@
 import { fetchConfig, updateConfig } from '../api.js';
+import { showError, showLoadingBar, showSuccess } from '../../components/alerts.js';
 
 export default async function () {
   const content = document.getElementById('content-container');

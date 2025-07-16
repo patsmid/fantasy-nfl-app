@@ -1,5 +1,3 @@
-// services/teamService.js
-
 import { supabase } from '../supabaseClient.js';
 import fetch from 'node-fetch';
 
