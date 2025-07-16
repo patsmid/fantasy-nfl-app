@@ -17,7 +17,13 @@ import {
   getSleeperADP, getLatestADPDate, getADPTypes,
   updateSleeperADP, getUniqueSleeperADPValues
 } from './utils/sleeper.js';
-import { getNFLTeamsByeWeek, upsertTeams, bulkUpdatePlayersByeWeeks } from './lib/teamsService.js';
+import {
+  getNFLTeamsByeWeek,
+  getTeamsFromSupabase,
+  upsertTeams,
+  updateTeamById,
+  bulkUpdatePlayersByeWeeks
+} from './lib/teamsService.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -89,64 +95,37 @@ app.post('/update-sleeper-adp', updateSleeperADP);
 app.get('/sleeperADP/unique-values', getUniqueSleeperADPValues);
 
 app.get('/teams', async (req, res) => {
-  const data = await getNFLTeamsByeWeek();
-  res.json(data);
+  try {
+    const data = await getTeamsFromSupabase();
+    res.json(data);
+  } catch (err) {
+    console.error('Error al obtener equipos:', err.message);
+    res.status(500).json({ error: 'Error al obtener equipos desde Supabase' });
+  }
 });
 
 app.post('/teams/save', async (req, res) => {
   try {
-    const teams = await getNFLTeamsByeWeek();
-
-    if (!teams.length) {
-      return res.status(400).json({ error: 'No se obtuvieron datos de ESPN' });
-    }
-
-    const result = await upsertTeams(teams);
-    if (!result.success) {
-      return res.status(500).json({ error: result.error.message });
-    }
-
-    // Actualizar bye_week en tabla players
-    const updateResult = await bulkUpdatePlayersByeWeeks();
-    if (!updateResult.success) {
-      return res.status(500).json({ error: updateResult.error.message });
-    }
-
+    const result = await saveTeamsFromESPN();
     res.json({
-      message: 'Equipos y bye weeks actualizados correctamente',
+      message: result.message,
       teamsCount: result.data.length
     });
   } catch (err) {
     console.error('❌ Error en /teams/save:', err.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: err.message });
   }
 });
-
-// server.js o routes/teams.js
 
 app.put('/teams/:id', async (req, res) => {
   const { id } = req.params;
-  const { team, abbr, bye } = req.body;
-
-  if (!team || !abbr || isNaN(bye)) {
-    return res.status(400).json({ error: 'Datos inválidos' });
-  }
-
   try {
-    const { data, error } = await supabase
-      .from('teams')
-      .update({ team, abbr, bye })
-      .eq('id', id)
-      .select();
-
-    if (error) throw error;
-    res.json({ success: true, data });
+    const updated = await updateTeamById(id, req.body);
+    res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Error al actualizar equipo' });
+    res.status(400).json({ error: err.message });
   }
 });
-
-
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);

@@ -81,7 +81,7 @@ export default async function () {
 	        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
 	      </div>
 	      <div class="modal-body">
-	        <input type="hidden" id="configId" />
+	        <input type="text" id="configId" />
 	        <div class="mb-3">
 	          <label for="configKey" class="form-label">Clave</label>
 	          <input type="text" class="form-control" id="configKey" name="key" required />

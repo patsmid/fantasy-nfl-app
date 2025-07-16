@@ -1,6 +1,9 @@
+// services/teamService.js
+
 import { supabase } from '../supabaseClient.js';
 import fetch from 'node-fetch';
 
+// ✅ 1. Obtener datos de bye week desde ESPN
 export async function getNFLTeamsByeWeek() {
   const url = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/2025?view=proTeamSchedules_wl';
 
@@ -27,12 +30,26 @@ export async function getNFLTeamsByeWeek() {
   }
 }
 
+// ✅ 2. Leer equipos desde Supabase
+export async function getTeamsFromSupabase() {
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*')
+    .order('team', { ascending: true });
+
+  if (error) {
+    console.error('❌ Error leyendo equipos:', error.message);
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// ✅ 3. Guardar/actualizar equipos desde ESPN en Supabase
 export async function upsertTeams(teams) {
   const { data, error } = await supabase
     .from('teams')
-    .upsert(teams, {
-      onConflict: ['abbr'],
-    });
+    .upsert(teams, { onConflict: ['abbr'] });
 
   if (error) {
     console.error('❌ Error al guardar en Supabase:', error.message);
@@ -42,6 +59,27 @@ export async function upsertTeams(teams) {
   return { success: true, data };
 }
 
+// ✅ 4. Actualizar un equipo por ID
+export async function updateTeamById(id, { team, abbr, bye }) {
+  if (!team || !abbr || isNaN(bye)) {
+    throw new Error('Datos inválidos');
+  }
+
+  const { data, error } = await supabase
+    .from('teams')
+    .update({ team, abbr, bye })
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    console.error(`❌ Error al actualizar equipo ${id}:`, error.message);
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// ✅ 5. Actualizar bye_week uno por uno (no recomendado para muchos)
 export async function updatePlayersByeWeeks() {
   const teams = await getNFLTeamsByeWeek();
   if (!teams.length) {
@@ -67,6 +105,7 @@ export async function updatePlayersByeWeeks() {
   return { success: true };
 }
 
+// ✅ 6. Actualizar bye_week masivamente (recomendado)
 export async function bulkUpdatePlayersByeWeeks() {
   const teams = await getNFLTeamsByeWeek();
   if (!teams.length) {
@@ -74,7 +113,6 @@ export async function bulkUpdatePlayersByeWeeks() {
     return { success: false, message: 'Sin datos de equipos' };
   }
 
-  // Armar la cláusula VALUES en formato SQL seguro
   const valuesClause = teams
     .map(team => `('${team.abbr}', ${team.bye})`)
     .join(', ');
