@@ -146,7 +146,7 @@ export default async function () {
 		try {
 			showLoadingBar('Actualizando equipos...');
 
-			const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/teams/save', {
+			const res = await fetch('https://fantasy-nfl-backend.onrender.com/teams/save', {
 				method: 'POST'
 			});
 

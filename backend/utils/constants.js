@@ -20,4 +20,4 @@ export const positions = [
   { nombre: 'FLEX', valor: 'FLX' },
 ];
 
-export const goodOffense = ['KC', 'HOU', 'SF', 'CIN', 'PHI', 'MIA', 'BAL', 'DET', 'BUF', 'GB', 'LAR', 'ATL', 'JAX', 'CHI'];
+export const goodOffense = ['BUF', 'BAL', 'DET', 'KC', 'WAS', 'PHI', 'SF', 'TB', 'CIN', 'LAR'];
