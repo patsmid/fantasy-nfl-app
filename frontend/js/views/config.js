@@ -61,6 +61,7 @@ export default async function () {
 	                <th>Equipo</th>
 	                <th>Abreviación</th>
 	                <th>Bye Week</th>
+									<th></th>
 	              </tr>
 	            </thead>
 	            <tbody></tbody>
