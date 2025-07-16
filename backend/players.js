@@ -21,12 +21,18 @@ export async function getPlayers(req, res) {
       'team',
       'status',
       'injury_status',
-      'years_exp'
+      'years_exp',
+      'bye_week' // ✅ nuevo campo incluido
     ];
 
-    let query = supabase.from('players').select('*', { count: 'exact' });
+    let query = supabase
+      .from('players')
+      .select('*', { count: 'exact' })
+      // ✅ Filtrar team no vacío ni nulo
+      .not('team', 'is', null)
+      .not('team', 'eq', '');
 
-    // Aplicar filtros si existen
+    // Aplicar filtros por columnas
     columns.forEach((col, index) => {
       const value = req.query[`filter_col_${index}`];
       if (value && value.trim() !== '') {
@@ -37,7 +43,7 @@ export async function getPlayers(req, res) {
     // Ordenar por id descendente
     query = query.order('id', { ascending: false });
 
-    // Aplicar rango de paginación
+    // Aplicar paginación
     query = query.range(from, to);
 
     const { data, count, error } = await query;

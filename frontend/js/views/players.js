@@ -16,15 +16,16 @@ export default async function renderPlayersView() {
 
         <div class="table-responsive">
           <table id="players-table" class="table table-dark table-hover align-middle w-100">
-            <thead class="table-dark text-uppercase text-secondary small">
-              <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Posición</th>
-                <th>Equipo</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+					<thead class="table-dark text-uppercase text-secondary small">
+						  <tr>
+						    <th>ID</th>
+						    <th>Nombre</th>
+						    <th>Posición</th>
+						    <th>Equipo</th>
+						    <th>Status</th>
+						    <th>Bye</th>
+						  </tr>
+						</thead>
           </table>
         </div>
       </div>
@@ -38,13 +39,14 @@ export default async function renderPlayersView() {
       url: 'https://fantasy-nfl-backend.onrender.com/players',
       dataSrc: 'data'
     },
-    columns: [
-      { data: 'id' },
-      { data: 'full_name' },
-      { data: 'position' },
-      { data: 'team' },
-      { data: 'status' }
-    ],
+		columns: [
+		  { data: 'id' },
+		  { data: 'full_name' },
+		  { data: 'position' },
+		  { data: 'team' },
+		  { data: 'status' },
+		  { data: 'bye_week' } // ✅ nueva columna
+		],
     responsive: true,
     pageLength: 10,
     lengthMenu: [10, 25, 50, 100],

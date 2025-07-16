@@ -41,6 +41,10 @@ app.get('/players', getPlayers);
 app.get('/update-players', async (req, res) => {
   try {
     await updatePlayers();
+		const updateResult = await bulkUpdatePlayersByeWeeks();
+		if (!updateResult.success) {
+			return res.status(500).json({ error: updateResult.error.message });
+		}
     res.json({ success: true, message: 'Jugadores actualizados' });
   } catch (err) {
     console.error('❌ Error desde /update-players:', err.message || err);
