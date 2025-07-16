@@ -56,7 +56,7 @@ export function buildFinalPlayers({
         : playerRank.rank;
 
     const rookie = playerInfo.years_exp === 0 ? ' (R)' : '';
-    const bye = playerRank.bye_week || 0;
+    const bye = playerInfo.bye_week || playerRank.bye_week || 0;
     const byeFound = myByeWeeks.includes(bye) ? ' 👋' : '';
     const teamFound = myTeams.includes(playerInfo.team) ? ' 🏈' : '';
     const teamGood = goodOffense.includes(playerInfo.team) ? ' ✔️' : '';
