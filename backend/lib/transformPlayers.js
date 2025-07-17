@@ -16,17 +16,31 @@ export function buildFinalPlayers({
   const myByeWeeks = [];
   const myTeams = [];
 
-  for (const pick of myDraft) {
-    const name = `${pick.metadata.first_name} ${pick.metadata.last_name}`;
-		const isValidRankingList = Array.isArray(rankings) && rankings.length > 0;
-		const ranked = isValidRankingList ? fuzzySearch(name, rankings) : [];
-    if (ranked[0]) {
-      if (ranked[0]?.bye_week) myByeWeeks.push(ranked[0].bye_week);
-      myTeams.push(ranked[0].player_team_id);
-    }
-  }
+  // for (const pick of myDraft) {
+  //   const name = `${pick.metadata.first_name} ${pick.metadata.last_name}`;
+	// 	const isValidRankingList = Array.isArray(rankings) && rankings.length > 0;
+	// 	const ranked = isValidRankingList ? fuzzySearch(name, rankings) : [];
+  //   if (ranked[0]) {
+  //     if (ranked[0]?.bye_week) myByeWeeks.push(ranked[0].bye_week);
+  //     myTeams.push(ranked[0].player_team_id);
+  //   }
+  // }
 
-  const players = [];
+	for (const pick of myDraft) {
+	  const playerId = String(pick.player_id || pick.metadata?.player_id);
+	  const playerInfo = playersData.find(p => String(p.player_id) === playerId);
+
+	  if (playerInfo) {
+	    if (!isNaN(playerInfo.bye_week)) {
+	      myByeWeeks.push(Number(playerInfo.bye_week));
+	    }
+	    if (playerInfo.team) {
+	      myTeams.push(playerInfo.team);
+	    }
+	  }
+	}
+
+	const players = [];
   const positionBuckets = {};
 
   for (const adp of adpData) {
@@ -56,6 +70,7 @@ export function buildFinalPlayers({
         : playerRank.rank;
 
     const rookie = playerInfo.years_exp === 0 ? ' (R)' : '';
+		// const bye = Number(playerInfo.bye_week || playerRank.bye_week || 0);
 		// const byeFound = myByeWeeks.includes(bye) ? ' 👋' : '';
 		const bye = Number(playerInfo.bye_week || playerRank.bye_week || 0);
 		const byeFound = myByeWeeks.map(Number).includes(bye) ? ' 👋' : '';

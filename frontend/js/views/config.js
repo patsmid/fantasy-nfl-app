@@ -3,7 +3,8 @@ import { showError, showLoadingBar, showSuccess } from '../../components/alerts.
 
 export default async function () {
   const content = document.getElementById('content-container');
-	content.innerHTML =
+	content.innerHTML = '';
+	content.insertAdjacentHTML('beforeend', `
 	<div class="card border-0 shadow-sm rounded flock-card">
 	  <div class="card-body">
 	    <ul class="nav nav-tabs mb-3" id="configTabs" role="tablist">
@@ -75,7 +76,7 @@ export default async function () {
 
 	<!-- Modal -->
 	<div class="modal fade" id="configModal" tabindex="-1">
-	  <div class="modal-dialog">
+	  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
 	    <form class="modal-content bg-dark text-white border border-secondary rounded" id="configForm">
 	      <div class="modal-header border-bottom border-secondary">
 	        <h5 class="modal-title">Configuración</h5>
@@ -102,7 +103,7 @@ export default async function () {
 
 		<!-- Modal Editar Equipo -->
 	<div class="modal fade" id="teamModal" tabindex="-1">
-	  <div class="modal-dialog">
+	  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
 	    <form class="modal-content bg-dark text-white border border-secondary rounded" id="teamForm">
 	      <div class="modal-header border-bottom border-secondary">
 	        <h5 class="modal-title">Editar Equipo</h5>
@@ -130,10 +131,11 @@ export default async function () {
 	    </form>
 	  </div>
 	</div>
-	;
+	`);
 
-  const modalEl = document.getElementById('configModal');
-  const modal = new bootstrap.Modal(modalEl);
+	const modalEl = document.getElementById('configModal');
+	const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	modal.show()
 
   document.getElementById('btn-add-config').addEventListener('click', () => {
     document.getElementById('configForm').reset();
@@ -193,7 +195,7 @@ export default async function () {
 	  const bye = parseInt(document.getElementById('teamBye').value);
 
 	  try {
-			const res = await fetch(https://fantasy-nfl-backend.onrender.com/teams/${id}, {
+			const res = await fetch(`https://fantasy-nfl-backend.onrender.com/teams/${id}`, {
 			  method: 'PUT',
 			  headers: { 'Content-Type': 'application/json' },
 			  body: JSON.stringify({ team, abbr, bye })
@@ -222,7 +224,7 @@ async function loadConfig() {
 
   json.data.forEach(row => {
     const tr = document.createElement('tr');
-    tr.innerHTML =
+    tr.innerHTML = `
       <td class="fw-semibold">${row.key}</td>
       <td>${row.value || ''}</td>
       <td><small class="text-secondary">${new Date(row.updated_at).toLocaleString()}</small></td>
@@ -234,7 +236,7 @@ async function loadConfig() {
           <i class="bi bi-pencil-square"></i>
         </button>
       </td>
-    ;
+    `;
     tbody.appendChild(tr);
   });
 
@@ -260,19 +262,17 @@ async function loadConfig() {
     });
   }
 
-	document.querySelector('#configTable tbody').addEventListener('click', (e) => {
-	  const btn = e.target.closest('.btn-edit');
-	  if (!btn) return;
-
-	  document.getElementById('configId').value = btn.dataset.id;
-	  document.getElementById('configKey').value = btn.dataset.key;
-	  document.getElementById('configKey').readOnly = true;
-	  document.getElementById('configValue').value = btn.dataset.value || '';
-
-	  const modalEl = document.getElementById('configModal');
-	  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-	  modal.show();
-	});
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('configId').value = btn.dataset.id;
+      document.getElementById('configKey').value = btn.dataset.key;
+      document.getElementById('configKey').readOnly = true;
+      document.getElementById('configValue').value = btn.dataset.value || '';
+      const modalEl = document.getElementById('configModal');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+    });
+  });
 }
 
 async function loadTeams() {
@@ -285,7 +285,7 @@ async function loadTeams() {
 
 		teams.forEach(team => {
 		  const tr = document.createElement('tr');
-		  tr.innerHTML =
+		  tr.innerHTML = `
 		    <td class="fw-semibold">${team.team}</td>
 		    <td>${team.abbr}</td>
 		    <td>${team.bye}</td>
@@ -298,7 +298,7 @@ async function loadTeams() {
 		        <i class="bi bi-pencil-square"></i>
 		      </button>
 		    </td>
-		  ;
+		  `;
 		  tbody.appendChild(tr);
 		});
 
@@ -327,16 +327,16 @@ async function loadTeams() {
     showError('Error al cargar equipos: ' + err.message);
   }
 
-	document.querySelector('#teamsTable tbody').addEventListener('click', (e) => {
-	  const btn = e.target.closest('.btn-edit-team');
-	  if (!btn) return;
+	document.querySelectorAll('.btn-edit-team').forEach(btn => {
+	  btn.addEventListener('click', () => {
+	    document.getElementById('teamId').value = btn.dataset.id;
+	    document.getElementById('teamName').value = btn.dataset.team;
+	    document.getElementById('teamAbbr').value = btn.dataset.abbr;
+	    document.getElementById('teamBye').value = btn.dataset.bye;
 
-	  document.getElementById('teamId').value = btn.dataset.id;
-	  document.getElementById('teamName').value = btn.dataset.team;
-	  document.getElementById('teamAbbr').value = btn.dataset.abbr;
-	  document.getElementById('teamBye').value = btn.dataset.bye;
-
-	  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('teamModal'));
-	  modal.show();
+	    const teamModalEl = document.getElementById('teamModal');
+	    const teamModal = bootstrap.Modal.getOrCreateInstance(teamModalEl);
+	    teamModal.show();
+	  });
 	});
 }
