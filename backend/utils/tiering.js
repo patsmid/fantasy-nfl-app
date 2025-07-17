@@ -1,7 +1,7 @@
 // ===============================
 // CONFIGURACIÓN
 // ===============================
-const useClustering = true;
+const useClustering = false;
 const minTierSize = 4; // solo para Dropoff
 
 // ===============================
