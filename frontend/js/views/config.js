@@ -153,7 +153,7 @@ export default async function () {
 			const json = await res.json();
 			if (!res.ok) throw new Error(json.error || 'Error desconocido');
 
-			showSuccess(Equipos actualizados (${json.count}));
+			showSuccess(`Equipos actualizados (${json.count})`);
 		} catch (err) {
 			showError('Error al actualizar equipos: ' + err.message);
 		}
