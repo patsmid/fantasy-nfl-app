@@ -12,7 +12,8 @@ export function showError(message = 'Ocurrió un error inesperado') {
   Swal.fire({
     icon: 'error',
     title: 'Error',
-    text: message
+    text: message,
+	  confirmButtonText = 'Aceptar',
   });
 }
 

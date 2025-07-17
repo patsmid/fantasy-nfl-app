@@ -260,17 +260,19 @@ async function loadConfig() {
     });
   }
 
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('configId').value = btn.dataset.id;
-      document.getElementById('configKey').value = btn.dataset.key;
-      document.getElementById('configKey').readOnly = true;
-      document.getElementById('configValue').value = btn.dataset.value || '';
-      const modalEl = document.getElementById('configModal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-    });
-  });
+	document.querySelector('#configTable tbody').addEventListener('click', (e) => {
+	  const btn = e.target.closest('.btn-edit');
+	  if (!btn) return;
+
+	  document.getElementById('configId').value = btn.dataset.id;
+	  document.getElementById('configKey').value = btn.dataset.key;
+	  document.getElementById('configKey').readOnly = true;
+	  document.getElementById('configValue').value = btn.dataset.value || '';
+
+	  const modalEl = document.getElementById('configModal');
+	  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	  modal.show();
+	});
 }
 
 async function loadTeams() {
@@ -325,13 +327,16 @@ async function loadTeams() {
     showError('Error al cargar equipos: ' + err.message);
   }
 
-	document.querySelectorAll('.btn-edit-team').forEach(btn => {
-	  btn.addEventListener('click', () => {
-	    document.getElementById('teamId').value = btn.dataset.id;
-	    document.getElementById('teamName').value = btn.dataset.team;
-	    document.getElementById('teamAbbr').value = btn.dataset.abbr;
-	    document.getElementById('teamBye').value = btn.dataset.bye;
-	    bootstrap.Modal.getOrCreateInstance(document.getElementById('teamModal')).show();
-	  });
+	document.querySelector('#teamsTable tbody').addEventListener('click', (e) => {
+	  const btn = e.target.closest('.btn-edit-team');
+	  if (!btn) return;
+
+	  document.getElementById('teamId').value = btn.dataset.id;
+	  document.getElementById('teamName').value = btn.dataset.team;
+	  document.getElementById('teamAbbr').value = btn.dataset.abbr;
+	  document.getElementById('teamBye').value = btn.dataset.bye;
+
+	  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('teamModal'));
+	  modal.show();
 	});
 }
