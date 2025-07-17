@@ -66,7 +66,7 @@ export function buildFinalPlayers({
     const adjustedVor = vorData.adjustedVOR || 0;
     const dropoff = vorData.dropoff || 0;
     const tierBonus = !!vorData.tierBonus;
-		const valueTag = getValueTag(rawVor, Number(adpValue.toFixed(2)));
+		const valueTag = getValueTag(adjustedVor, Number(adpValue.toFixed(2)));
 
     let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
     if (adjustedVor === 0) nombre += ' 🕳';
@@ -83,7 +83,7 @@ export function buildFinalPlayers({
       adpDiff: Number((adpBefore - adpValue).toFixed(2)),
       adpRound: Number(adpRound.toFixed(2)),
       projection: Number(projection.toFixed(2)),
-      vor: `${Number(rawVor.toFixed(2))}${valueTag}`,
+      vor: Number(rawVor.toFixed(2)),
       adjustedVOR: Number(adjustedVor.toFixed(2)),
       dropoff: Number(dropoff.toFixed(2)),
       tierBonus,
