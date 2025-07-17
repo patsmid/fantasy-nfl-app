@@ -66,6 +66,7 @@ export function buildFinalPlayers({
     const adjustedVor = vorData.adjustedVOR || 0;
     const dropoff = vorData.dropoff || 0;
     const tierBonus = !!vorData.tierBonus;
+		const valueTag = getValueTag(rawVor, Number(adpValue.toFixed(2)));
 
     let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
     if (adjustedVor === 0) nombre += ' 🕳';
@@ -82,7 +83,7 @@ export function buildFinalPlayers({
       adpDiff: Number((adpBefore - adpValue).toFixed(2)),
       adpRound: Number(adpRound.toFixed(2)),
       projection: Number(projection.toFixed(2)),
-      vor: Number(rawVor.toFixed(2)),
+      vor: `${Number(rawVor.toFixed(2))}${valueTag}`,
       adjustedVOR: Number(adjustedVor.toFixed(2)),
       dropoff: Number(dropoff.toFixed(2)),
       tierBonus,
@@ -131,4 +132,30 @@ function getTierLabel(tier, totalTiers = 5) {
 
   const index = Math.min(tier - 1, available.length - 1);
   return available[index];
+}
+
+function getRiskTags(player = {}) {
+  const tags = [];
+
+  const boomRate = Number(player.boom_rate ?? player.boom ?? 0);
+  const bustRate = Number(player.bust_rate ?? player.bust ?? 0);
+  const consistency = Number(player.consistency_score ?? 0);
+
+  if (boomRate > 20) tags.push('🔥 Boom');
+  if (bustRate > 20) tags.push('❄️ Bust');
+  if (consistency >= 65 && bustRate < 15) tags.push('⚖️ Estable');
+
+  return tags;
+}
+
+function getValueTag(vor = 0, adp = 0) {
+  if (!vor || !adp || adp === 0) return null;
+
+  const ratio = vor / adp;
+
+  if (ratio > 2.5) return ' 💎 Steal';
+  if (ratio > 1.5) return ' 📈 Valor';
+  if (ratio < 0.5) return ' ⚠️ Sobrevalorado';
+
+  return null;
 }
