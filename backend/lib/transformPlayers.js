@@ -1,6 +1,6 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiers } from '../utils/tiering.js'; // NUEVO archivo modularizado
+import { assignTiers } from '../utils/tiering.js';
 
 const useClustering = true; // <== Cambia a false para usar lógica basada en dropoff
 
