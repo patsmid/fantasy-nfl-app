@@ -13,7 +13,7 @@ export function showError(message = 'Ocurrió un error inesperado') {
     icon: 'error',
     title: 'Error',
     text: message,
-	  confirmButtonText = 'Aceptar',
+	  confirmButtonText: 'Aceptar',
   });
 }
 

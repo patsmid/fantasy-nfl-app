@@ -58,6 +58,8 @@ export function buildFinalPlayers({
     const rookie = playerInfo.years_exp === 0 ? ' (R)' : '';
 		const bye = Number(playerInfo.bye_week || playerRank.bye_week || 0);
 		const byeFound = myByeWeeks.includes(bye) ? ' 👋' : '';
+		// const bye = Number(playerInfo.bye_week || playerRank.bye_week || 0);
+		// const byeFound = myByeWeeks.map(Number).includes(bye) ? ' 👋' : '';
     const teamFound = myTeams.includes(playerInfo.team) ? ' 🏈' : '';
     const teamGood = goodOffense.includes(playerInfo.team) ? ' ✔️' : '';
     const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
