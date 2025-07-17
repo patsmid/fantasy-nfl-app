@@ -153,9 +153,9 @@ function getValueTag(vor = 0, adp = 0) {
 
   const ratio = vor / adp;
 
-  if (ratio > 2.5) return ' 💎 Steal';
-  if (ratio > 1.5) return ' 📈 Valor';
-  if (ratio < 0.5) return ' ⚠️ Sobrevalorado';
+  if (ratio > 2.5) return '💎 Steal';
+  if (ratio > 1.5) return '📈 Valor';
+  if (ratio < 0.5) return '⚠️ Sobrevalorado';
 
   return null;
 }
