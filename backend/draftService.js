@@ -110,6 +110,7 @@ export async function getDraftData(
       dynasty,
       superFlex,
 			ranks_published,
+			ADPdate: adpData[0].date,
       source
     },
     data: players
