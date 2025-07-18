@@ -133,16 +133,20 @@ export default async function () {
 	</div>
 	`);
 
-	const modalEl = document.getElementById('configModal');
-	const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-	modal.show()
+	// const modalEl = document.getElementById('configModal');
+	// const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	// modal.show()
 
-  document.getElementById('btn-add-config').addEventListener('click', () => {
-    document.getElementById('configForm').reset();
-    document.getElementById('configId').value = '';
-    document.getElementById('configKey').readOnly = false;
-    modal.show();
-  });
+	document.getElementById('btn-add-config').addEventListener('click', () => {
+	  document.getElementById('configForm').reset();
+	  document.getElementById('configId').value = '';
+	  document.getElementById('configKey').readOnly = false;
+
+	  const modalEl = document.getElementById('configModal');
+	  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	  modal.show();
+	});
+
 
 	document.getElementById('btn-update-teams').addEventListener('click', async () => {
 		try {
