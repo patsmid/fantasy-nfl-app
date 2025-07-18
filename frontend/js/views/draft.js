@@ -46,6 +46,7 @@ export default async function renderDraftView() {
           </div>
         </form>
 				<div id="ranks-updated-label" class="text-start mb-3"></div>
+				<div id="adp-updated-label" class="text-start mb-3"></div>
         <div class="table-responsive">
           <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
@@ -248,7 +249,7 @@ export default async function renderDraftView() {
 
       const ranksLabel = document.getElementById('ranks-updated-label');
       if (ranksLabel && res?.params?.ranks_published) {
-        const source = res.params.source; 
+        const source = res.params.source;
         const fecha = new Date(res.params.ranks_published);
         const fechaFormateada = fecha.toLocaleString('es-MX', {
           dateStyle: 'medium',
@@ -263,6 +264,22 @@ export default async function renderDraftView() {
           </div>
         `;
       }
+			const adpLabel = document.getElementById('adp-updated-label');
+			if (adpLabel && res?.params?.ADPdate) {
+			  const adpDate = new Date(res.params.ADPdate);
+			  const formattedADPDate = adpDate.toLocaleString('es-MX', {
+			    dateStyle: 'medium',
+			    timeStyle: 'short'
+			  });
+
+			  adpLabel.innerHTML = `
+			    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
+			         style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+			      <i class="bi bi-clock-history text-warning"></i>
+			      <span><strong>ADP actualizado:</strong> ${formattedADPDate}</span>
+			    </div>
+			  `;
+			}
 
       draftData = res.data;
       updateTable(draftData);
