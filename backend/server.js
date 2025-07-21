@@ -144,16 +144,16 @@ app.put('/teams/:id', async (req, res) => {
   }
 });
 
-app.get('/api/adp/:type', async (req, res) => {
-  const type = req.params.type; // ej: half-ppr o ppr
+app.get('/adp/fantasypros/:type', async (req, res) => {
+  const type = req.params.type; // 'half-ppr' o 'ppr'
   try {
     const data = await getFantasyProsADP(type);
     res.json(data);
   } catch (err) {
-    console.error('Error al obtener ADP:', err.message);
-    res.status(500).json({ error: 'Error al obtener ADP desde FantasyPros' });
+    res.status(500).json({ error: err.message });
   }
-})
+});
+
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
