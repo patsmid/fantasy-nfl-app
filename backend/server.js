@@ -24,6 +24,7 @@ import {
   updateTeamById,
   bulkUpdatePlayersByeWeeks
 } from './lib/teamsService.js';
+import { getFantasyProsADP } from './lib/fantasyprosService.js';
 import draftRouter from './draft.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -143,6 +144,15 @@ app.put('/teams/:id', async (req, res) => {
   }
 });
 
+app.get('/adp/fantasypros', async (req, res) => {
+  try {
+    const data = await getFantasyProsADP();
+    res.json(data);
+  } catch (err) {
+    console.error('Error al obtener ADP:', err.message);
+    res.status(500).json({ error: 'Error al obtener ADP desde FantasyPros' });
+  }
+});
 
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
