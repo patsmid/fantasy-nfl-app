@@ -1,6 +1,5 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-import { formatISO } from 'date-fns';
 import { supabase } from '../supabaseClient.js';
 
 const TYPES = {
@@ -50,7 +49,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     const adp_type = `FP_${tipo}`;
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
 
-    const today = formatISO(new Date(), { representation: 'date' }); // formato YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
 
     const records = adpList.map(player => ({
       adp_type,
