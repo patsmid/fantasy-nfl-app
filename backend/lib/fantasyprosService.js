@@ -1,15 +1,16 @@
 import fetch from 'node-fetch';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio'; // CORRECTO para ESM
 
 export async function getFantasyProsADP() {
   const url = 'https://www.fantasypros.com/nfl/adp/half-point-ppr-overall.php';
 
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0' } // para evitar bloqueo
+    headers: { 'User-Agent': 'Mozilla/5.0' }
   });
 
   const html = await res.text();
   const $ = cheerio.load(html);
+
   const players = [];
 
   $('#data tbody tr').each((i, el) => {
