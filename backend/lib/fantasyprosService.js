@@ -30,22 +30,28 @@ export async function getFantasyProsADP(type = 'half-ppr') {
       obj[headers[j]] = $(td).text().trim();
     });
 
-    // Extraer nombre y equipo desde el campo "player"
+    // Verificar nombre y separar si es posible
     const raw = obj['player'] || obj['name'];
-    const match = raw.match(/^(.*?)\s+([A-Z]{2,3})\s*\((\d+)\)$/);
-    let name = raw, team, bye;
-    if (match) {
-      name = match[1].trim();
-      team = match[2];
-      bye = match[3];
+    let name = raw || 'Desconocido';
+    let team = obj['team'] || null;
+    let bye = obj['bye'] || null;
+
+    // ⚠️ Solo aplicar match si raw está definido y tiene el formato esperado
+    if (raw && raw.match(/\((\d+)\)$/)) {
+      const match = raw.match(/^(.*?)\s+([A-Z]{2,3})\s*\((\d+)\)$/);
+      if (match) {
+        name = match[1].trim();
+        team = match[2];
+        bye = match[3];
+      }
     }
 
     players.push({
       rank: parseInt(obj['#'] || obj['rank']) || null,
       name,
-      team: team || obj['team'] || null,
+      team,
       position: obj['pos'] || obj['position'] || null,
-      bye: bye || obj['bye'] || null,
+      bye,
       adp: parseFloat(obj['adp']) || null
     });
   });
