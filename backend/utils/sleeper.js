@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient.js';
+import { uploadAllFantasyProsADP } from '../lib/fantasyprosService.js';
 
 export async function getNflState() {
   try {
@@ -126,8 +127,12 @@ export async function updateSleeperADP(req, res) {
     const scriptUrl = 'https://script.google.com/macros/s/AKfycbzJKeM4mnNWbnIhGiOlRfCyEfccXfMVD8Zpp1300eRFVcRNgUGF7bZuRrd3D2xDXfYC/exec';
     const authKey = 'f4nt4sy-@dp-sync-92js83sk'; // Usa una variable de entorno segura
 
+		// 1. Ejecutar el Google Script
     const response = await fetch(`${scriptUrl}?auth=${authKey}`);
     const text = await response.text();
+
+    // 2. Subir ADP de FantasyPros (ppr y half-ppr)
+    await uploadAllFantasyProsADP();
 
     res.json({ success: true, result: text });
   } catch (err) {

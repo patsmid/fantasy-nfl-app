@@ -1,5 +1,7 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
+import { formatISO } from 'date-fns';
+import { supabase } from '../supabaseClient.js';
 
 const TYPES = {
   'half-ppr': 'half-point-ppr-overall',
@@ -41,4 +43,40 @@ export async function getFantasyProsADP(type = 'half-ppr') {
   });
 
   return players;
+}
+
+export async function uploadFantasyProsADP(tipo = 'ppr') {
+  try {
+    const adp_type = `FP_${tipo}`;
+    const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
+
+    const today = formatISO(new Date(), { representation: 'date' }); // formato YYYY-MM-DD
+
+    const records = adpList.map(player => ({
+      adp_type,
+      sleeper_player_id: 0,
+      adp_value: Number(player.adp),
+      adp_value_prev: 0,
+      date: today,
+      full_name: player.name,
+      position: player.position,
+      team: player.team,
+    }));
+
+    const { data, error } = await supabase
+      .from('sleeper_adp_data')
+      .insert(records);
+
+    if (error) throw error;
+
+    console.log(`✅ Insertados ${records.length} registros de ADP [${adp_type}]`);
+  } catch (err) {
+    console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
+  }
+}
+
+export async function uploadAllFantasyProsADP() {
+  const tipos = ['ppr', 'half-ppr'];
+  await Promise.all(tipos.map(uploadFantasyProsADP));
+  console.log('🎉 ADP de FantasyPros cargado para PPR y Half-PPR');
 }
