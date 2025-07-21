@@ -1,51 +1,52 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 
+const TYPE_MAP = {
+  'half-ppr': 'half-point-ppr-overall',
+  'ppr': 'ppr-overall'
+};
+
 export async function getFantasyProsADP(type = 'half-ppr') {
-  const validTypes = {
-    'half-ppr': 'half-point-ppr-overall',
-    'ppr': 'ppr-overall'
-  };
+  if (!TYPE_MAP[type]) throw new Error('Tipo inválido');
 
-  if (!validTypes[type]) throw new Error('ADP type inválido');
-
-  const url = `https://www.fantasypros.com/nfl/adp/${validTypes[type]}.php`;
+  const url = `https://www.fantasypros.com/nfl/adp/${TYPE_MAP[type]}.php`;
   const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
+  const $ = cheerio.load(await res.text());
   const table = $('#data');
-  const headers = [];
 
-  table.find('thead tr th').each((i, el) => {
-    const header = $(el).text().trim().toLowerCase();
-    headers.push(header); // ej: 'player', 'team', 'position', 'bye', 'adp'
+  // 1. Mapear encabezados
+  const headers = [];
+  table.find('thead th').each((i, el) => {
+    headers.push($(el).text().trim().toLowerCase());
   });
 
   const players = [];
+  table.find('tbody tr').each((_, tr) => {
+    const cols = $(tr).find('td');
+    if (cols.length < headers.length) return;
 
-  table.find('tbody tr').each((i, el) => {
-    const td = $(el).find('td');
-    if (td.length < headers.length) return;
-
-    const row = {};
-    td.each((j, cell) => {
-      const key = headers[j];
-      const value = $(cell).text().trim();
-
-      row[key] = value;
+    const obj = {};
+    cols.each((j, td) => {
+      obj[headers[j]] = $(td).text().trim();
     });
 
-    // Mapeamos los campos que nos interesan
-    const [name, team, bye] = row['player']?.split(/\s+\(|\)/) ?? [];
+    // Extraer nombre y equipo desde el campo "player"
+    const raw = obj['player'] || obj['name'];
+    const match = raw.match(/^(.*?)\s+([A-Z]{2,3})\s*\((\d+)\)$/);
+    let name = raw, team, bye;
+    if (match) {
+      name = match[1].trim();
+      team = match[2];
+      bye = match[3];
+    }
 
     players.push({
-      rank: parseInt(row['#'] || i + 1),
-      name: name?.trim() || row['player'],
-      team: team || row['team'],
-      position: row['pos'] || row['position'],
-      bye: row['bye'] || null,
-      adp: parseFloat(row['adp']) || null,
+      rank: parseInt(obj['#'] || obj['rank']) || null,
+      name,
+      team: team || obj['team'] || null,
+      position: obj['pos'] || obj['position'] || null,
+      bye: bye || obj['bye'] || null,
+      adp: parseFloat(obj['adp']) || null
     });
   });
 
