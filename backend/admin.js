@@ -16,10 +16,8 @@ router.get('/menu', async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  // Filtrar por rol
   const menuItems = data.filter(item => item.roles?.includes(role));
 
-  // Construir árbol
   const map = new Map();
   const tree = [];
 
@@ -43,8 +41,8 @@ router.get('/', async (req, res) => {
   const { data, error } = await supabase
     .from('sidebar_menu')
     .select('*')
-		.order('parent_id', { ascending: true })
-		.order('display_order', { ascending: true });
+    .order('parent_id', { ascending: true })
+    .order('display_order', { ascending: true });
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -52,9 +50,17 @@ router.get('/', async (req, res) => {
 
 router.post('/menu', async (req, res) => {
   const { title, icon, view, parent_id, roles, enabled } = req.body;
-	const rolesArray = Array.isArray(roles) ? roles : [roles || 'user'];
-  const { data, error } = await supabase.from('sidebar_menu').insert([{
-    title, icon, view, parent_id, roles, enabled
+  const rolesArray = Array.isArray(roles) ? roles : [roles || 'user'];
+
+  const { data, error } = await supabase.from('sidebar_menu').insert([
+    {
+      title,
+      icon,
+      view,
+      parent_id,
+      roles: rolesArray,
+      enabled
+    }
   ]);
 
   if (error) return res.status(500).json({ error: error.message });
@@ -75,7 +81,11 @@ router.put('/menu/:id', async (req, res) => {
 });
 
 router.delete('/menu/:id', async (req, res) => {
-  const { error } = await supabase.from('sidebar_menu').delete().eq('id', req.params.id);
+  const { error } = await supabase
+    .from('sidebar_menu')
+    .delete()
+    .eq('id', req.params.id);
+
   if (error) return res.status(500).json({ error: error.message });
   res.status(204).end();
 });
@@ -114,19 +124,22 @@ router.post('/upsert', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('sidebar_menu')
-			.upsert([
-			  {
-			    id: id ? parseInt(id) : undefined,
-			    title,
-			    icon,
-			    view,
-			    parent_id: parent_id ? parseInt(parent_id) : null,
-			    roles,
-			    display_order,
-			    enabled,
-			    updated_at: new Date().toISOString()
-			  }
-			], { onConflict: ['id'] });
+      .upsert(
+        [
+          {
+            id: id ? parseInt(id) : undefined,
+            title,
+            icon,
+            view,
+            parent_id: parent_id ? parseInt(parent_id) : null,
+            roles,
+            display_order,
+            enabled,
+            updated_at: new Date().toISOString()
+          }
+        ],
+        { onConflict: ['id'] }
+      );
 
     if (error) throw error;
     res.json(data);
