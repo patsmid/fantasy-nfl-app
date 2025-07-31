@@ -37,7 +37,7 @@ router.get('/menu', async (req, res) => {
   res.json(tree);
 });
 
-router.get('/', async (req, res) => {
+router.get('/menu/config', async (req, res) => {
   const { data, error } = await supabase
     .from('sidebar_menu')
     .select('*')
@@ -109,7 +109,7 @@ router.post('/menu/reorder', async (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-router.post('/upsert', async (req, res) => {
+router.post('/menu/upsert', async (req, res) => {
   const {
     id,
     title,
@@ -149,7 +149,7 @@ router.post('/upsert', async (req, res) => {
   }
 });
 
-router.post('/order', async (req, res) => {
+router.post('/menu/order', async (req, res) => {
   const updates = req.body; // [{ id, display_order }, ...]
 
   try {

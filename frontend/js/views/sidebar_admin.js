@@ -94,7 +94,7 @@ function setupModal() {
     };
 
     try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/menu/upsert', {
+      const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/upsert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -123,7 +123,7 @@ function setupModal() {
 
 async function loadMenuItems() {
   try {
-    const res = await fetch('https://fantasy-nfl-backend.onrender.com/menu');
+    const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/config');
     if (!res.ok) throw new Error('Error cargando menú');
     menuItems = await res.json();
     renderMenuList();
@@ -175,7 +175,7 @@ function setupSortable() {
       const ordered = ids.map((id, index) => ({ id, display_order: index }));
 
       try {
-        const res = await fetch('https://fantasy-nfl-backend.onrender.com/menu/order', {
+        const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(ordered)
