@@ -160,7 +160,7 @@ app.use('/draft', draftRouter);
 app.use('/projections', projectionsRouter);
 app.use('/extras', extrasRouter);
 app.use('/rankings', rankingsRouter);
-app.use('/admin', adminRoutes);
+app.use('/admin', adminRouter);
 
 // 🌐 Default
 app.get('/', (req, res) => {
