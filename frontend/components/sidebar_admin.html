@@ -1,0 +1,73 @@
+<!-- sidebar_admin.html -->
+<div class="container py-4">
+  <h2>Administrar Menú Lateral</h2>
+  <button class="btn btn-primary mb-3" id="btn-add-menu">+ Agregar Menú</button>
+
+  <ul id="menu-list" class="list-group sortable-menu"></ul>
+
+  <!-- Modal para crear/editar menú -->
+  <div class="modal fade" id="menuModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Menú</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="menu-form">
+            <input type="hidden" id="menu-id">
+
+            <div class="mb-3">
+              <label>Título</label>
+              <input type="text" class="form-control" id="menu-title" required>
+            </div>
+
+            <div class="mb-3">
+              <label>Vista (opcional)</label>
+              <input type="text" class="form-control" id="menu-view">
+            </div>
+
+            <div class="mb-3">
+              <label>Icono</label>
+              <select class="form-select" id="menu-icon">
+                <option value="bi-gear-fill">bi-gear-fill</option>
+                <option value="bi-stars">bi-stars</option>
+                <option value="bi-clipboard-data-fill">bi-clipboard-data-fill</option>
+                <option value="bi-people-fill">bi-people-fill</option>
+                <option value="bi-graph-up">bi-graph-up</option>
+                <option value="bi-trophy-fill">bi-trophy-fill</option>
+                <option value="bi-lightbulb-fill">bi-lightbulb-fill</option>
+                <option value="bi-bookmarks-fill">bi-bookmarks-fill</option>
+                <option value="bi-shield-lock-fill">bi-shield-lock-fill</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label>Padre (submenú de)</label>
+              <select class="form-select" id="menu-parent"></select>
+            </div>
+
+            <div class="mb-3">
+              <label>Roles permitidos</label>
+              <select class="form-select" id="menu-roles" multiple>
+                <option value="admin">admin</option>
+                <option value="user">user</option>
+              </select>
+            </div>
+
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="menu-enabled" checked>
+              <label class="form-check-label">Activo</label>
+            </div>
+
+            <button type="submit" class="btn btn-success">Guardar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Incluye Sortable.js -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="sidebar_admin.js"></script>

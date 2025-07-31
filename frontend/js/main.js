@@ -1,22 +1,87 @@
-async function loadSidebar() {
+async function loadSidebar(role = 'admin') {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
-    const response = await fetch('/components/sidebar.html');
-    if (!response.ok) throw new Error('No se pudo cargar el sidebar');
+    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/admin/menu?role=${role}`);
+    if (!response.ok) throw new Error('No se pudo obtener el menú');
 
-    const html = await response.text();
-    sidebar.innerHTML = html;
-    sidebarMobile.innerHTML = html;
+    const menuTree = await response.json();
+
+    const sidebarHTML = renderSidebar(menuTree);
+    sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
 
     activateSidebarLinks();
-    await loadView('config'); // Vista inicial
+    await loadView('config'); // o vista inicial dinámica
     setActiveSidebarItem('config');
+
   } catch (error) {
     console.error('Error cargando sidebar:', error);
   }
 }
+
+function renderSidebar(menuTree) {
+  const ul = document.createElement('ul');
+  ul.className = 'nav flex-column flock-nav';
+
+  for (const item of menuTree) {
+    const li = document.createElement('li');
+    li.className = 'nav-item';
+
+    const hasChildren = item.children && item.children.length > 0;
+
+    if (hasChildren) {
+      const submenuId = `submenu-${item.id}`;
+      li.innerHTML = `
+        <a href="#" class="nav-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#${submenuId}">
+          <span><i class="bi ${item.icon}"></i> ${item.title}</span>
+          <i class="bi bi-caret-down-fill small"></i>
+        </a>
+        <ul class="nav flex-column ms-3 collapse" id="${submenuId}">
+          ${item.children.map(child => `
+            <li class="nav-item">
+              <a href="#" class="nav-link" data-view="${child.view}">
+                <i class="bi ${child.icon}"></i> <span>${child.title}</span>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+    } else {
+      li.innerHTML = `
+        <a href="#" class="nav-link" data-view="${item.view}">
+          <i class="bi ${item.icon}"></i>
+          <span>${item.title}</span>
+        </a>
+      `;
+    }
+
+    ul.appendChild(li);
+  }
+
+  return ul.outerHTML;
+}
+
+// async function loadSidebar() {
+//   const sidebar = document.getElementById('sidebar');
+//   const sidebarMobile = document.getElementById('sidebarMobileContent');
+//
+//   try {
+//     const response = await fetch('/components/sidebar.html');
+//     if (!response.ok) throw new Error('No se pudo cargar el sidebar');
+//
+//     const html = await response.text();
+//     sidebar.innerHTML = html;
+//     sidebarMobile.innerHTML = html;
+//
+//     activateSidebarLinks();
+//     await loadView('config'); // Vista inicial
+//     setActiveSidebarItem('config');
+//   } catch (error) {
+//     console.error('Error cargando sidebar:', error);
+//   }
+// }
 
 function activateSidebarLinks() {
   // Seleccionamos los links del sidebar desktop y mobile
@@ -63,7 +128,8 @@ function setActiveSidebarItem(viewName) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadSidebar();
+	const userRole = 'admin'; // Esto debería venir de Supabase Auth o sesión
+  await loadSidebar(userRole);
 
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   const sidebarIcon = document.getElementById('sidebar-icon');

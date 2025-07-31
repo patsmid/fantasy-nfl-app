@@ -48,21 +48,33 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   try {
     const adp_type = `FP_${tipo}`;
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
+    const playersData = await getPlayersData(); // [{ player_id, full_name, ... }]
 
     const today = new Date().toISOString().split('T')[0];
+    const records = [];
 
-    const records = adpList.map(player => ({
-      adp_type,
-      sleeper_player_id: 0,
-      adp_value: Number(player.adp),
-      adp_value_prev: 0,
-      date: today,
-      full_name: player.name,
-      position: player.position,
-      team: player.team,
-    }));
+    for (const player of adpList) {
+      const matched = fuzzySearch(player.name, playersData);
+      if (matched.length > 0) {
+        const sleeper_player_id = matched[0].player_id;
+        records.push({
+          adp_type,
+          sleeper_player_id,
+          adp_value: Number(player.adp),
+          adp_value_prev: 0,
+          date: today,
+        });
+      } else {
+        console.warn(`⚠️ No se encontró match para: ${player.name}`);
+      }
+    }
 
-    const { data, error } = await supabase
+    if (records.length === 0) {
+      console.warn('⚠️ No se generaron registros válidos para insertar.');
+      return;
+    }
+
+    const { error } = await supabase
       .from('sleeper_adp_data')
       .insert(records);
 
