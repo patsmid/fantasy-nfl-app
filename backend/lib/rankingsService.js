@@ -19,10 +19,8 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
       published: last_updated,
       players: data
     };
-
   }
 
-  // Fallback: FantasyPros (default)
   let week = nflState.season_type === 'pre' ? 0 : nflState.week;
   if (weekStatic !== null && weekStatic !== '') {
     week = parseInt(weekStatic);
@@ -34,7 +32,7 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   }
 
   const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
-  const posValue = posObj.valor;
+  const posValue = posObj.valor || pos;
 
   let type = 'PRESEASON';
   if (week > 0) type = 'WEEKLY';
@@ -68,16 +66,6 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
     const rawData = json.data || [];
     const lastUpdatedAll = json.last_updated || {};
 
-    // Función para formatear fecha legible en español
-    const formatDate = (isoString) => {
-      const date = new Date(isoString);
-      return date.toLocaleDateString('es-MX', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-    };
-
     if (!expert) {
       return {
         data: rawData,
@@ -99,7 +87,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 
     return {
       data: filteredData,
-      last_updated: lastUpdatedAll[expert] ? (lastUpdatedAll[expert]) : null
+      last_updated: lastUpdatedAll[expert] ? lastUpdatedAll[expert] : null
     };
   } catch (err) {
     console.error('❌ Error en getFlockRankings:', err.message);
@@ -111,31 +99,27 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 }
 
 export async function getFantasyProsRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
-  const nflState = await getNflState();
-  let week = 0;
+  return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });
+}
 
-  if (nflState.season_type === 'pre') week = 0;
-  else week = nflState.week;
+export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) {
+  return await getRankings({
+    season,
+    dynasty,
+    scoring: 'STD',
+    idExpert,
+    position: 'DST',
+    weekStatic
+  });
+}
 
-  if (weekStatic !== null && weekStatic !== '') {
-    week = parseInt(weekStatic);
-  }
-
-  let pos = position;
-  if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
-    pos = 'TODAS_PRE';
-  }
-
-  const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
-  const posValue = posObj.valor;
-
-  let type = 'PRESEASON';
-  if (week > 0) type = 'WEEKLY';
-  if (dynasty) type = 'DK';
-
-  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
-  console.log('📊 URL FantasyPros Rankings:', url);
-
-  const res = await fetch(url);
-  return await res.json();
+export async function getKickerRankings({ season, dynasty, idExpert, weekStatic }) {
+  return await getRankings({
+    season,
+    dynasty,
+    scoring: 'STD',
+    idExpert,
+    position: 'K',
+    weekStatic
+  });
 }
