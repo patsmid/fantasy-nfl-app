@@ -114,17 +114,19 @@ router.post('/upsert', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('sidebar_menu')
-      .upsert([{
-        id: id ? parseInt(id) : undefined,
-        title,
-        icon,
-        view,
-        parent_id: parent_id ? parseInt(parent_id) : null,
-        roles,
-        display_order,
-        enabled,
-        updated_at: new Date().toISOString()
-      }], { onConflict: ['id'] });
+			.upsert([
+			  {
+			    id: id ? parseInt(id) : undefined,
+			    title,
+			    icon,
+			    view,
+			    parent_id: parent_id ? parseInt(parent_id) : null,
+			    roles,
+			    display_order,
+			    enabled,
+			    updated_at: new Date().toISOString()
+			  }
+			], { onConflict: ['id'] });
 
     if (error) throw error;
     res.json(data);
@@ -152,6 +154,5 @@ router.post('/order', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 export default router;
