@@ -7,13 +7,12 @@ export async function fetchLineupData(leagueId, idExpert) {
 
   try {
     const res = await fetchWithTimeout(url);
-    const json = await res.json();
 
-    if (!json.success || !json.data) {
-      throw new Error(json.error || 'Error al obtener alineación');
+    if (!res.success || !res.data) {
+      throw new Error(res.error || 'Error al obtener alineación');
     }
 
-    return json.data; // contiene { starters, bench }
+    return res.data; // contiene { starters, bench }
   } catch (err) {
     console.error('Error en fetchLineupData:', err);
     throw err;
