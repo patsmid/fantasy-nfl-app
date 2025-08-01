@@ -521,8 +521,9 @@ table.dataTable tbody tr.selected {
 }
 
 .menu-sublist .menu-item {
-  background-color: #1d1f26;
   margin-bottom: 0.4rem;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 .menu-sublist .menu-item:hover {
@@ -573,4 +574,26 @@ table.dataTable tbody tr.selected {
 
 .toggle-submenu i {
   font-size: 0.85rem;
+}
+
+.btn-accent {
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  transition: background-color 0.2s ease;
+}
+
+.btn-accent:hover {
+  background-color: #cc6200;
+  color: #fff;
+}
+
+.toggle-submenu {
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.toggle-submenu[data-collapsed="true"] i {
+  transform: rotate(-90deg);
 }
