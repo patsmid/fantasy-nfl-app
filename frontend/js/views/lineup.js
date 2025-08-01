@@ -32,17 +32,15 @@ export default async function renderLineupView() {
         <div class="mb-4">
           <h5 class="text-primary mb-2"><i class="bi bi-stars"></i> Titulares</h5>
           <div class="table-responsive">
-            <table id="startersTable" class="table table-dark table-hover align-middle w-100">
-              <thead class="table-dark">
+            <table id="startersTable" class="table table-hover align-middle w-100">
+              <thead>
                 <tr>
                   <th>Rank</th>
                   <th>Jugador</th>
                   <th>Equipo</th>
                   <th>Posición</th>
                   <th>Bye</th>
-                  <th>Proyección</th>
-                  <th>VOR</th>
-                  <th>Tier</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -53,17 +51,15 @@ export default async function renderLineupView() {
         <div>
           <h5 class="text-secondary mb-2"><i class="bi bi-person-dash"></i> Bench</h5>
           <div class="table-responsive">
-            <table id="benchTable" class="table table-secondary table-hover align-middle w-100">
-              <thead class="table-secondary">
+            <table id="benchTable" class="table table-hover align-middle w-100">
+              <thead>
                 <tr>
                   <th>Rank</th>
                   <th>Jugador</th>
                   <th>Equipo</th>
                   <th>Posición</th>
                   <th>Bye</th>
-                  <th>Proyección</th>
-                  <th>VOR</th>
-                  <th>Tier</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -90,22 +86,18 @@ export default async function renderLineupView() {
     try {
       showLoadingBar('Generando alineación', 'Consultando información...');
 
-      const res = await fetchLineupData(leagueId, idExpert);
-      const { starters, bench } = res;
+      const { starters, bench } = await fetchLineupData(leagueId, idExpert).then(r => r.data);
 
-      const renderRows = data =>
-        data.map(p => `
-          <tr>
-            <td>${p.rank}</td>
-            <td>${p.player}</td>
-            <td>${p.team}</td>
-            <td>${p.position}</td>
-            <td>${p.bye}</td>
-            <td><span class="fw-bold text-info">${p.projection}</span></td>
-            <td>${p.vor}</td>
-            <td>${p.tier ?? ''}</td>
-          </tr>
-        `).join('');
+      const renderRows = players => players.map(p => `
+        <tr>
+          <td>${p.rank}</td>
+          <td class="fw-semibold">${p.nombre}</td>
+          <td>${p.team}</td>
+          <td>${p.position}</td>
+          <td>${p.byeWeek}</td>
+          <td>${renderStatus(p.injuryStatus)}</td>
+        </tr>
+      `).join('');
 
       document.querySelector('#startersTable tbody').innerHTML = renderRows(starters);
       document.querySelector('#benchTable tbody').innerHTML = renderRows(bench);
@@ -115,5 +107,10 @@ export default async function renderLineupView() {
       Swal.close();
       showError('Error al obtener alineación: ' + err.message);
     }
+  }
+
+  function renderStatus(status) {
+    if (!status) return '<span class="text-success">OK</span>';
+    return `<span class="text-warning fw-bold">${status}</span>`;
   }
 }

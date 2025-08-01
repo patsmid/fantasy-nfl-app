@@ -182,7 +182,7 @@ function createMenuItem(item) {
       </div>
       <div class="menu-actions">
         <button class="btn btn-sm btn-accent d-flex align-items-center gap-1">
-          <i class="bi bi-pencil-fill"></i> Editar
+          <i class="bi bi-pencil-fill"></i>
         </button>
       </div>
 
