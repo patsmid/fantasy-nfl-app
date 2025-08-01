@@ -7,17 +7,19 @@ export async function fetchLineupData(leagueId, idExpert) {
 
   try {
     const res = await fetchWithTimeout(url);
+    const json = await res.json(); // 💥 esto faltaba
 
-    if (!res.success || !res.data) {
-      throw new Error(res.error || 'Error al obtener alineación');
+    if (!json.success || !json.data) {
+      throw new Error(json.error || 'Error al obtener alineación');
     }
 
-    return res.data; // contiene { starters, bench }
+    return json.data; // contiene { starters, bench }
   } catch (err) {
     console.error('Error en fetchLineupData:', err);
     throw err;
   }
 }
+
 
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
   const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`;
