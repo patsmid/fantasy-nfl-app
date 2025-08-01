@@ -1,4 +1,4 @@
-import { getSleeperLeague, getRoster } from '../utils/sleeper.js';
+import { getSleeperLeague, getRosters } from '../utils/sleeper.js';
 import { getConfigValue, getPlayersData } from './draftUtils.js';
 import { getRankings, getDSTRankings, getKickerRankings } from './rankingsService.js';
 import { getStarterPositions, fuzzySearch } from '../utils/helpers.js';
@@ -35,7 +35,7 @@ export async function getLineupData(leagueId, { idExpert = 3701, position = 'TOD
   const kickerRankings = await getKickerRankings(idExpert);
 
   // 3. Roster del usuario
-  const allRosters = await getRoster(leagueId);
+  const allRosters = await getRosters(leagueId);
   const myRoster = allRosters.find(r => r.owner_id === mainUserId);
   const playerIds = myRoster?.players ?? [];
 

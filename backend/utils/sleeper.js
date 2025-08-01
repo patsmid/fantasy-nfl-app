@@ -114,6 +114,19 @@ export async function getSleeperLeague(leagueId) {
   return await response.json();
 }
 
+export async function getRosters(leagueId = '997941325091647488') {
+  try {
+    const url = `https://api.sleeper.app/v1/league/${leagueId}/rosters`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (e) {
+    console.error(`¡ERROR! getRoster() — ${e.message}`);
+    return null;
+  }
+}
+
 export async function getLeagueDraft(draftId) {
   const response = await fetch(`https://api.sleeper.app/v1/draft/${draftId}/picks`);
   if (!response.ok) {
