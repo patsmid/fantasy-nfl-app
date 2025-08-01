@@ -140,6 +140,7 @@ function renderMenuList() {
 
     // hijos anidados
     const subList = document.createElement('ul');
+    subList.style.display = 'block';
     subList.className = 'menu-sublist';
     //subList.className = 'list-group list-group-flush ms-4';
     subList.dataset.parentId = item.id;
@@ -164,17 +165,38 @@ function createMenuItem(item) {
   li.dataset.id = item.id;
   li.dataset.parentId = item.parent_id || '';
 
+  const hasChildren = menuItems.some(i => i.parent_id === item.id);
+
   li.innerHTML = `
-    <div class="menu-label">
-      <span class="drag-handle"><i class="bi bi-list"></i></span>
-      <i class="bi ${item.icon}"></i> ${item.title}
-    </div>
-    <div class="menu-actions">
-      <button class="btn btn-sm btn-secondary">Editar</button>
+    <div class="d-flex align-items-center w-100 justify-content-between">
+      <div class="menu-label d-flex align-items-center">
+        <span class="drag-handle"><i class="bi bi-list"></i></span>
+        ${hasChildren ? `<span class="toggle-submenu me-2" data-collapsed="false"><i class="bi bi-caret-down-fill"></i></span>` : ''}
+        <i class="bi ${item.icon} me-2"></i>
+        <span>${item.title}</span>
+      </div>
+      <div class="menu-actions">
+        <button class="btn btn-sm btn-secondary">Editar</button>
+      </div>
     </div>
   `;
 
   li.querySelector('button').onclick = () => editMenu(item.id);
+
+  // Si tiene submenú, lo preparamos colapsable
+  if (hasChildren) {
+    li.querySelector('.toggle-submenu').onclick = (e) => {
+      const toggle = e.currentTarget;
+      const collapsed = toggle.dataset.collapsed === 'true';
+      const icon = toggle.querySelector('i');
+      const subList = li.querySelector('ul.menu-sublist');
+
+      toggle.dataset.collapsed = (!collapsed).toString();
+      icon.className = collapsed ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill';
+      if (subList) subList.style.display = collapsed ? 'block' : 'none';
+    };
+  }
+
   return li;
 }
 

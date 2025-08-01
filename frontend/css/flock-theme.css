@@ -540,3 +540,37 @@ table.dataTable tbody tr.selected {
 .menu-item:hover .drag-handle {
   color: var(--accent);
 }
+
+.menu-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.menu-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menu-sublist {
+  list-style: none;
+  padding-left: 1.5rem;
+  margin-top: 0.25rem;
+  border-left: 2px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.toggle-submenu {
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.toggle-submenu:hover {
+  color: var(--accent);
+}
+
+.toggle-submenu i {
+  font-size: 0.85rem;
+}
