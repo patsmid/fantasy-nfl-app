@@ -82,6 +82,7 @@ export async function getLineupData(leagueId, { idExpert = 3701, position = 'TOD
   const [starters, bench] = generateLineup(players, starterPositions);
 
   return {
+    success: true,
     meta: {
       scoring,
       dynasty,

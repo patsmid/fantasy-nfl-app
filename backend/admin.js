@@ -57,9 +57,10 @@ router.post('/menu', async (req, res) => {
       title,
       icon,
       view,
-      parent_id,
+      parent_id: parent_id ? parseInt(parent_id) : null,
       roles: rolesArray,
-      enabled
+      enabled,
+      updated_at: new Date().toISOString()
     }
   ]);
 
@@ -122,24 +123,24 @@ router.post('/menu/upsert', async (req, res) => {
   } = req.body;
 
   try {
+    const upsertItem = {
+      title,
+      icon,
+      view,
+      parent_id: parent_id ? parseInt(parent_id) : null,
+      roles,
+      display_order,
+      enabled,
+      updated_at: new Date().toISOString()
+    };
+
+    if (id) {
+      upsertItem.id = parseInt(id);
+    }
+
     const { data, error } = await supabase
       .from('sidebar_menu')
-      .upsert(
-        [
-          {
-            id: id ? parseInt(id) : undefined,
-            title,
-            icon,
-            view,
-            parent_id: parent_id ? parseInt(parent_id) : null,
-            roles,
-            display_order,
-            enabled,
-            updated_at: new Date().toISOString()
-          }
-        ],
-        { onConflict: ['id'] }
-      );
+      .upsert([upsertItem], { onConflict: ['id'] });
 
     if (error) throw error;
     res.json(data);
@@ -148,6 +149,7 @@ router.post('/menu/upsert', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 router.post('/menu/order', async (req, res) => {
   const updates = req.body; // [{ id, display_order }, ...]

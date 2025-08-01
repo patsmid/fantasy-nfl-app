@@ -14,10 +14,17 @@ router.get('/:leagueId', async (req, res) => {
       position
     });
 
-    res.json(lineup);
+    res.json({
+      success: true,
+      data: {
+        starters: lineup.starters || [],
+        bench: lineup.bench || [],
+        meta: lineup.meta || {}
+      }
+    });
   } catch (error) {
     console.error('Error al obtener alineación:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

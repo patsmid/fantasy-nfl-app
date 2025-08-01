@@ -2,6 +2,24 @@ import { showSuccess, showError, showConfirm } from '../components/alerts.js';
 import { fetchWithTimeout } from '../components/utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
+export async function fetchLineupData(leagueId, idExpert) {
+  const url = `${API_BASE}/lineup/${leagueId}?idExpert=${idExpert}`;
+
+  try {
+    const res = await fetchWithTimeout(url);
+    const json = await res.json();
+
+    if (!json.success || !json.data) {
+      throw new Error(json.error || 'Error al obtener alineación');
+    }
+
+    return json.data; // contiene { starters, bench }
+  } catch (err) {
+    console.error('Error en fetchLineupData:', err);
+    throw err;
+  }
+}
+
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
   const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`;
 

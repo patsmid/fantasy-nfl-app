@@ -1,70 +1,106 @@
-// sidebar_admin.js
-
-import { showSuccess, showError } from '../../components/alerts.js';
+import { showSuccess, showError, showConfirm } from '../../components/alerts.js';
 
 let menuItems = [];
 
 export default async function () {
-  const content = document.getElementById('content-container');
-  content.innerHTML = renderTemplate();
+  const container = document.getElementById('content-container');
+  container.innerHTML = `
+    <div class="container mt-4">
+      <h2>Administración del Menú Lateral</h2>
+      <button class="btn btn-primary mb-3" id="addMenuBtn">➕ Agregar Ítem</button>
+      <ul id="menuList" class="list-group"></ul>
+    </div>
 
-  await loadMenuItems();
-  setupModal();
-  setupSortable(); // ahora también incluye submenús
-}
-
-function renderTemplate() {
-  return `
-    <h2>Administración del Menú</h2>
-    <button class="btn btn-primary mb-3" id="addMenuBtn">➕ Agregar Ítem</button>
-    <ul id="menuList" class="list-group mb-5"></ul>
-    ${renderModal()}
-  `;
-}
-
-function renderModal() {
-  return `
+    <!-- Modal -->
     <div class="modal fade" id="menuModal" tabindex="-1" aria-labelledby="menuModalLabel" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="menuModalLabel">Editar Ítem</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <form id="menuForm">
+          <form id="menuForm">
+            <div class="modal-header">
+              <h5 class="modal-title" id="menuModalLabel">Agregar Ítem</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
               <input type="hidden" name="id" />
-              ${renderInput('Título', 'title')}
-              ${renderInput('Vista (view)', 'view')}
-              ${renderInput('Ícono (Bootstrap icon)', 'icon', 'bi-house, bi-tools')}
-              <div class="mb-3">
-                <label class="form-label">Submenú de:</label>
-                <select class="form-select" name="parent_id">
-                  <option value="">(ninguno)</option>
+              <div class="mb-2">
+                <label class="form-label">Título</label>
+                <input name="title" class="form-control" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Ícono</label>
+                <input name="icon" class="form-control" list="iconList" required />
+                <datalist id="iconList">
+                  <option value="bi-house" />
+                  <option value="bi-gear" />
+                  <option value="bi-people" />
+                  <option value="bi-clipboard" />
+                  <option value="bi-tools" />
+                  <option value="bi-table" />
+                </datalist>
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Vista (view)</label>
+                <input name="view" class="form-control" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Submenú de</label>
+                <select name="parent_id" class="form-select">
+                  <option value="">Ninguno</option>
                 </select>
               </div>
-              ${renderInput('Roles', 'roles', 'admin,editor')}
-              ${renderInput('Orden', 'display_order', '', 'number')}
-              <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" name="enabled" id="enabledCheckbox">
-                <label class="form-check-label" for="enabledCheckbox">Activo</label>
+              <div class="mb-2">
+                <label class="form-label">Roles (separados por coma)</label>
+                <input name="roles" class="form-control" placeholder="admin,editor" />
               </div>
+              <div class="mb-2">
+                <label class="form-label">Orden</label>
+                <input name="display_order" type="number" class="form-control" value="0" />
+              </div>
+              <div class="form-check mb-2">
+                <input name="enabled" class="form-check-input" type="checkbox" checked />
+                <label class="form-check-label">Habilitado</label>
+              </div>
+            </div>
+            <div class="modal-footer">
               <button type="submit" class="btn btn-success">Guardar</button>
-            </form>
-          </div>
+              <button type="button" class="btn btn-secondary btn-close" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   `;
+
+  await loadMenuItems();
+  setupModal();
+  setupSortable();
 }
 
-function renderInput(label, name, placeholder = '', type = 'text') {
-  return `
-    <div class="mb-3">
-      <label class="form-label">${label}</label>
-      <input type="${type}" class="form-control" name="${name}" placeholder="${placeholder}" />
-    </div>
-  `;
+async function loadMenuItems() {
+  const res = await fetch('/api/menu/list');
+  menuItems = await res.json();
+  const list = document.getElementById('menuList');
+  list.innerHTML = '';
+
+  for (const item of menuItems.filter(i => !i.parent_id)) {
+    const li = document.createElement('li');
+    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+    li.dataset.id = item.id;
+    li.innerHTML = `
+      <div>
+        <i class="bi ${item.icon} me-2"></i>${item.title}
+        ${!item.enabled ? '<span class="badge bg-secondary ms-2">Deshabilitado</span>' : ''}
+      </div>
+      <div>
+        <button class="btn btn-sm btn-outline-primary me-1 edit-btn">✏️</button>
+        <button class="btn btn-sm btn-outline-danger delete-btn">🗑️</button>
+      </div>
+    `;
+    list.appendChild(li);
+
+    li.querySelector('.edit-btn').onclick = () => editMenu(item.id);
+    li.querySelector('.delete-btn').onclick = () => deleteMenu(item.id);
+  }
 }
 
 function setupModal() {
@@ -72,138 +108,64 @@ function setupModal() {
   const modal = new bootstrap.Modal(modalEl);
   const form = document.getElementById('menuForm');
   const parentSelect = form.querySelector('[name=parent_id]');
+  const modalTitle = modalEl.querySelector('.modal-title');
 
   document.getElementById('addMenuBtn').onclick = () => {
     form.reset();
     form.id.value = '';
+    modalTitle.textContent = 'Agregar Ítem';
     modal.show();
+    updateParentSelect();
+  };
+
+  document.querySelector('#menuModal .btn-close').onclick = () => {
+    modal.hide();
   };
 
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(form));
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
 
-    const body = {
-      id: data.id || null,
-      title: data.title,
-      icon: data.icon,
-      view: data.view || null,
-      parent_id: data.parent_id || null,
-      roles: data.roles.split(',').map(r => r.trim()).filter(Boolean),
-      display_order: parseInt(data.display_order || '0'),
-      enabled: form.enabled.checked,
-    };
+    data.roles = data.roles ? data.roles.split(',').map(r => r.trim()) : [];
+    data.enabled = form.enabled.checked;
+    data.parent_id = data.parent_id || null;
+    data.id = data.id || null;
+    data.display_order = parseInt(data.display_order) || 0;
 
-    try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/upsert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
+    const res = await fetch('/api/menu/upsert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
 
-      if (!res.ok) throw new Error('Error al guardar');
-      showSuccess('Menú guardado');
+    const json = await res.json();
+    if (res.ok) {
+      showSuccess('Ítem guardado');
       modal.hide();
       await loadMenuItems();
-    } catch (err) {
-      showError('No se pudo guardar: ' + err.message);
+    } else {
+      showError('Error al guardar: ' + json.error);
     }
   };
 
-  modalEl.addEventListener('show.bs.modal', () => {
-    parentSelect.innerHTML = '<option value="">(ninguno)</option>';
-    menuItems.filter(i => !i.parent_id).forEach(item => {
+  function updateParentSelect() {
+    parentSelect.innerHTML = '<option value="">Ninguno</option>';
+    for (const item of menuItems.filter(i => !i.parent_id)) {
       parentSelect.innerHTML += `<option value="${item.id}">${item.title}</option>`;
-    });
-  });
-}
-
-async function loadMenuItems() {
-  try {
-    const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/config');
-    if (!res.ok) throw new Error('Error cargando menú');
-    menuItems = await res.json();
-    renderMenuList();
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-function renderMenuList() {
-  const list = document.getElementById('menuList');
-  list.innerHTML = '';
-
-  const parents = menuItems.filter(i => !i.parent_id).sort((a, b) => a.display_order - b.display_order);
-
-  for (const item of parents) {
-    const li = createMenuItem(item);
-
-    // hijos anidados
-    const subList = document.createElement('ul');
-    subList.style.display = 'block';
-    subList.className = 'menu-sublist';
-    //subList.className = 'list-group list-group-flush ms-4';
-    subList.dataset.parentId = item.id;
-
-    const children = menuItems
-      .filter(child => child.parent_id === item.id)
-      .sort((a, b) => a.display_order - b.display_order);
-
-    for (const child of children) {
-      const subLi = createMenuItem(child);
-      subList.appendChild(subLi);
     }
-
-    li.appendChild(subList);
-    list.appendChild(li);
   }
-}
-
-function createMenuItem(item) {
-  const li = document.createElement('li');
-  li.className = 'menu-item';
-  li.dataset.id = item.id;
-  li.dataset.parentId = item.parent_id || '';
-
-  const hasChildren = menuItems.some(i => i.parent_id === item.id);
-
-  li.innerHTML = `
-    <div class="d-flex align-items-center w-100 justify-content-between">
-      <div class="menu-label d-flex align-items-center">
-        <span class="drag-handle"><i class="bi bi-list"></i></span>
-        ${hasChildren ? `<span class="toggle-submenu me-2" data-collapsed="false"><i class="bi bi-caret-down-fill"></i></span>` : ''}
-        <i class="bi ${item.icon} me-2"></i>
-        <span>${item.title}</span>
-      </div>
-      <div class="menu-actions">
-        <button class="btn btn-sm btn-secondary">Editar</button>
-      </div>
-    </div>
-  `;
-
-  li.querySelector('button').onclick = () => editMenu(item.id);
-
-  // Si tiene submenú, lo preparamos colapsable
-  if (hasChildren) {
-    li.querySelector('.toggle-submenu').onclick = (e) => {
-      const toggle = e.currentTarget;
-      const collapsed = toggle.dataset.collapsed === 'true';
-      const icon = toggle.querySelector('i');
-      const subList = li.querySelector('ul.menu-sublist');
-
-      toggle.dataset.collapsed = (!collapsed).toString();
-      icon.className = collapsed ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill';
-      if (subList) subList.style.display = collapsed ? 'block' : 'none';
-    };
-  }
-
-  return li;
 }
 
 function editMenu(id) {
   const item = menuItems.find(i => i.id === id);
   if (!item) return;
   const form = document.getElementById('menuForm');
+  const modalEl = document.getElementById('menuModal');
+  const modal = new bootstrap.Modal(modalEl);
+  const modalTitle = modalEl.querySelector('.modal-title');
+  modalTitle.textContent = 'Editar Ítem';
+
   form.id.value = item.id;
   form.title.value = item.title;
   form.icon.value = item.icon;
@@ -212,64 +174,37 @@ function editMenu(id) {
   form.roles.value = item.roles.join(', ');
   form.display_order.value = item.display_order;
   form.enabled.checked = item.enabled;
-  new bootstrap.Modal('#menuModal').show();
+
+  modal.show();
+}
+
+async function deleteMenu(id) {
+  const confirm = await showConfirm('¿Eliminar ítem del menú?');
+  if (!confirm) return;
+  const res = await fetch(`/api/menu/delete/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    showSuccess('Ítem eliminado');
+    await loadMenuItems();
+  } else {
+    showError('Error al eliminar');
+  }
 }
 
 function setupSortable() {
-  const parentList = document.getElementById('menuList');
-
-  // Sortable para la lista principal
-  Sortable.create(parentList, {
+  const list = document.getElementById('menuList');
+  Sortable.create(list, {
     animation: 150,
-    handle: '.drag-handle',
-    group: 'nested',
-    onEnd: saveOrder
-  });
-
-  // Sortable para cada submenú
-  const subLists = parentList.querySelectorAll('ul[data-parent-id]');
-  subLists.forEach(sub => {
-    Sortable.create(sub, {
-      animation: 150,
-      handle: '.drag-handle',
-      group: 'nested',
-      onEnd: saveOrder
-    });
-  });
-}
-
-async function saveOrder() {
-  const allItems = [];
-
-  const parentList = document.getElementById('menuList');
-  [...parentList.children].forEach((li, index) => {
-    if (!li.dataset.id) return;
-
-    const id = parseInt(li.dataset.id);
-    allItems.push({ id, display_order: index, parent_id: null });
-
-    const subList = li.querySelector('ul[data-parent-id]');
-    if (subList) {
-      [...subList.children].forEach((subLi, subIndex) => {
-        if (!subLi.dataset.id) return;
-        allItems.push({
-          id: parseInt(subLi.dataset.id),
-          display_order: subIndex,
-          parent_id: id
-        });
+    onEnd: async () => {
+      const order = Array.from(list.children).map((el, index) => ({
+        id: parseInt(el.dataset.id),
+        display_order: index
+      }));
+      const res = await fetch('/api/menu/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order })
       });
+      if (!res.ok) showError('Error al reordenar');
     }
   });
-
-  try {
-    const res = await fetch('https://fantasy-nfl-backend.onrender.com/admin/menu/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(allItems)
-    });
-    if (!res.ok) throw new Error('Error al guardar orden');
-    showSuccess('Orden actualizado');
-  } catch (err) {
-    showError(err.message);
-  }
 }
