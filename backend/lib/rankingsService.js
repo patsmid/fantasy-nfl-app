@@ -39,7 +39,7 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   if (dynasty) type = 'DK';
 
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${idExpert}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
-  console.log('📊 URL FantasyPros Rankings:', url);
+  //console.log('📊 URL FantasyPros Rankings:', url);
 
   const res = await fetch(url);
   const json = await res.json();
@@ -56,7 +56,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   if (dynasty) format = superflex ? 'SUPERFLEX' : 'ONEQB';
 
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${format}&pickType=hybrid`;
-  console.log('📊 URL Flock Rankings:', url);
+  //console.log('📊 URL Flock Rankings:', url);
 
   try {
     const res = await fetch(url);

@@ -133,10 +133,6 @@ export async function updatePlayers() {
 
       if (error) {
         console.error(`❌ Error en chunk ${i + 1}:`, error.message);
-      } else {
-        chunk.forEach(p =>
-          console.log(`✅ Insertado/Actualizado: ${p.full_name} (${p.player_id})`)
-        );
       }
     }
 

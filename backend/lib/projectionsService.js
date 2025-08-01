@@ -105,7 +105,7 @@ export async function getAllPlayersProjectedTotals(leagueId) {
       .eq('season', String(season))
       .lte('week', fullSeasonLength)
       .range(from, to);
-       console.log(`📄 Página ${from}–${to}:`, data.length, 'registros');
+       //console.log(`📄 Página ${from}–${to}:`, data.length, 'registros');
 
     if (error) throw new Error(`Error en fetch paginado: ${error.message}`);
     if (!data || data.length === 0) break;
