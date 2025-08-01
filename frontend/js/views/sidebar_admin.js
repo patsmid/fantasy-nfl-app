@@ -140,7 +140,8 @@ function renderMenuList() {
 
     // hijos anidados
     const subList = document.createElement('ul');
-    subList.className = 'list-group list-group-flush ms-4';
+    subList.className = 'menu-sublist';
+    //subList.className = 'list-group list-group-flush ms-4';
     subList.dataset.parentId = item.id;
 
     const children = menuItems
@@ -159,13 +160,20 @@ function renderMenuList() {
 
 function createMenuItem(item) {
   const li = document.createElement('li');
-  li.className = 'list-group-item d-flex justify-content-between align-items-center';
+  li.className = 'menu-item';
   li.dataset.id = item.id;
   li.dataset.parentId = item.parent_id || '';
+
   li.innerHTML = `
-    <div><i class="bi ${item.icon} me-2"></i> ${item.title}</div>
-    <div><button class="btn btn-sm btn-secondary me-2">Editar</button></div>
+    <div class="menu-label">
+      <span class="drag-handle"><i class="bi bi-list"></i></span>
+      <i class="bi ${item.icon}"></i> ${item.title}
+    </div>
+    <div class="menu-actions">
+      <button class="btn btn-sm btn-secondary">Editar</button>
+    </div>
   `;
+
   li.querySelector('button').onclick = () => editMenu(item.id);
   return li;
 }
@@ -191,7 +199,7 @@ function setupSortable() {
   // Sortable para la lista principal
   Sortable.create(parentList, {
     animation: 150,
-    handle: '.list-group-item',
+    handle: '.drag-handle',
     group: 'nested',
     onEnd: saveOrder
   });
@@ -201,6 +209,7 @@ function setupSortable() {
   subLists.forEach(sub => {
     Sortable.create(sub, {
       animation: 150,
+      handle: '.drag-handle',
       group: 'nested',
       onEnd: saveOrder
     });

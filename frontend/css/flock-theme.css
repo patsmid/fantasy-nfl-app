@@ -475,3 +475,68 @@ table.dataTable tbody tr.selected {
   --bs-pagination-disabled-bg: var(--bg-secondary);
   --bs-pagination-disabled-border-color: var(--border);
 }
+
+/* Estilo para ítems de menú (vista admin) */
+.menu-item {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.menu-item:hover {
+  background-color: #2b2f38;
+}
+
+.menu-item .menu-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.menu-item .menu-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.menu-item .menu-actions .btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Submenú anidado */
+.menu-sublist {
+  list-style: none;
+  padding-left: 1.5rem;
+  margin-top: 0.25rem;
+  border-left: 2px solid var(--border);
+}
+
+.menu-sublist .menu-item {
+  background-color: #1d1f26;
+  margin-bottom: 0.4rem;
+}
+
+.menu-sublist .menu-item:hover {
+  background-color: #2c2e34;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  margin-right: 0.75rem;
+  transition: color 0.2s ease;
+}
+
+.menu-item:hover .drag-handle {
+  color: var(--accent);
+}
