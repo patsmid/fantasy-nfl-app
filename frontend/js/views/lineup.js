@@ -145,10 +145,11 @@ export default async function renderLineupView() {
         const [date, time] = meta.published.split(' ');
         const timeShort = time?.slice(0, 5) ?? '';
 
-        updateLabel.innerHTML = `
-          <i class="bi bi-clock-history text-primary"></i>
-          Última actualización: ${date} ${timeShort}
-        `;
+        updateLabel.innerHTML = `<div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
+                     style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+                  <i class="bi bi-clock-history text-primary"></i>
+                  <span><strong>Ranks actualizados (${source}):</strong> ${date} ${timeShort}</span>
+                </div>`;
 
         const cardBody = document.querySelector('.card-body');
         const form = cardBody.querySelector('form');
