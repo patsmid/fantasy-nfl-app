@@ -597,3 +597,16 @@ table.dataTable tbody tr.selected {
 .toggle-submenu[data-collapsed="true"] i {
   transform: rotate(-90deg);
 }
+
+/* Color flock para encabezado "Titulares" */
+.text-flock {
+  color: #ff8c00; /* naranja estilo Flock */
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* Ajustes opcionales para la etiqueta de actualización */
+.update-label {
+  color: #0d6efd; /* azul Bootstrap primario */
+  font-size: 0.9rem;
+}

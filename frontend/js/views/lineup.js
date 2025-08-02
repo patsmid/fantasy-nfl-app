@@ -29,7 +29,7 @@ export default async function renderLineupView() {
         </form>
 
         <div class="mb-4">
-          <h5 class="text-primary mb-2"><i class="bi bi-stars"></i> Titulares</h5>
+          <h5 class="mb-3 text-flock"><i class="bi bi-stars"></i> Titulares</h5>
           <div class="table-responsive">
             <table id="startersTable" class="table table-dark table-hover align-middle w-100">
               <thead>
@@ -137,18 +137,16 @@ export default async function renderLineupView() {
         existingUpdateLabel.remove();
       }
 
-      // NUEVO: Mostrar fecha y hora de última actualización
       if (meta?.published) {
         const updateLabel = document.createElement('div');
         updateLabel.id = 'last-updated-label';
-        updateLabel.className = 'mb-3 text-muted small d-flex align-items-center gap-2';
+        updateLabel.className = 'mb-3 update-label d-flex align-items-center gap-2';
 
-        // Fecha y hora sin segundos
         const [date, time] = meta.published.split(' ');
         const timeShort = time?.slice(0, 5) ?? '';
 
         updateLabel.innerHTML = `
-          <i class="bi bi-clock-history text-secondary"></i>
+          <i class="bi bi-clock-history text-primary"></i>
           Última actualización: ${date} ${timeShort}
         `;
 
@@ -156,6 +154,7 @@ export default async function renderLineupView() {
         const form = cardBody.querySelector('form');
         cardBody.insertBefore(updateLabel, form.nextSibling);
       }
+
 
       const renderRows = players =>
         players.map(p => [
@@ -182,23 +181,32 @@ export default async function renderLineupView() {
     return `<span class="text-warning fw-bold">${status}</span>`;
   }
 
-  function renderDataTable(selector, rows, ordenable = true) {
-    const $table = $(selector);
-    if ($.fn.DataTable.isDataTable(selector)) {
-      const dt = $table.DataTable();
-      dt.clear().rows.add(rows).draw();
-    } else {
-      $table.DataTable({
-        data: rows,
-        responsive: true,
-        paging: false,
-        order: ordenable ? [[0, 'asc']] : [],
-        language: {
-          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-        },
-        dom: 'tip'
-      });
-    }
+  function renderDataTable(selector, data, striped = true) {
+    const table = $(selector);
+    table.DataTable().destroy(); // limpiar previo
+
+    table.DataTable({
+      data,
+      columns: [
+        { title: 'Rank' },
+        { title: 'Jugador' },
+        { title: 'Equipo' },
+        { title: 'Posición' },
+        { title: 'Bye' },
+        { title: 'Estatus' }
+      ],
+      paging: false,
+      searching: false,
+      info: false,
+      lengthChange: false,
+      ordering: false,
+      language: {
+        emptyTable: 'Sin datos disponibles'
+      },
+      stripeClasses: striped ? ['table-striped'] : [],
+      scrollCollapse: true,
+      scrollY: false
+    });
   }
 
   if (savedLeague && savedExpert) {
