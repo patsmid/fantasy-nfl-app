@@ -56,7 +56,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   if (dynasty) format = superflex ? 'SUPERFLEX' : 'ONEQB';
 
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${format}&pickType=hybrid`;
-  //console.log('📊 URL Flock Rankings:', url);
+  console.log('📊 URL Flock Rankings:', url);
 
   try {
     const res = await fetch(url);
