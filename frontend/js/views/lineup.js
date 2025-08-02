@@ -140,7 +140,7 @@ export default async function renderLineupView() {
       if (meta?.published) {
         const updateLabel = document.createElement('div');
         updateLabel.id = 'last-updated-label';
-        updateLabel.className = 'mb-3 update-label d-flex align-items-center gap-2';
+        updateLabel.className = 'd-flex flex-wrap gap-3 mb-3';
 
         const [date, time] = meta.published.split(' ');
         const timeShort = time?.slice(0, 5) ?? '';
@@ -155,8 +155,7 @@ export default async function renderLineupView() {
         cardBody.insertBefore(updateLabel, form.nextSibling);
       }
 
-
-      const renderRows = players =>
+s      const renderRows = players =>
         players.map(p => [
           p.rank ?? '',
           `<span class="fw-semibold">${p.nombre}</span>`,

@@ -114,6 +114,7 @@ export async function deleteExpert(req, res) {
  * @returns {Promise<string|null>} - 'fantasypros', 'flock' o null si no se encuentra
  */
 export async function getExpertSource(idExpert) {
+  console.log(idExpert);
   if (!idExpert) {
     console.warn('⚠️ idExpert no proporcionado o inválido');
     return null;
