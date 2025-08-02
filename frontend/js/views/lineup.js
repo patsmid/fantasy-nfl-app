@@ -86,7 +86,7 @@ export default async function renderLineupView() {
     try {
       showLoadingBar('Generando alineación', 'Consultando información...');
 
-      const { starters, bench } = await fetchLineupData(leagueId, idExpert).then(r => r.data);
+      const { starters, bench } = await fetchLineupData(leagueId, idExpert);
 
       const renderRows = players => players.map(p => `
         <tr>

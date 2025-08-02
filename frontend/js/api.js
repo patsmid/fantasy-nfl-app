@@ -20,7 +20,6 @@ export async function fetchLineupData(leagueId, idExpert) {
   }
 }
 
-
 export async function fetchDraftData(leagueId, position = 'TODAS', byeCondition = 0, idExpert = 3701) {
   const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}`;
 
