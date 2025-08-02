@@ -155,7 +155,7 @@ export default async function renderLineupView() {
         cardBody.insertBefore(updateLabel, form.nextSibling);
       }
 
-s      const renderRows = players =>
+      const renderRows = players =>
         players.map(p => [
           p.rank ?? '',
           `<span class="fw-semibold">${p.nombre}</span>`,
