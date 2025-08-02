@@ -1,6 +1,6 @@
 // lineup.js
 import { fetchLineupData } from '../api.js';
-import { showError, showLoadingBar } from '../../components/alerts.js';
+import { showError, showLoadingBar, showSuccess } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
@@ -88,19 +88,17 @@ export default async function renderLineupView() {
 
       const { starters, bench } = await fetchLineupData(leagueId, idExpert);
 
-      const renderRows = players => players.map(p => `
-        <tr>
-          <td>${p.rank}</td>
-          <td class="fw-semibold">${p.nombre}</td>
-          <td>${p.team}</td>
-          <td>${p.position}</td>
-          <td>${p.byeWeek}</td>
-          <td>${renderStatus(p.injuryStatus)}</td>
-        </tr>
-      `).join('');
+      const renderRows = players => players.map(p => [
+        p.rank,
+        `<span class="fw-semibold">${p.nombre}</span>`,
+        p.team,
+        p.position,
+        p.byeWeek,
+        renderStatus(p.injuryStatus)
+      ]);
 
-      document.querySelector('#startersTable tbody').innerHTML = renderRows(starters);
-      document.querySelector('#benchTable tbody').innerHTML = renderRows(bench);
+      renderDataTable('#startersTable', renderRows(starters));
+      renderDataTable('#benchTable', renderRows(bench));
 
       Swal.close();
     } catch (err) {
@@ -112,5 +110,24 @@ export default async function renderLineupView() {
   function renderStatus(status) {
     if (!status) return '<span class="text-success">OK</span>';
     return `<span class="text-warning fw-bold">${status}</span>`;
+  }
+
+  function renderDataTable(selector, rows) {
+    const $table = $(selector);
+
+    if ($.fn.DataTable.isDataTable(selector)) {
+      const dt = $table.DataTable();
+      dt.clear().rows.add(rows).draw();
+    } else {
+      $table.DataTable({
+        data: rows,
+        responsive: true,
+        paging: false,
+        language: {
+          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+        },
+        dom: 'tip'
+      });
+    }
   }
 }
