@@ -148,7 +148,7 @@ export default async function renderLineupView() {
         updateLabel.innerHTML = `<div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
                      style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
                   <i class="bi bi-clock-history text-primary"></i>
-                  <span><strong>Ranks actualizados (${source}):</strong> ${date} ${timeShort}</span>
+                  <span><strong>Ranks actualizados:</strong> ${date} ${timeShort}</span>
                 </div>`;
 
         const cardBody = document.querySelector('.card-body');
