@@ -19,6 +19,7 @@ export async function renderExpertSelect(selector, options = {}) {
       opt.value = expert.source === 'flock' ? expert.experto : expert.id_experto;
       opt.textContent = `${expert.experto}`;
       opt.dataset.source = expert.source || ''; // <- Aquí se agrega el data-source
+      opt.dataset.id = expert.id || '';
       selectElement.appendChild(opt);
     });
 
