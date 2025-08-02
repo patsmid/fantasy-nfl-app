@@ -114,8 +114,12 @@ export async function deleteExpert(req, res) {
  * @returns {Promise<string|null>} - 'fantasypros', 'flock' o null si no se encuentra
  */
 export async function getExpertSource(idExpert) {
+  if (!idExpert) {
+    console.warn('⚠️ idExpert no proporcionado o inválido');
+    return null;
+  }
   const queryField = typeof idExpert === 'string' ? 'experto' : 'id_experto';
-
+  console.log(queryField);
   const { data, error } = await supabase
     .from('experts')
     .select('source')
