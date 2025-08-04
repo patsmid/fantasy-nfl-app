@@ -76,34 +76,42 @@ export async function getFantasyProsADPData(req, res) {
 }
 
 export async function uploadFantasyProsADP(tipo = 'ppr') {
-  const adp_type = `FP_${tipo}`;
-  const today = new Date().toISOString().split('T')[0];
-  const records = [];
-  const notFound = [];
-
   try {
+    const adp_type = `FP_${tipo}`;
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
+    const playersData = await getPlayersData();    // [{ player_id, full_name, ... }]
 
-    // Obtener los jugadores directo desde Supabase
-    const { data: playersData, error: playersError } = await supabase
-      .from('players')
-      .select('player_id, full_name')
-      .limit(15000);
+    const today = new Date().toISOString().split('T')[0];
+    const records = [];
+    const notFound = [];
 
-    if (playersError || !Array.isArray(playersData) || playersData.length === 0) {
-      throw new Error(playersError?.message || '❌ playersData vacío o inválido');
+    if (!Array.isArray(playersData) || playersData.length === 0) {
+      throw new Error('❌ playersData vacío o inválido');
     }
 
-    // Crear índice de nombres exactos
+    // 🔧 Normalizador simple
+    function normalizeName(name) {
+      return name
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]/gi, '') // elimina signos
+        .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, '') // elimina sufijos comunes
+        .replace(/\s+/g, ' ') // colapsa espacios
+        .trim();
+    }
+
+    // 📌 Crear índice con nombres normalizados
     const nameIndex = new Map();
     for (const p of playersData) {
-      if (p.full_name) nameIndex.set(p.full_name.toLowerCase(), p);
+      const normName = normalizeName(p.full_name);
+      if (normName) nameIndex.set(normName, p);
     }
 
+    // 🔍 Buscar matches
     for (const player of adpList) {
-      const exact = nameIndex.get(player.name.toLowerCase());
-      let matched = exact;
+      const normName = normalizeName(player.name);
+      let matched = nameIndex.get(normName);
 
+      // Fallback: fuzzy
       if (!matched && typeof fuzzySearch === 'function') {
         const fuzzy = fuzzySearch(player.name, playersData);
         if (fuzzy?.[0]) matched = fuzzy[0];
@@ -130,7 +138,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
     }
 
-    // Eliminar registros anteriores de este tipo
+    // 🧹 Eliminar registros anteriores
     const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
@@ -138,6 +146,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
 
     if (delError) throw new Error(`Error al borrar ADP previos: ${delError.message}`);
 
+    // 💾 Insertar nuevos registros
     const { error: insertError } = await supabase
       .from('sleeper_adp_data')
       .insert(records);
@@ -162,7 +171,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   } catch (err) {
     console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
     return {
-      adp_type,
+      adp_type: `FP_${tipo}`,
       inserted: 0,
       skipped: 0,
       message: `Error: ${err.message || err}`
