@@ -31,7 +31,6 @@ export async function getFantasyProsADP(type = 'half-ppr') {
   const $ = cheerio.load(html);
   const table = $('#data');
   const headers = table.find('thead th').map((i, el) => normalizeHeader($(el).text())).get();
-  console.log('Encabezados:', headers);
 
   const players = [];
 
@@ -68,17 +67,26 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     const records = [];
     const notFound = [];
 
-    // Crear índice de nombres
+    if (!Array.isArray(playersData) || playersData.length === 0) {
+      throw new Error('❌ playersData vacío o inválido');
+    }
+
+    // Crear índice de nombres exactos
     const nameIndex = new Map();
     for (const p of playersData) {
-      nameIndex.set(p.full_name.toLowerCase(), p);
+      if (p.full_name) nameIndex.set(p.full_name.toLowerCase(), p);
     }
 
     for (const player of adpList) {
-      const matched = nameIndex.get(player.name.toLowerCase()) ||
-                      (fuzzySearch ? fuzzySearch(player.name, playersData)[0] : null);
+      const exact = nameIndex.get(player.name.toLowerCase());
+      let matched = exact;
 
-      if (matched) {
+      if (!matched && typeof fuzzySearch === 'function') {
+        const fuzzy = fuzzySearch(player.name, playersData);
+        if (fuzzy?.[0]) matched = fuzzy[0];
+      }
+
+      if (matched?.player_id) {
         records.push({
           adp_type,
           sleeper_player_id: matched.player_id,
@@ -91,22 +99,30 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       }
     }
 
+    console.log(`📊 Total obtenidos: ${adpList.length}`);
+    console.log(`✅ Matcheados: ${records.length}`);
+    console.log(`⚠️ No encontrados: ${notFound.length}`);
+
     if (records.length === 0) {
-      console.warn('⚠️ No se generaron registros válidos para insertar.');
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
     }
 
-    // Eliminar registros anteriores del mismo tipo y fecha
-    await supabase
+    // Eliminar registros anteriores
+    const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
       .eq('adp_type', adp_type);
 
-    const { error } = await supabase
+    if (delError) throw new Error(`Error al borrar ADP previos: ${delError.message}`);
+
+    const { error: insertError } = await supabase
       .from('sleeper_adp_data')
       .insert(records);
 
-    if (error) throw error;
+    if (insertError) {
+      console.error('🧨 Error al insertar en Supabase:', insertError);
+      throw insertError;
+    }
 
     console.log(`✅ Insertados ${records.length} registros de ADP [${adp_type}]`);
     if (notFound.length > 0) {
@@ -119,6 +135,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       skipped: notFound.length,
       message: 'ADP cargado exitosamente'
     };
+
   } catch (err) {
     console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
     return {
