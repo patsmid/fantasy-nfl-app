@@ -85,15 +85,24 @@ export async function getPlayersRAW(req, res) {
     const { data, error } = await supabase
       .from('players')
       .select('*')
-      .order('full_name')
-      .range(0, 14999);
+      .order('full_name', { ascending: true })
+      .limit(15000); // más semántico que .range(0, 14999)
 
-    if (error) throw error;
+    if (error || !data) {
+      throw new Error(error?.message || 'No se pudo obtener datos de jugadores');
+    }
 
-    res.json({ success: true, data });
+    res.status(200).json({
+      success: true,
+      count: data.length,
+      data
+    });
   } catch (err) {
-    console.error('❌ Error en getPlayers:', err.message || err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error('❌ Error en getPlayersRAW:', err.message || err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Error inesperado'
+    });
   }
 }
 

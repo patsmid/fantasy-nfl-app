@@ -1,7 +1,6 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { supabase } from '../supabaseClient.js';
-import { getPlayersData } from './draftUtils.js';
 import { fuzzySearch } from '../utils/helpers.js';
 
 const TYPES = {
@@ -57,18 +56,42 @@ export async function getFantasyProsADP(type = 'half-ppr') {
   return players;
 }
 
-export async function uploadFantasyProsADP(tipo = 'ppr') {
+export async function getFantasyProsADPData(req, res) {
   try {
-    const adp_type = `FP_${tipo}`;
+    const tipos = ['FP_ppr', 'FP_half-ppr'];
+
+    const { data, error } = await supabase
+      .from('sleeper_adp_data')
+      .select('*')
+      .in('adp_type', tipos)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ Error al obtener ADP desde Supabase:', err.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function uploadFantasyProsADP(tipo = 'ppr') {
+  const adp_type = `FP_${tipo}`;
+  const today = new Date().toISOString().split('T')[0];
+  const records = [];
+  const notFound = [];
+
+  try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
-    const playersData = await getPlayersData();    // [{ player_id, full_name, ... }]
 
-    const today = new Date().toISOString().split('T')[0];
-    const records = [];
-    const notFound = [];
+    // Obtener los jugadores directo desde Supabase
+    const { data: playersData, error: playersError } = await supabase
+      .from('players')
+      .select('player_id, full_name')
+      .limit(15000);
 
-    if (!Array.isArray(playersData) || playersData.length === 0) {
-      throw new Error('❌ playersData vacío o inválido');
+    if (playersError || !Array.isArray(playersData) || playersData.length === 0) {
+      throw new Error(playersError?.message || '❌ playersData vacío o inválido');
     }
 
     // Crear índice de nombres exactos
@@ -107,7 +130,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
     }
 
-    // Eliminar registros anteriores
+    // Eliminar registros anteriores de este tipo
     const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
@@ -139,7 +162,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   } catch (err) {
     console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
     return {
-      adp_type: `FP_${tipo}`,
+      adp_type,
       inserted: 0,
       skipped: 0,
       message: `Error: ${err.message || err}`

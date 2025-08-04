@@ -26,7 +26,8 @@ import {
 } from './lib/teamsService.js';
 import {
   getFantasyProsADP,
-  uploadAllFantasyProsADP
+  uploadAllFantasyProsADP,
+  getFantasyProsADPData
 } from './lib/fantasyprosService.js';
 import draftRouter from './draft.js';
 import lineupRouter from './lineup.js';
@@ -148,6 +149,8 @@ app.put('/teams/:id', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+app.get('/fantasypros/adp', getFantasyProsADPData);
 
 app.get('/adp/fantasypros/:type', async (req, res) => {
   const type = req.params.type; // 'half-ppr' o 'ppr'
