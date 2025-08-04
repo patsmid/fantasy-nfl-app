@@ -58,18 +58,47 @@ export async function getFantasyProsADP(type = 'half-ppr') {
 export async function getFantasyProsADPData(req, res) {
   try {
     const tipos = ['FP_ppr', 'FP_half-ppr'];
+    const { adp_type, date, full_name, team, position } = req.query;
 
-    const { data, error } = await supabase
+    // 1. Obtener registros desde sleeper_adp_data
+    let query = supabase
       .from('sleeper_adp_data')
       .select('*')
-      .in('adp_type', tipos)
-      .order('date', { ascending: false });
+      .in('adp_type', tipos);
 
+    if (adp_type) query = query.eq('adp_type', adp_type);
+    if (date) query = query.eq('date', date);
+    if (full_name) query = query.eq('full_name', full_name);
+    if (team) query = query.eq('team', team);
+    if (position) query = query.eq('position', position);
+
+    query = query.order('adp_value', { ascending: false });
+
+    const { data: adpData, error } = await query;
     if (error) throw error;
 
-    res.json({ success: true, data });
+    // 2. Obtener players relacionados por sleeper_player_id
+    const uniqueIds = [...new Set(adpData.map(p => p.sleeper_player_id).filter(Boolean))];
+
+    const { data: players, error: errPlayers } = await supabase
+      .from('players')
+      .select('*')
+      .in('player_id', uniqueIds);
+
+    if (errPlayers) throw errPlayers;
+
+    // 3. Unir datos manualmente
+    const merged = adpData.map(row => {
+      const player = players.find(p => p.sleeper_player_id === row.sleeper_player_id);
+      return {
+        ...row,
+        player: player || null
+      };
+    });
+
+    res.json({ success: true, data: merged });
   } catch (err) {
-    console.error('❌ Error al obtener ADP desde Supabase:', err.message || err);
+    console.error('❌ Error al obtener ADP de FantasyPros:', err.message || err);
     res.status(500).json({ success: false, error: err.message });
   }
 }
