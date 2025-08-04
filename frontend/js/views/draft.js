@@ -222,7 +222,10 @@ export default async function renderDraftView() {
       const leagueId = leagueSelect.value;
       const position = positionSelect.value;
       const byeCondition = byeInput.value || 0;
-      const idExpert = expertSelect.value;
+      //const idExpert = expertSelect.value;
+      const selectedOption = expertSelect.selectedOptions[0];
+      const expertValue = expertSelect.value;
+      const idExpert = selectedOption?.dataset.id || '';
 
       if (!leagueId || !idExpert) {
         return showError('Selecciona una liga y un experto');
@@ -243,7 +246,7 @@ export default async function renderDraftView() {
       };
 
       localStorage.setItem('draftLeagueConfigs', JSON.stringify(config));
-      localStorage.setItem('draftExpert', idExpert);
+      localStorage.setItem('draftExpert', expertValue);
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
 

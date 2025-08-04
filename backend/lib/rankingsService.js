@@ -3,10 +3,8 @@ import { positions } from '../utils/constants.js';
 import { getExpertData } from '../experts.js';
 
 export async function getRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
-  console.log(idExpert);
   const expertData = await getExpertData(idExpert);
   const nflState = await getNflState();
-  console.log(expertData);
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
     const { data, last_updated } = await getFlockRankings({
@@ -40,7 +38,7 @@ export async function getRankings({ season, dynasty, scoring, idExpert, position
   if (dynasty) type = 'DK';
 
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
-  console.log('📊 URL FantasyPros Rankings:', url);
+  //console.log('📊 URL FantasyPros Rankings:', url);
 
   const res = await fetch(url);
   const json = await res.json();
@@ -57,7 +55,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   if (dynasty) format = superflex ? 'SUPERFLEX' : 'ONEQB';
 
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${format}&pickType=hybrid`;
-  console.log('📊 URL Flock Rankings:', url);
+  //console.log('📊 URL Flock Rankings:', url);
 
   try {
     const res = await fetch(url);
@@ -100,26 +98,29 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 }
 
 export async function getFantasyProsRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
-  return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });
+  const expertData = await getExpertData(idExpert);
+  return await getRankings({ season, dynasty, scoring, expertData.id_experto, position, weekStatic });
 }
 
 export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) {
+  const expertData = await getExpertData(idExpert);
   return await getRankings({
     season,
     dynasty,
     scoring: 'STD',
-    idExpert,
+    expertData.id_experto,
     position: 'DST',
     weekStatic
   });
 }
 
 export async function getKickerRankings({ season, dynasty, idExpert, weekStatic }) {
+  const expertData = await getExpertData(idExpert);
   return await getRankings({
     season,
     dynasty,
     scoring: 'STD',
-    idExpert,
+    expertData.id_experto,,
     position: 'K',
     weekStatic
   });
