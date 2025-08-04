@@ -12,6 +12,7 @@ import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoff } from './lib/vorUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
+import { getExpertData } from './experts.js';
 
 export async function getDraftData(
   leagueId,
@@ -51,14 +52,33 @@ export async function getDraftData(
   if (superFlex && position === true) {
     finalPosition = 'SUPER FLEX';
   }
-
+  const expertData = await getExpertData(idExpert);
   const { players: rankings, published: ranks_published, source: source } = await getRankings({
     season,
     dynasty,
     scoring,
-    idExpert,
+    expertData,
     position: finalPosition
   });
+  
+  let dstRankings = [];
+  let kickerRankings = [];
+
+  if (expertData.source !== 'flock') {
+    dstRankings = (await getDSTRankings({
+      season,
+      dynasty,
+      expertData,
+      weekStatic: null
+    }))?.players || [];
+
+    kickerRankings = (await getKickerRankings({
+      season,
+      dynasty,
+      expertData,
+      weekStatic: null
+    }))?.players || [];
+  }
 
   // 6. Proyecciones totales (calculadas desde stats y scoring)
   const projections = await getAllPlayersProjectedTotals(leagueId);
