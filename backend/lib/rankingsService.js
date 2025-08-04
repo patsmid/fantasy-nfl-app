@@ -105,7 +105,7 @@ export async function getDSTRankings({ season, dynasty, expertData, weekStatic }
     season,
     dynasty,
     scoring: 'STD',
-    idExpert: expertData.id_experto,
+    expertData,
     position: 'DST',
     weekStatic
   });
@@ -116,7 +116,7 @@ export async function getKickerRankings({ season, dynasty, expertData, weekStati
     season,
     dynasty,
     scoring: 'STD',
-    idExpert: expertData.id_experto,
+    expertData,
     position: 'K',
     weekStatic
   });
