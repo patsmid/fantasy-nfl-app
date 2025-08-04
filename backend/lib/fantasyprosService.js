@@ -106,9 +106,9 @@ export async function getFantasyProsADPData(req, res) {
 function normalizeName(name) {
   return name
     .toLowerCase()
-    .replace(/[^a-z\s.']/gi, '')         // quita caracteres raros (asteriscos, paréntesis, etc.)
-    .replace(/\b(jr|sr|ii|iii|iv)\b/g, '') // elimina sufijos comunes
-    .replace(/\s+/g, ' ')                 // normaliza espacios
+    .replace(/\./g, '')                  // quita puntos
+    .replace(/ jr$| sr$| iii$| ii$/g, '') // quita sufijos
+    .replace(/[^a-z0-9]/g, '')           // elimina espacios y caracteres especiales
     .trim();
 }
 
@@ -121,7 +121,6 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
 
-    // Obtener los jugadores directo desde Supabase
     const { data: playersData, error: playersError } = await supabase
       .from('players')
       .select('player_id, full_name')
@@ -131,12 +130,14 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       throw new Error(playersError?.message || '❌ playersData vacío o inválido');
     }
 
-    // Crear índice de nombres exactos
+    // Crear índice por nombre normalizado
     const nameIndex = new Map();
     for (const p of playersData) {
       if (p.full_name) {
         const normalized = normalizeName(p.full_name);
-        nameIndex.set(normalized, p);
+        if (!nameIndex.has(normalized)) {
+          nameIndex.set(normalized, p);
+        }
       }
     }
 
@@ -145,7 +146,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       const exact = nameIndex.get(normalizedName);
       let matched = exact;
 
-      // Fuzzy match si no hay coincidencia exacta
+      // Fuzzy match si no hay exacto
       if (!matched && typeof fuzzySearch === 'function') {
         const fuzzy = fuzzySearch(player.name, playersData, {
           key: p => p.full_name,
@@ -163,7 +164,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
           date: today
         });
       } else {
-        notFound.push(player.name);
+        notFound.push(`${player.name} (→ ${normalizedName})`);
       }
     }
 
@@ -175,7 +176,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
     }
 
-    // Eliminar registros anteriores de este tipo
+    // Eliminar anteriores
     const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
@@ -222,48 +223,38 @@ export async function uploadAllFantasyProsADP() {
   return results;
 }
 
-export function fuzzySearch(query, items, options = {}) {
-  const { key = (x => x), normalize = x => x.toLowerCase() } = options;
-  const normalizedQuery = normalize(query);
-  const results = items
-    .map(item => {
-      const value = key(item);
-      const norm = normalize(value);
-      const score = levenshtein(normalizedQuery, norm); // o similar
-      return { item, score };
-    })
-    .sort((a, b) => a.score - b.score);
+function fuzzySearch(name, list, { key, normalize }) {
+  const target = normalize(name);
+  let best = null;
+  let minDist = Infinity;
 
-  return results.length ? [results[0].item] : [];
-}
-
-function levenshtein(a, b) {
-  if (a === b) return 0;
-  if (!a || !b) return (a || b).length;
-
-  const matrix = [];
-
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // sustitución
-          matrix[i][j - 1] + 1,     // inserción
-          matrix[i - 1][j] + 1      // eliminación
-        );
-      }
+  for (const item of list) {
+    const itemName = normalize(key(item));
+    const dist = levenshteinDistance(target, itemName);
+    if (dist < minDist) {
+      minDist = dist;
+      best = item;
     }
   }
 
-  return matrix[b.length][a.length];
+  return minDist <= 3 ? [best] : []; // ajusta tolerancia
+}
+
+// Simple Levenshtein implementation
+function levenshteinDistance(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
 }
