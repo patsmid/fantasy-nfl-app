@@ -100,7 +100,7 @@ export async function getFantasyProsRankings({ season, dynasty, scoring, idExper
   return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });
 }
 
-export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) {
+export async function getDSTRankings({ season, dynasty, expertData, weekStatic }) {
   return await getRankings({
     season,
     dynasty,
@@ -111,7 +111,7 @@ export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) 
   });
 }
 
-export async function getKickerRankings({ season, dynasty, idExpert, weekStatic }) {
+export async function getKickerRankings({ season, dynasty, expertData, weekStatic }) {
   return await getRankings({
     season,
     dynasty,

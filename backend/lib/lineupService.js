@@ -43,14 +43,14 @@ export async function getLineupData(leagueId, { idExpert = 3701, position = 'TOD
     dstRankings = (await getDSTRankings({
       season,
       dynasty,
-      idExpert,
+      expertData,
       weekStatic: null
     }))?.players || [];
 
     kickerRankings = (await getKickerRankings({
       season,
       dynasty,
-      idExpert,
+      expertData,
       weekStatic: null
     }))?.players || [];
   }
