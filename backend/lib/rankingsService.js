@@ -3,9 +3,10 @@ import { positions } from '../utils/constants.js';
 import { getExpertData } from '../experts.js';
 
 export async function getRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
+  console.log(idExpert);
   const expertData = await getExpertData(idExpert);
   const nflState = await getNflState();
-
+  console.log(expertData);
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
     const { data, last_updated } = await getFlockRankings({
