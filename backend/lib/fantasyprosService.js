@@ -119,73 +119,6 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   const notFound = [];
 
   try {
-    const adpList = await getFantasyProsADP(tipo); // [{ name, adp, ... }]
-
-    const { data: playersData, error } = await supabase
-      .from('players')
-      .select('player_id, full_name')
-      .neq('full_name', null)
-      .neq('full_name', '')
-      .limit(15000);
-
-    if (error) throw new Error(error.message);
-    if (!playersData?.length) throw new Error('No se encontraron jugadores en Supabase');
-
-    // Crear índice por nombre normalizado
-    const index = Object.fromEntries(
-      playersData.map(p => [normalizeName(p.full_name), p.player_id])
-    );
-
-    for (const player of adpList) {
-      const normName = normalizeName(player.name);
-      const player_id = index[normName];
-
-      if (player_id) {
-        records.push({
-          adp_type,
-          sleeper_player_id: player_id,
-          adp_value: Number(player.adp),
-          adp_value_prev: 0,
-          date: today
-        });
-      } else {
-        notFound.push(`${player.name} (→ ${normName})`);
-      }
-    }
-
-    console.log(`📊 Total obtenidos: ${adpList.length}`);
-    console.log(`✅ Matcheados: ${records.length}`);
-    console.log(`⚠️ No encontrados: ${notFound.length}`);
-
-    if (!records.length) {
-      return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
-    }
-
-    await supabase.from('sleeper_adp_data').delete().eq('adp_type', adp_type);
-    const { error: insertError } = await supabase.from('sleeper_adp_data').insert(records);
-    if (insertError) throw new Error(`Error al insertar: ${insertError.message}`);
-
-    console.log(`✅ Insertados ${records.length} registros de ADP [${adp_type}]`);
-    if (notFound.length) {
-      console.warn(`⚠️ Sin match (${notFound.length}): ${notFound.slice(0, 10).join(', ')}${notFound.length > 10 ? ', …' : ''}`);
-    }
-
-    return { adp_type, inserted: records.length, skipped: notFound.length, message: 'ADP cargado exitosamente' };
-
-  } catch (err) {
-    console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
-    return { adp_type, inserted: 0, skipped: 0, message: `Error: ${err.message}` };
-  }
-}
-
-
-export async function uploadFantasyProsADP(tipo = 'ppr') {
-  const adp_type = `FP_${tipo}`;
-  const today = new Date().toISOString().split('T')[0];
-  const records = [];
-  const notFound = [];
-
-  try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
 
     const { data: playersData, error: playersError } = await supabase
@@ -292,6 +225,8 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     };
   }
 }
+
+
 
 export async function uploadAllFantasyProsADP() {
   const tipos = ['ppr', 'half-ppr'];
