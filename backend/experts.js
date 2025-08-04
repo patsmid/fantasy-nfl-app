@@ -113,18 +113,17 @@ export async function deleteExpert(req, res) {
  * @param {number|string} idExpert - ID numérico (FantasyPros) o string (Flock)
  * @returns {Promise<string|null>} - 'fantasypros', 'flock' o null si no se encuentra
  */
-export async function getExpertSource(idExpert) {
-  console.log(idExpert);
+export async function getExpertData(idExpert) {
   if (!idExpert) {
     console.warn('⚠️ idExpert no proporcionado o inválido');
     return null;
   }
-  const queryField = typeof idExpert === 'string' ? 'experto' : 'id_experto';
-  console.log(queryField);
+  //const queryField = typeof idExpert === 'string' ? 'experto' : 'id_experto';
+  //console.log(queryField);
   const { data, error } = await supabase
     .from('experts')
-    .select('source')
-    .eq(queryField, idExpert)
+    .select('id_experto, experto, source')
+    .eq('id', idExpert)
     .maybeSingle();
 
   if (error) {
@@ -132,5 +131,5 @@ export async function getExpertSource(idExpert) {
     return null;
   }
 
-  return data?.source ?? null;
+  return data;
 }

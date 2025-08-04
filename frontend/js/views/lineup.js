@@ -118,14 +118,17 @@ export default async function renderLineupView() {
 
   async function loadLineupData() {
     const leagueId = leagueSelect.value;
-    const idExpert = expertSelect.value;
+    //const idExpert = expertSelect.value;
+    const selectedOption = expertSelect.selectedOptions[0];
+    const expertValue = expertSelect.value;
+    const idExpert = selectedOption?.dataset.id || '';
 
     if (!leagueId || !idExpert) {
       return showError('Selecciona una liga y un experto');
     }
 
     localStorage.setItem('lineupLeague', leagueId);
-    localStorage.setItem('lineupExpert', idExpert);
+    localStorage.setItem('lineupExpert', expertValue);
 
     try {
       showLoadingBar('Generando alineación', 'Consultando información...');

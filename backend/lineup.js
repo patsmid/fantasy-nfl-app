@@ -7,10 +7,10 @@ const router = express.Router();
 router.get('/:leagueId', async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const { idExpert = 3701, position = 'TODAS' } = req.query;
+    const { idExpert = '3701', position = 'TODAS' } = req.query;
 
     const lineup = await getLineupData(leagueId, {
-      idExpert: parseInt(idExpert),
+      idExpert: idExpert,
       position
     });
 
