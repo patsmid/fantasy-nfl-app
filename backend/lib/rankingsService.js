@@ -98,8 +98,7 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 }
 
 export async function getFantasyProsRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
-  const expertData = await getExpertData(idExpert);
-  return await getRankings({ season, dynasty, scoring, expertData.id_experto, position, weekStatic });
+  return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });
 }
 
 export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) {
