@@ -3,6 +3,7 @@ import { getConfigValue, getPlayersData } from './draftUtils.js';
 import { getRankings, getDSTRankings, getKickerRankings } from './rankingsService.js';
 import { getStarterPositions, fuzzySearch } from '../utils/helpers.js';
 import { generateLineup } from './lineupUtils.js';
+import { getExpertData } from '../experts.js';
 
 export async function getLineupData(leagueId, { idExpert = 3701, position = 'TODAS' } = {}) {
   // 1. Datos de la liga y configuración
@@ -24,15 +25,35 @@ export async function getLineupData(leagueId, { idExpert = 3701, position = 'TOD
   const mainUserId = await getConfigValue('main_user_id');
 
   // 2. Rankings
+  const expertData = await getExpertData(idExpert);
+
+  // Obtener rankings principales
   const { players: rankings, published } = await getRankings({
     season,
     dynasty,
     scoring,
-    idExpert,
+    expertData,
     position: finalPosition
   });
-  const dstRankings = await getDSTRankings(idExpert);
-  const kickerRankings = await getKickerRankings(idExpert);
+
+  let dstRankings = [];
+  let kickerRankings = [];
+
+  if (expertData.source !== 'flock') {
+    dstRankings = (await getDSTRankings({
+      season,
+      dynasty,
+      idExpert,
+      weekStatic: null
+    }))?.players || [];
+
+    kickerRankings = (await getKickerRankings({
+      season,
+      dynasty,
+      idExpert,
+      weekStatic: null
+    }))?.players || [];
+  }
 
   // 3. Roster del usuario
   const allRosters = await getRosters(leagueId);

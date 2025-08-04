@@ -2,8 +2,7 @@ import { getNflState } from '../utils/sleeper.js';
 import { positions } from '../utils/constants.js';
 import { getExpertData } from '../experts.js';
 
-export async function getRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
-  const expertData = await getExpertData(idExpert);
+export async function getRankings({ season, dynasty, scoring, expertData, position, weekStatic = null }) {
   const nflState = await getNflState();
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
@@ -102,7 +101,6 @@ export async function getFantasyProsRankings({ season, dynasty, scoring, idExper
 }
 
 export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) {
-  const expertData = await getExpertData(idExpert);
   return await getRankings({
     season,
     dynasty,
@@ -114,7 +112,6 @@ export async function getDSTRankings({ season, dynasty, idExpert, weekStatic }) 
 }
 
 export async function getKickerRankings({ season, dynasty, idExpert, weekStatic }) {
-  const expertData = await getExpertData(idExpert);
   return await getRankings({
     season,
     dynasty,
