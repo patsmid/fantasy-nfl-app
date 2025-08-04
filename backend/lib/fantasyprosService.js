@@ -121,21 +121,20 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
 
+    // Traer hasta 15,000 jugadores (Supabase por defecto solo trae 1,000 sin .range)
     const { data: playersData, error: playersError } = await supabase
       .from('players')
       .select('player_id, full_name')
-      .limit(15000);
+      .range(0, 14999);
 
     if (playersError || !Array.isArray(playersData) || playersData.length === 0) {
       throw new Error(playersError?.message || '❌ playersData vacío o inválido');
     }
 
+    console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
+
     // Crear índice por nombre normalizado
-    const nameIndex = new Map(
-      playersData
-        .filter(p => p.full_name)
-        .map(p => [normalizeName(p.full_name), p])
-    );
+    const nameIndex = new Map();
     for (const p of playersData) {
       if (p.full_name) {
         const normalized = normalizeName(p.full_name);
@@ -175,12 +174,6 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     console.log(`📊 Total obtenidos: ${adpList.length}`);
     console.log(`✅ Matcheados: ${records.length}`);
     console.log(`⚠️ No encontrados: ${notFound.length}`);
-
-    if (notFound.length > 0) {
-      console.warn(`⚠️ Sin match (${notFound.length}):`);
-      console.warn(notFound.slice(0, 15).join(', ') + (notFound.length > 15 ? ', …' : ''));
-    }
-
 
     if (records.length === 0) {
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
@@ -225,8 +218,6 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     };
   }
 }
-
-
 
 export async function uploadAllFantasyProsADP() {
   const tipos = ['ppr', 'half-ppr'];
