@@ -5,8 +5,7 @@ import {
   getPlayersData,
   getMainUserDraft
 } from './lib/draftUtils.js';
-import { getRankings } from './lib/rankingsService.js';
-
+import { getRankings, getDSTRankings, getKickerRankings } from './lib/rankingsService.js';
 import { getSleeperLeague } from './utils/sleeper.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoff } from './lib/vorUtils.js';
@@ -18,108 +17,130 @@ export async function getDraftData(
   leagueId,
   { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}
 ) {
-  // 1. Datos de la liga desde Sleeper
-  const leagueData = await getSleeperLeague(leagueId);
+  // 1. Datos base
+  const [leagueData, season, mainUserId, tipoLiga] = await Promise.all([
+    getSleeperLeague(leagueId),
+    getConfigValue('season'),
+    getConfigValue('main_user_id'),
+    getConfigValue('dynasty')
+  ]);
+
   const numTeams = leagueData.settings.num_teams;
   const starterPositions = getStarterPositions(leagueData);
   const superFlex = starterPositions.includes('SUPER_FLEX');
-
-  // 2. Configuración de tipo de liga
-  const tipoLiga = await getConfigValue('dynasty');
   const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
 
-	const scoring =
+  const scoring =
     leagueData.scoring_settings?.rec === 1
       ? 'PPR'
       : leagueData.scoring_settings?.rec === 0.5
       ? 'HALF'
       : 'STANDARD';
 
-  // 3. Picks del draft y usuario principal
   const adpType = getADPtype(scoring, dynasty, superFlex);
   const drafted = await getDraftPicks(leagueData.draft_id);
-  const mainUserId = await getConfigValue('main_user_id');
-	const season = await getConfigValue('season');
   const myDraft = getMainUserDraft(drafted, mainUserId);
 
-  // 4. Jugadores y ADP
-  const adpData = await getADPData(adpType);
-  const playerIds = adpData.map((p) => p.sleeper_player_id);
-  const playersData = await getPlayersData(playerIds);
-
-  // 5. Rankings del experto
-  let finalPosition = position;
-  if (superFlex && position === true) {
-    finalPosition = 'SUPER FLEX';
-  }
+  // 2. Rankings del experto
   const expertData = await getExpertData(idExpert);
-  const { players: rankings, published: ranks_published, source: source } = await getRankings({
+  const finalPosition = superFlex && position === true ? 'SUPER FLEX' : position;
+
+  const {
+    players: rankings = [],
+    published: ranks_published,
+    source
+  } = await getRankings({
     season,
     dynasty,
     scoring,
     expertData,
     position: finalPosition
   });
-  
+
+  if (!Array.isArray(rankings)) {
+    throw new Error(`No se pudo obtener rankings para el experto ${idExpert}`);
+  }
+
   let dstRankings = [];
   let kickerRankings = [];
 
   if (expertData.source !== 'flock') {
-    dstRankings = (await getDSTRankings({
-      season,
-      dynasty,
-      expertData,
-      weekStatic: null
-    }))?.players || [];
+    if (starterPositions.includes('DEF')) {
+      dstRankings = (await getDSTRankings({
+        season,
+        dynasty,
+        expertData,
+        weekStatic: null
+      }))?.players?.map(p => ({
+        ...p,
+        rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
+      })) || [];
+    }
 
-    kickerRankings = (await getKickerRankings({
-      season,
-      dynasty,
-      expertData,
-      weekStatic: null
-    }))?.players || [];
+    if (starterPositions.includes('K')) {
+      kickerRankings = (await getKickerRankings({
+        season,
+        dynasty,
+        expertData,
+        weekStatic: null
+      }))?.players?.map(p => ({
+        ...p,
+        rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
+      })) || [];
+    }
   }
 
-  // 6. Proyecciones totales (calculadas desde stats y scoring)
+  // 3. Jugadores y ADP
+  const adpData = await getADPData(adpType);
+  const adpPlayerIds = adpData.map(p => p.sleeper_player_id);
+
+  const allPlayerIds = new Set([
+    ...adpPlayerIds,
+    ...dstRankings.map(p => p.player_id),
+    ...kickerRankings.map(p => p.player_id)
+  ]);
+
+  const playersData = await getPlayersData(Array.from(allPlayerIds));
+
+  // 4. Proyecciones
   const projections = await getAllPlayersProjectedTotals(leagueId);
 
-  // 7. Cálculo de VOR y Dropoff (solo jugadores LIBRES)
-  const draftedMap = new Map(drafted.map((p) => [String(p.player_id), p]));
-
-  // Crear un mapa rápido de posiciones por player_id
+  const draftedMap = new Map(drafted.map(p => [String(p.player_id), p]));
   const positionMap = new Map(playersData.map(p => [String(p.player_id), p.position]));
 
-  // Enriquecer proyecciones con posición
-  const projectionsWithPosition = projections.map(p => ({
+  const enrichedProjections = projections.map(p => ({
     ...p,
     position: positionMap.get(String(p.player_id)) || null,
     status: draftedMap.has(p.player_id) ? 'DRAFTEADO' : 'LIBRE'
   }));
 
-	const enrichedProjections = addEstimatedStdDev(projectionsWithPosition);
+  const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
+
   const vorList = calculateVORandDropoff(
-    projectionsWithPosition,
+    projectionsWithStdDev,
     starterPositions,
     numTeams
   );
-  const vorMap = new Map(vorList.map((p) => [p.player_id, p]));
 
-  // 8. Construcción final del arreglo de jugadores
+  const vorMap = new Map(vorList.map(p => [p.player_id, p]));
+
+  // 5. Construcción final
+  const allRankings = [...rankings, ...dstRankings, ...kickerRankings];
+
   const players = buildFinalPlayers({
     adpData,
     playersData,
-    rankings,
+    rankings: allRankings,
     drafted,
     myDraft,
     num_teams: numTeams,
     byeCondition,
     projectionMap: new Map(
-      projections.map((p) => [p.player_id, p.total_projected])
+      projections.map(p => [p.player_id, p.total_projected])
     ),
     vorMap
   });
 
-  // Resultado final
   return {
     params: {
       leagueId,
@@ -129,8 +150,8 @@ export async function getDraftData(
       scoring,
       dynasty,
       superFlex,
-			ranks_published,
-			ADPdate: adpData[0].date,
+      ranks_published,
+      ADPdate: adpData.length > 0 ? adpData[0].date : null,
       source
     },
     data: players
