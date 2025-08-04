@@ -1,7 +1,6 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { supabase } from '../supabaseClient.js';
-import { fuzzySearch } from '../utils/helpers.js';
 
 const TYPES = {
   'half-ppr': 'half-point-ppr-overall',
@@ -106,17 +105,23 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     // Crear índice de nombres exactos
     const nameIndex = new Map();
     for (const p of playersData) {
-      if (p.full_name) nameIndex.set(normalizeName(p.full_name), p);
+      if (p.full_name) {
+        const normalized = normalizeName(p.full_name);
+        nameIndex.set(normalized, p);
+      }
     }
 
     for (const player of adpList) {
-      const normName = normalizeName(player.name);
-      const exact = nameIndex.get(normName);
-
+      const normalizedName = normalizeName(player.name);
+      const exact = nameIndex.get(normalizedName);
       let matched = exact;
 
+      // Fuzzy match si no hay coincidencia exacta
       if (!matched && typeof fuzzySearch === 'function') {
-        const fuzzy = fuzzySearch(player.name, playersData);
+        const fuzzy = fuzzySearch(player.name, playersData, {
+          key: p => p.full_name,
+          normalize: normalizeName
+        });
         if (fuzzy?.[0]) matched = fuzzy[0];
       }
 
@@ -186,4 +191,19 @@ export async function uploadAllFantasyProsADP() {
   const results = await Promise.all(tipos.map(uploadFantasyProsADP));
   console.log('🎉 ADP de FantasyPros cargado para PPR y Half-PPR');
   return results;
+}
+
+export function fuzzySearch(query, items, options = {}) {
+  const { key = (x => x), normalize = x => x.toLowerCase() } = options;
+  const normalizedQuery = normalize(query);
+  const results = items
+    .map(item => {
+      const value = key(item);
+      const norm = normalize(value);
+      const score = levenshtein(normalizedQuery, norm); // o similar
+      return { item, score };
+    })
+    .sort((a, b) => a.score - b.score);
+
+  return results.length ? [results[0].item] : [];
 }
