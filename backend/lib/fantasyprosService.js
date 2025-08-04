@@ -89,7 +89,7 @@ export async function getFantasyProsADPData(req, res) {
 
     // 3. Unir datos manualmente
     const merged = adpData.map(row => {
-      const player = players.find(p => p.sleeper_player_id === row.sleeper_player_id);
+      const player = players.find(p => p.player_id === row.sleeper_player_id);
       return {
         ...row,
         player: player || null
