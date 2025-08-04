@@ -24,7 +24,10 @@ import {
   updateTeamById,
   bulkUpdatePlayersByeWeeks
 } from './lib/teamsService.js';
-import { getFantasyProsADP } from './lib/fantasyprosService.js';
+import {
+  getFantasyProsADP,
+  uploadAllFantasyProsADP
+} from './lib/fantasyprosService.js';
 import draftRouter from './draft.js';
 import lineupRouter from './lineup.js';
 import projectionsRouter from './projections.js';
@@ -153,6 +156,23 @@ app.get('/adp/fantasypros/:type', async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/adp/fantasypros/upload-all', async (req, res) => {
+  try {
+    const results = await uploadAllFantasyProsADP();
+    res.json({
+      success: true,
+      message: 'ADP de FantasyPros actualizado',
+      details: results
+    });
+  } catch (err) {
+    console.error('❌ Error en /adp/fantasypros/upload-all:', err.message || err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Error desconocido al subir ADP'
+    });
   }
 });
 
