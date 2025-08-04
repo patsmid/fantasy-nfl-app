@@ -112,6 +112,34 @@ function normalizeName(name) {
     .trim();
 }
 
+// Función auxiliar para cargar jugadores en chunks
+async function fetchAllPlayers(limit = 15000, chunkSize = 1000) {
+  const allPlayers = [];
+
+  for (let from = 0; from < limit; from += chunkSize) {
+    const to = from + chunkSize - 1;
+
+    const { data, error } = await supabase
+      .from('players')
+      .select('player_id, full_name')
+      .range(from, to);
+
+    if (error) {
+      console.error(`❌ Error en chunk ${from}-${to}:`, error.message);
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+
+    allPlayers.push(...data);
+
+    if (data.length < chunkSize) break;
+  }
+
+  return allPlayers;
+}
+
+// Función principal
 export async function uploadFantasyProsADP(tipo = 'ppr') {
   const adp_type = `FP_${tipo}`;
   const today = new Date().toISOString().split('T')[0];
@@ -121,17 +149,12 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
 
-    // Traer hasta 15,000 jugadores (Supabase por defecto solo trae 1,000 sin .range)
-    const { data: playersData, error: playersError } = await supabase
-      .from('players')
-      .select('player_id, full_name')
-      .range(0, 14999);
-
-    if (playersError || !Array.isArray(playersData) || playersData.length === 0) {
-      throw new Error(playersError?.message || '❌ playersData vacío o inválido');
-    }
-
+    const playersData = await fetchAllPlayers(15000);
     console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
+
+    if (!Array.isArray(playersData) || playersData.length === 0) {
+      throw new Error('❌ No se pudieron cargar los jugadores desde Supabase');
+    }
 
     // Crear índice por nombre normalizado
     const nameIndex = new Map();
@@ -219,6 +242,7 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   }
 }
 
+
 export async function uploadAllFantasyProsADP() {
   const tipos = ['ppr', 'half-ppr'];
   const results = await Promise.all(tipos.map(uploadFantasyProsADP));
@@ -260,4 +284,30 @@ function levenshteinDistance(a, b) {
   }
 
   return dp[a.length][b.length];
+}
+
+async function fetchAllPlayers(limit = 15000, chunkSize = 1000) {
+  const allPlayers = [];
+
+  for (let from = 0; from < limit; from += chunkSize) {
+    const to = from + chunkSize - 1;
+
+    const { data, error } = await supabase
+      .from('players')
+      .select('player_id, full_name')
+      .range(from, to);
+
+    if (error) {
+      console.error(`❌ Error en chunk ${from}-${to}:`, error.message);
+      break;
+    }
+
+    if (data.length === 0) break; // ya no hay más
+
+    allPlayers.push(...data);
+
+    if (data.length < chunkSize) break; // última página
+  }
+
+  return allPlayers;
 }
