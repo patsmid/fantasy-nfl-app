@@ -104,11 +104,13 @@ export async function getFantasyProsADPData(req, res) {
 }
 
 function normalizeName(name) {
+  if (!name || typeof name !== 'string') return '';
   return name
     .toLowerCase()
     .normalize('NFD') // Elimina acentos
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '') // Quita todo menos letras y números
+    .replace(/[\u0300-\u036f]/g, '') // Quita marcas diacríticas
+    .replace(/[^a-z0-9]/g, '') // Quita todo excepto letras y números
+    .replace(/\s+/g, '') // Elimina espacios intermedios
     .trim();
 }
 
@@ -264,12 +266,17 @@ export async function uploadAllFantasyProsADP() {
 }
 
 function fuzzySearch(name, list, { key, normalize }) {
+  if (!name || !Array.isArray(list)) return [];
+
   const target = normalize(name);
   let best = null;
   let minDist = Infinity;
 
   for (const item of list) {
-    const itemName = normalize(key(item));
+    const value = key(item);
+    if (!value || typeof value !== 'string') continue;
+
+    const itemName = normalize(value);
     const dist = levenshteinDistance(target, itemName);
     if (dist < minDist) {
       minDist = dist;
@@ -277,21 +284,28 @@ function fuzzySearch(name, list, { key, normalize }) {
     }
   }
 
-  return minDist <= 3 ? [best] : []; // ajusta tolerancia
+  return minDist <= 3 ? [best] : [];
 }
+
 
 // Simple Levenshtein implementation
 function levenshteinDistance(a, b) {
-  const dp = Array.from({ length: a.length + 1 }, (_, i) => Array(b.length + 1).fill(0));
+  if (typeof a !== 'string' || typeof b !== 'string') return Infinity;
+
+  const dp = Array.from({ length: a.length + 1 }, () =>
+    new Array(b.length + 1).fill(0)
+  );
+
   for (let i = 0; i <= a.length; i++) dp[i][0] = i;
   for (let j = 0; j <= b.length; j++) dp[0][j] = j;
 
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+        dp[i - 1][j] + 1,     // Eliminación
+        dp[i][j - 1] + 1,     // Inserción
+        dp[i - 1][j - 1] + cost // Sustitución
       );
     }
   }
