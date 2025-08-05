@@ -112,9 +112,9 @@ export default async function renderADPView() {
         { data: 'adp_value' },
         { data: 'adp_value_prev', defaultContent: '' },
         { data: 'date' },
-        { data: 'name' },
-        { data: 'position' },
-        { data: 'team' }
+        { data: 'full_name', defaultContent: '' },  // ✅ CAMBIO
+        { data: 'position', defaultContent: '' },   // ✅ CAMBIO
+        { data: 'team', defaultContent: '' }        // ✅ CAMBIO
       ],
       order: [[3, 'asc']],
       pageLength: 10,

@@ -72,7 +72,7 @@ export async function getFantasyProsADPData(req, res) {
     if (team) query = query.eq('team', team);
     if (position) query = query.eq('position', position);
 
-    query = query.order('adp_value', { ascending: false });
+    query = query.order('adp_value', { ascending: true }); // Orden ascendente por ADP
 
     const { data: adpData, error } = await query;
     if (error) throw error;
@@ -82,17 +82,24 @@ export async function getFantasyProsADPData(req, res) {
 
     const { data: players, error: errPlayers } = await supabase
       .from('players')
-      .select('*')
+      .select('player_id, full_name, position, team')
       .in('player_id', uniqueIds);
 
     if (errPlayers) throw errPlayers;
 
-    // 3. Unir datos manualmente
+    // 3. Unir datos y retornar estructura simplificada
     const merged = adpData.map(row => {
       const player = players.find(p => p.player_id === row.sleeper_player_id);
       return {
-        ...row,
-        player: player || null
+        id: row.id,
+        adp_type: row.adp_type,
+        sleeper_player_id: row.sleeper_player_id,
+        adp_value: row.adp_value,
+        adp_value_prev: row.adp_value_prev,
+        date: row.date,
+        full_name: player?.full_name || '',
+        position: player?.position || '',
+        team: player?.team || ''
       };
     });
 
