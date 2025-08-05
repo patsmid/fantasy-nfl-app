@@ -57,6 +57,7 @@ export default async function renderADPView() {
   let currentSource = sourceSelect.value;
 
   let table = null;
+
   const initTable = (source) => {
     const url =
       source === 'sleeper'
@@ -93,7 +94,7 @@ export default async function renderADPView() {
       serverSide: source === 'sleeper',
       ajax: {
         url,
-        dataSrc: 'data', // ✅ SIEMPRE usa 'data', tanto para sleeper como fantasypros
+        dataSrc: 'data',
         data: function (d) {
           if (source === 'sleeper') {
             $('#adp-table tfoot select').each(function (index) {
@@ -106,15 +107,24 @@ export default async function renderADPView() {
         }
       },
       columns: [
-        { data: 'id', defaultContent: '' },
+        { data: 'id' },
         { data: 'adp_type', defaultContent: 'FP_ppr' },
         { data: 'sleeper_player_id', defaultContent: '' },
         { data: 'adp_value' },
         { data: 'adp_value_prev', defaultContent: '' },
         { data: 'date' },
-        { data: 'full_name', defaultContent: '' },  // ✅ CAMBIO
-        { data: 'position', defaultContent: '' },   // ✅ CAMBIO
-        { data: 'team', defaultContent: '' }        // ✅ CAMBIO
+        {
+          data: source === 'fantasypros' ? 'player.full_name' : 'full_name',
+          defaultContent: ''
+        },
+        {
+          data: source === 'fantasypros' ? 'player.position' : 'position',
+          defaultContent: ''
+        },
+        {
+          data: source === 'fantasypros' ? 'player.team' : 'team',
+          defaultContent: ''
+        }
       ],
       order: [[3, 'asc']],
       pageLength: 10,
@@ -154,13 +164,11 @@ export default async function renderADPView() {
 
   initTable(currentSource);
 
-  // 🎯 Cambiar fuente de datos
   sourceSelect.addEventListener('change', () => {
     currentSource = sourceSelect.value;
     initTable(currentSource);
   });
 
-  // 🔄 Actualizar Sleeper ADP
   const updateSleeperBtn = document.getElementById('update-sleeper-btn');
   updateSleeperBtn.addEventListener('click', async () => {
     updateSleeperBtn.disabled = true;
@@ -176,7 +184,6 @@ export default async function renderADPView() {
     }
   });
 
-  // ⬆️ Actualizar FantasyPros ADP
   const updateFPBtn = document.getElementById('update-fp-btn');
   updateFPBtn.addEventListener('click', async () => {
     updateFPBtn.disabled = true;
