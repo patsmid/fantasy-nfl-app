@@ -62,7 +62,7 @@ export default async function renderADPView() {
     const url =
       source === 'sleeper'
         ? 'https://fantasy-nfl-backend.onrender.com/sleeperADP'
-        : 'https://fantasy-nfl-backend.onrender.com/adp/fantasypros/ppr';
+        : 'https://fantasy-nfl-backend.onrender.com/fantasypros/adp';
 
     if (table) {
       table.destroy();
@@ -94,7 +94,10 @@ export default async function renderADPView() {
       serverSide: source === 'sleeper',
       ajax: {
         url,
-        dataSrc: 'data',
+        dataSrc: function (json) {
+          if (!json || !json.success || !Array.isArray(json.data)) return [];
+          return json.data;
+        },
         data: function (d) {
           if (source === 'sleeper') {
             $('#adp-table tfoot select').each(function (index) {
@@ -106,6 +109,7 @@ export default async function renderADPView() {
           }
         }
       },
+
       columns: [
         { data: 'id' },
         { data: 'adp_type', defaultContent: 'FP_ppr' },
@@ -114,18 +118,19 @@ export default async function renderADPView() {
         { data: 'adp_value_prev', defaultContent: '' },
         { data: 'date' },
         {
-          data: source === 'fantasypros' ? 'player.full_name' : 'full_name',
+          data: source === 'sleeper' ? 'player.full_name' : 'full_name',
           defaultContent: ''
         },
         {
-          data: source === 'fantasypros' ? 'player.position' : 'position',
+          data: source === 'sleeper' ? 'player.position' : 'position',
           defaultContent: ''
         },
         {
-          data: source === 'fantasypros' ? 'player.team' : 'team',
+          data: source === 'sleeper' ? 'player.team' : 'team',
           defaultContent: ''
         }
       ],
+
       order: [[3, 'asc']],
       pageLength: 10,
       lengthMenu: [10, 25, 50, 100],
