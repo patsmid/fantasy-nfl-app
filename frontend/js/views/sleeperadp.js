@@ -93,7 +93,7 @@ export default async function renderADPView() {
       serverSide: source === 'sleeper',
       ajax: {
         url,
-        dataSrc: source === 'sleeper' ? 'data' : '', // fantasypros es cliente
+        dataSrc: 'data', // ✅ SIEMPRE usa 'data', tanto para sleeper como fantasypros
         data: function (d) {
           if (source === 'sleeper') {
             $('#adp-table tfoot select').each(function (index) {
