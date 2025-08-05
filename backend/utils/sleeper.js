@@ -218,24 +218,39 @@ export async function getUniqueSleeperADPValues(req, res) {
   try {
     const { column } = req.query;
 
-    if (!column) return res.status(400).json({ error: 'Falta parámetro column' });
+    if (!column) {
+      return res.status(400).json({ error: 'Falta parámetro column' });
+    }
 
-    let data = [];
+    let rows = [];
+    // Para columnas en sleeper_adp_data
     if (['adp_type', 'date'].includes(column)) {
-      // Valores únicos directos en sleeper_adp_data
-      const { data: rows, error } = await supabase
-        .from('sleeper_adp_data')
-        .select(column)
-        .neq(column, null)
-        .neq(column, '')
-        .order(column, { ascending: true });
+      // Para date, usamos .not('is', null) para excluir nulos reales
+      if (column === 'date') {
+        const { data, error } = await supabase
+          .from('sleeper_adp_data')
+          .select(column)
+          .not(column, 'is', null)
+          .order(column, { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
+        rows = data;
+      } else {
+        // adp_type
+        const { data, error } = await supabase
+          .from('sleeper_adp_data')
+          .select(column)
+          .neq(column, null)
+          .neq(column, '')
+          .order(column, { ascending: true });
 
-      data = [...new Set(rows.map(r => r[column]))];
-    } else if (['full_name', 'position', 'team'].includes(column)) {
-      // Valores únicos de players
-      const { data: rows, error } = await supabase
+        if (error) throw error;
+        rows = data;
+      }
+    }
+    // Para columnas en players
+    else if (['full_name', 'position', 'team'].includes(column)) {
+      const { data, error } = await supabase
         .from('players')
         .select(column)
         .neq(column, null)
@@ -243,15 +258,23 @@ export async function getUniqueSleeperADPValues(req, res) {
         .order(column, { ascending: true });
 
       if (error) throw error;
-
-      data = [...new Set(rows.map(r => r[column]))];
+      rows = data;
     } else {
       return res.status(400).json({ error: 'Columna no soportada para filtro' });
     }
 
+    // Extraigo valores únicos y limpio posibles cadenas "null" o vacías
+    const data = [
+      ...new Set(
+        rows
+          .map(r => r[column])
+          .filter(v => v !== null && v !== '' && v !== 'null')
+      ),
+    ];
+
     res.json({ success: true, data });
   } catch (err) {
-    console.error('❌ Error en /sleeperADP/unique-values:', err.message || err);
+    console.error('❌ Error en /sleeperADP/unique-values:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 }

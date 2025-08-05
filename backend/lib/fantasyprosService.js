@@ -148,6 +148,9 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
 
   try {
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
+    if (!Array.isArray(adpList) || adpList.length === 0) {
+      throw new Error('❌ No se obtuvieron datos de FantasyPros');
+    }
 
     const playersData = await fetchAllPlayers(15000);
     console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
@@ -159,8 +162,9 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     // Crear índice por nombre normalizado
     const nameIndex = new Map();
     for (const p of playersData) {
-      if (p.full_name) {
-        const normalized = normalizeName(p.full_name);
+      const name = p.full_name?.trim();
+      if (name) {
+        const normalized = normalizeName(name);
         if (!nameIndex.has(normalized)) {
           nameIndex.set(normalized, p);
         }
@@ -168,13 +172,18 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
     }
 
     for (const player of adpList) {
-      const normalizedName = normalizeName(player.name);
-      const exact = nameIndex.get(normalizedName);
-      let matched = exact;
+      const rawName = player.name?.trim();
+      if (!rawName) {
+        notFound.push(`Nombre inválido: ${JSON.stringify(player)}`);
+        continue;
+      }
+
+      const normalizedName = normalizeName(rawName);
+      let matched = nameIndex.get(normalizedName);
 
       // Fuzzy match si no hay exacto
       if (!matched && typeof fuzzySearch === 'function') {
-        const fuzzy = fuzzySearch(player.name, playersData, {
+        const fuzzy = fuzzySearch(rawName, playersData, {
           key: p => p.full_name,
           normalize: normalizeName
         });
@@ -182,15 +191,20 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       }
 
       if (matched?.player_id) {
-        records.push({
-          adp_type,
-          sleeper_player_id: matched.player_id,
-          adp_value: Number(player.adp),
-          adp_value_prev: 0,
-          date: today
-        });
+        const adpValue = Number(player.adp);
+        if (!isNaN(adpValue)) {
+          records.push({
+            adp_type,
+            sleeper_player_id: matched.player_id,
+            adp_value: adpValue,
+            adp_value_prev: 0,
+            date: today
+          });
+        } else {
+          console.warn(`⚠️ ADP inválido para ${rawName}:`, player.adp);
+        }
       } else {
-        notFound.push(`${player.name} (→ ${normalizedName})`);
+        notFound.push(`${rawName} (→ ${normalizedName})`);
       }
     }
 
