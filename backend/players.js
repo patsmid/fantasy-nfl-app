@@ -139,12 +139,6 @@ export async function updatePlayers() {
 
     // 2️⃣ Obtener todos los player_id actuales en la base de datos
     const existingPlayers = await fetchAllPlayerIdsFromSupabase();
-
-    if (fetchError) {
-      console.error('❌ Error al obtener jugadores existentes:', fetchError.message);
-      return;
-    }
-
     const existingIds = existingPlayers.map(p => String(p.player_id));
     const activeIds = activePlayers.map(p => String(p.player_id));
     // 3️⃣ Determinar jugadores a eliminar (que ya no están activos)
