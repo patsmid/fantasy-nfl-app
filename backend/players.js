@@ -120,21 +120,42 @@ export async function updatePlayers() {
     const response = await fetch(apiUrl);
     const players = await response.json();
 
-    const data = Object.values(players).map(player => ({
-      player_id: player.player_id,
-      first_name: player.first_name,
-      last_name: player.last_name,
-      full_name: player.full_name,
-      position: player.position,
-      team: player.team,
-      status: player.status,
-      injury_status: player.injury_status,
-      years_exp: player.years_exp
-    })).filter(p => p.player_id);
+    // 1️⃣ Obtener jugadores activos
+    const activePlayers = Object.values(players)
+      .filter(player => player.active === true && player.player_id)
+      .map(player => ({
+        player_id: player.player_id,
+        first_name: player.first_name,
+        last_name: player.last_name,
+        full_name: player.full_name,
+        position: player.position,
+        team: player.team,
+        status: player.status,
+        injury_status: player.injury_status,
+        years_exp: player.years_exp
+      }));
 
-    console.log(`🔄 Total jugadores a insertar/actualizar: ${data.length}`);
+    console.log(`✅ Jugadores activos encontrados: ${activePlayers.length}`);
 
-    const chunks = chunkArray(data, 500);
+    // 2️⃣ Obtener todos los player_id actuales en la base de datos
+    const { data: existingPlayers, error: fetchError } = await supabase
+      .from('players')
+      .select('player_id');
+
+    if (fetchError) {
+      console.error('❌ Error al obtener jugadores existentes:', fetchError.message);
+      return;
+    }
+
+    const existingIds = existingPlayers.map(p => p.player_id);
+    const activeIds = activePlayers.map(p => p.player_id);
+
+    // 3️⃣ Determinar jugadores a eliminar (que ya no están activos)
+    const idsToDelete = existingIds.filter(id => !activeIds.includes(id));
+    console.log(`🗑️ Jugadores inactivos a eliminar: ${idsToDelete.length}`);
+
+    // 4️⃣ Insertar o actualizar jugadores activos
+    const chunks = chunkArray(activePlayers, 500);
     for (const [i, chunk] of chunks.entries()) {
       const { error } = await supabase
         .from('players')
@@ -145,7 +166,22 @@ export async function updatePlayers() {
       }
     }
 
-    // ✅ Actualizar fecha en config si todo fue bien
+    // 5️⃣ Eliminar jugadores inactivos
+    if (idsToDelete.length > 0) {
+      const deleteChunks = chunkArray(idsToDelete, 500);
+      for (const [i, ids] of deleteChunks.entries()) {
+        const { error: deleteError } = await supabase
+          .from('players')
+          .delete()
+          .in('player_id', ids);
+
+        if (deleteError) {
+          console.error(`❌ Error eliminando chunk ${i + 1}:`, deleteError.message);
+        }
+      }
+    }
+
+    // 6️⃣ Registrar fecha de actualización
     const now = getMexicoCityISOString();
     const { error: configError } = await supabase
       .from('config')
@@ -157,7 +193,7 @@ export async function updatePlayers() {
       console.log(`🕒 Actualización registrada en config: ${now}`);
     }
 
-    console.log('🎉 Todos los jugadores fueron procesados');
+    console.log('🎉 Jugadores activos actualizados y los inactivos eliminados');
   } catch (err) {
     console.error('❌ Error en updatePlayers:', err.message || err);
   }
