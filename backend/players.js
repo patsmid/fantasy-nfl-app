@@ -147,29 +147,19 @@ export async function updatePlayers() {
       return;
     }
 
-    const existingIds = existingPlayers.map(p => p.player_id);
-    const activeIds = activePlayers.map(p => p.player_id);
-
-    // 3️⃣ Determinar jugadores a eliminar (que ya no están activos)
+    const existingIds = existingPlayers.map(p => String(p.player_id));
+    const activeIds = activePlayers.map(p => String(p.player_id));
     const idsToDelete = existingIds.filter(id => !activeIds.includes(id));
-    console.log(`🗑️ Jugadores inactivos a eliminar: ${idsToDelete.length}`);
 
-    // 4️⃣ Insertar o actualizar jugadores activos
-    const chunks = chunkArray(activePlayers, 500);
-    for (const [i, chunk] of chunks.entries()) {
-      const { error } = await supabase
-        .from('players')
-        .upsert(chunk, { onConflict: 'player_id' });
+    console.log(`🔍 Total IDs en Supabase: ${existingIds.length}`);
+    console.log(`🧮 Total IDs activos desde API: ${activeIds.length}`);
+    console.log(`🗑️ IDs a eliminar:`, idsToDelete);
 
-      if (error) {
-        console.error(`❌ Error en chunk ${i + 1}:`, error.message);
-      }
-    }
-
-    // 5️⃣ Eliminar jugadores inactivos
     if (idsToDelete.length > 0) {
       const deleteChunks = chunkArray(idsToDelete, 500);
       for (const [i, ids] of deleteChunks.entries()) {
+        console.log(`🚨 Eliminando chunk ${i + 1} con ${ids.length} IDs`);
+
         const { error: deleteError } = await supabase
           .from('players')
           .delete()
@@ -177,6 +167,8 @@ export async function updatePlayers() {
 
         if (deleteError) {
           console.error(`❌ Error eliminando chunk ${i + 1}:`, deleteError.message);
+        } else {
+          console.log(`✅ Chunk ${i + 1} eliminado correctamente`);
         }
       }
     }
