@@ -169,10 +169,9 @@ function normalizeName(name) {
   if (!name || typeof name !== 'string') return '';
   return name
     .toLowerCase()
-    .normalize('NFD') // Elimina acentos
-    .replace(/[\u0300-\u036f]/g, '') // Quita marcas diacríticas
-    .replace(/[^a-z0-9]/g, '') // Quita todo excepto letras y números
-    .replace(/\s+/g, '') // Elimina espacios intermedios
+    .replace(/[^a-z0-9]/g, '')   // quita símbolos
+    .normalize('NFD')            // elimina acentos
+    .replace(/[\u0300-\u036f]/g, '') // marcas diacríticas
     .trim();
 }
 
@@ -249,9 +248,13 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       if (!matched && typeof fuzzySearch === 'function') {
         const fuzzy = fuzzySearch(rawName, playersData, {
           key: p => p.full_name,
-          normalize: normalizeName
+          normalize: normalizeName,
+          expectedPosition: player.position
         });
-        if (fuzzy?.[0]) matched = fuzzy[0];
+        if (fuzzy?.[0]) {
+          matched = fuzzy[0];
+          console.log(`🤖 Fuzzy match: "${rawName}" ➜ "${matched.full_name}" [${matched.position}]`);
+        }
       }
 
       if (matched?.player_id) {
@@ -327,28 +330,33 @@ export async function uploadAllFantasyProsADP() {
   return results;
 }
 
-function fuzzySearch(name, list, { key, normalize }) {
+function fuzzySearch(name, list, { key, normalize, expectedPosition }) {
   if (!name || !Array.isArray(list)) return [];
 
   const target = normalize(name);
   let best = null;
-  let minDist = Infinity;
+  let minScore = Infinity;
 
   for (const item of list) {
     const value = key(item);
     if (!value || typeof value !== 'string') continue;
 
     const itemName = normalize(value);
-    const dist = levenshteinDistance(target, itemName);
-    if (dist < minDist) {
-      minDist = dist;
+    let dist = levenshteinDistance(target, itemName);
+
+    // Penalización por diferencia de posición
+    if (expectedPosition && item.position && item.position !== expectedPosition) {
+      dist += 2; // penaliza si no coincide la posición
+    }
+
+    if (dist < minScore) {
+      minScore = dist;
       best = item;
     }
   }
 
-  return minDist <= 3 ? [best] : [];
+  return minScore <= 3 ? [best] : [];
 }
-
 
 // Simple Levenshtein implementation
 function levenshteinDistance(a, b) {
