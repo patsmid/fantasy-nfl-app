@@ -167,11 +167,13 @@ export async function getFantasyProsADPData(req, res) {
 
 function normalizeName(name) {
   if (!name || typeof name !== 'string') return '';
+
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')   // quita símbolos
-    .normalize('NFD')            // elimina acentos
-    .replace(/[\u0300-\u036f]/g, '') // marcas diacríticas
+    .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, '')  // elimina sufijos comunes
+    .replace(/[^a-z0-9]/g, '')                // elimina caracteres especiales
+    .normalize('NFD')                         // convierte acentos en marcas
+    .replace(/[\u0300-\u036f]/g, '')          // elimina marcas diacríticas
     .trim();
 }
 
@@ -246,7 +248,8 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
 
       // Fuzzy match si no hay exacto
       if (!matched && typeof fuzzySearch === 'function') {
-        const fuzzy = fuzzySearch(rawName, playersData, {
+        const candidates = playersData.filter(p => p.position === player.position);
+        const fuzzy = fuzzySearch(rawName, candidates, {
           key: p => p.full_name,
           normalize: normalizeName,
           expectedPosition: player.position
