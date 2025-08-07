@@ -138,9 +138,7 @@ export async function updatePlayers() {
     console.log(`✅ Jugadores activos encontrados: ${activePlayers.length}`);
 
     // 2️⃣ Obtener todos los player_id actuales en la base de datos
-    const { data: existingPlayers, error: fetchError } = await supabase
-      .from('players')
-      .select('player_id');
+    const existingPlayers = await fetchAllPlayerIdsFromSupabase();
 
     if (fetchError) {
       console.error('❌ Error al obtener jugadores existentes:', fetchError.message);
@@ -149,12 +147,26 @@ export async function updatePlayers() {
 
     const existingIds = existingPlayers.map(p => String(p.player_id));
     const activeIds = activePlayers.map(p => String(p.player_id));
+    // 3️⃣ Determinar jugadores a eliminar (que ya no están activos)
     const idsToDelete = existingIds.filter(id => !activeIds.includes(id));
 
     console.log(`🔍 Total IDs en Supabase: ${existingIds.length}`);
     console.log(`🧮 Total IDs activos desde API: ${activeIds.length}`);
     console.log(`🗑️ IDs a eliminar:`, idsToDelete);
 
+    // 4️⃣ Insertar o actualizar jugadores activos
+    const chunks = chunkArray(activePlayers, 500);
+    for (const [i, chunk] of chunks.entries()) {
+      const { error } = await supabase
+        .from('players')
+        .upsert(chunk, { onConflict: 'player_id' });
+
+      if (error) {
+        console.error(`❌ Error en chunk ${i + 1}:`, error.message);
+      }
+    }
+
+    // 5️⃣ Eliminar jugadores inactivos
     if (idsToDelete.length > 0) {
       const deleteChunks = chunkArray(idsToDelete, 500);
       for (const [i, ids] of deleteChunks.entries()) {
@@ -189,4 +201,30 @@ export async function updatePlayers() {
   } catch (err) {
     console.error('❌ Error en updatePlayers:', err.message || err);
   }
+}
+
+async function fetchAllPlayerIdsFromSupabase() {
+  const pageSize = 1000;
+  let all = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('player_id')
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('❌ Error paginando jugadores existentes:', error.message);
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+
+    all = all.concat(data);
+    from += pageSize;
+  }
+
+  console.log(`📦 Total jugadores existentes descargados: ${all.length}`);
+  return all;
 }
