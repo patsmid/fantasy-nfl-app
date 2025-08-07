@@ -7,6 +7,7 @@ import {
 } from './lib/draftUtils.js';
 import { getRankings, getDSTRankings, getKickerRankings } from './lib/rankingsService.js';
 import { getSleeperLeague } from './utils/sleeper.js';
+import { getFantasyProsADPDataSimple } from './lib/fantasyprosService.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoff } from './lib/vorUtils.js';
 import { buildFinalPlayers } from './lib/transformPlayers.js';
@@ -91,7 +92,19 @@ export async function getDraftData(
   }
 
   // 3. Jugadores y ADP
-  const adpData = await getADPData(adpType);
+  let adpData;
+
+  if (dynasty || superFlex) {
+    adpData = await getADPData(adpType);
+  } else {
+    const adp_type = scoring === 'PPR'
+      ? 'FP_ppr'
+      : scoring === 'HALF'
+      ? 'FP_half-ppr'
+      : 'FP_ppr';
+
+    adpData = await getFantasyProsADPDataSimple({ adp_type });
+  }
   const adpPlayerIds = adpData.map(p => p.sleeper_player_id);
 
   const allPlayerIds = new Set([

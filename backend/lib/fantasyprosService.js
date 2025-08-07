@@ -7,6 +7,61 @@ const TYPES = {
   'ppr': 'ppr-overall'
 };
 
+export async function getFantasyProsADPDataSimple({
+  adp_type = null,
+  date = null,
+  full_name = null,
+  team = null,
+  position = null
+} = {}) {
+  const tipos = ['FP_ppr', 'FP_half-ppr'];
+
+  try {
+    let query = supabase
+      .from('sleeper_adp_data')
+      .select('*')
+      .in('adp_type', tipos);
+
+    if (adp_type) query = query.eq('adp_type', adp_type);
+    if (date) query = query.eq('date', date);
+    if (full_name) query = query.eq('full_name', full_name);
+    if (team) query = query.eq('team', team);
+    if (position) query = query.eq('position', position);
+
+    query = query.order('adp_value', { ascending: true });
+
+    const { data: adpData, error } = await query;
+    if (error) throw error;
+
+    const uniqueIds = [...new Set(adpData.map(p => p.sleeper_player_id).filter(Boolean))];
+
+    const { data: players, error: errPlayers } = await supabase
+      .from('players')
+      .select('player_id, full_name, position, team')
+      .in('player_id', uniqueIds);
+
+    if (errPlayers) throw errPlayers;
+
+    return adpData.map(row => {
+      const player = players.find(p => p.player_id === row.sleeper_player_id);
+      return {
+        id: row.id,
+        adp_type: row.adp_type,
+        sleeper_player_id: row.sleeper_player_id,
+        adp_value: row.adp_value,
+        adp_value_prev: row.adp_value_prev,
+        date: row.date,
+        full_name: player?.full_name || '',
+        position: player?.position || '',
+        team: player?.team || ''
+      };
+    });
+  } catch (err) {
+    console.error('❌ Error en getFantasyProsADPDataSimple:', err.message || err);
+    throw err;
+  }
+}
+
 function normalizeHeader(str) {
   return str.toLowerCase().replace(/\s+/g, ' ').trim();
 }

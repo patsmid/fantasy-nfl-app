@@ -95,7 +95,7 @@ export default async function renderADPView() {
       ajax: {
         url,
         dataSrc: function (json) {
-          if (!json || !json.success || !Array.isArray(json.data)) return [];
+          if (!json || !json.data) return [];
           return json.data;
         },
         data: function (d) {
