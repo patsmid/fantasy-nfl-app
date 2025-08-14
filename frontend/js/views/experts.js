@@ -59,6 +59,7 @@ export default async function renderExpertsView() {
                 <option value="" disabled selected>Selecciona fuente...</option>
                 <option value="fantasypros">FantasyPros</option>
                 <option value="flock">Flock Fantasy</option>
+                <option value="manual">Manual</option>
               </select>
             </div>
 
@@ -83,7 +84,7 @@ export default async function renderExpertsView() {
   const idExpertoGroup = document.getElementById('id-experto-group');
 
   sourceSelect.addEventListener('change', () => {
-    idExpertoGroup.style.display = sourceSelect.value === 'flock' ? 'none' : '';
+    idExpertoGroup.style.display = sourceSelect.value === 'fantasypros' ? '' : 'none';
   });
 
   document.getElementById('btn-add-expert').addEventListener('click', () => {
