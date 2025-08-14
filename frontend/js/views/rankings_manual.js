@@ -1,6 +1,8 @@
 import { fetchExperts } from '../api.js';
 import { showSuccess, showError, showLoadingBar } from '../../components/alerts.js';
 
+const BACKEND_URL = 'https://fantasy-nfl-backend.onrender.com';
+
 export default async function renderManualRankingsView() {
   const content = document.getElementById('content-container');
 
@@ -54,7 +56,6 @@ export default async function renderManualRankingsView() {
     await loadTables(currentExpertId);
   });
 
-  // Botones de actualizar manualmente
   document.getElementById('btn-refresh-pending').addEventListener('click', async () => {
     if (!currentExpertId) return showError('Selecciona un experto primero');
     pendingTable.ajax.reload(null, false);
@@ -69,7 +70,7 @@ export default async function renderManualRankingsView() {
   }
 
   // ==========================
-  // Pending players (server-side)
+  // Pending players con server-side
   // ==========================
   async function renderPendingTable(expertId) {
     if ($.fn.DataTable.isDataTable('#pendingPlayersTable')) {
@@ -81,44 +82,73 @@ export default async function renderManualRankingsView() {
       serverSide: true,
       processing: true,
       ajax: {
-        url: `https://fantasy-nfl-backend.onrender.com/rankings/manual/pending?expert_id=${expertId}`,
-        type: 'GET'
+        url: `${BACKEND_URL}/rankings/manual/pending`,
+        type: 'GET',
+        data: function(d) {
+          return {
+            ...d,
+            expert_id: currentExpertId,
+            positions: 'WR,RB,TE,QB'
+          };
+        },
+        dataSrc: d => d.players
       },
       columns: [
         { data: 'full_name', title: 'Nombre' },
         { data: 'position', title: 'Posición' },
         { data: 'team', title: 'Equipo' },
         {
-          data: 'pending',
-          title: 'Acción',
-          orderable: false,
-          searchable: false,
-          render: (data, type, row) => {
-            return data
-              ? `<button class="btn btn-sm btn-primary btn-add" data-player='${JSON.stringify(row)}'>
-                   <i class="bi bi-arrow-right"></i>
-                 </button>`
-              : `<span class="badge bg-success">Agregado</span>`;
-          }
+          data: 'rank',
+          title: 'Rank',
+          render: (data, type, row) =>
+            `<input type="number" class="form-control form-control-sm bg-dark text-white pending-rank-tier" value="${data || ''}" data-id="${row.player_id}" data-field="rank">`
+        },
+        {
+          data: 'tier',
+          title: 'Tier',
+          render: (data, type, row) =>
+            `<input type="number" class="form-control form-control-sm bg-dark text-white pending-rank-tier" value="${data || ''}" data-id="${row.player_id}" data-field="tier">`
         }
       ],
       pageLength: 50,
       responsive: true,
+      searching: true,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    $('#pendingPlayersTable tbody').off('click').on('click', '.btn-add', async function() {
-      const player = JSON.parse($(this).attr('data-player'));
-      try {
-        const resp = await fetch('https://fantasy-nfl-backend.onrender.com/rankings/manual', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ expert_id: currentExpertId, sleeper_player_id: player.player_id, rank: null, tier: null })
-        });
-        const result = await resp.json();
-        if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
+    $('#pendingPlayersTable tbody').off('change').on('change', '.pending-rank-tier', async function() {
+      const input = this;
+      const player_id = input.dataset.id;
+      const field = input.dataset.field;
+      const value = input.value ? parseInt(input.value) : null;
 
-        showSuccess(`${player.full_name} agregado al ranking`);
+      // Verificar si ya existe en Rankings
+      let rowExists = rankingsTable
+        .rows()
+        .data()
+        .toArray()
+        .find(r => r.player_id === player_id);
+
+      try {
+        if (!rowExists) {
+          const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expert_id: currentExpertId, sleeper_player_id: player_id, rank: null, tier: null })
+          });
+          const result = await resp.json();
+          if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
+
+          rowExists = { id: result.data[0].id, player_id };
+        }
+
+        await fetch(`${BACKEND_URL}/rankings/manual/${rowExists.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value })
+        });
+        showSuccess(`${field.charAt(0).toUpperCase() + field.slice(1)} actualizado`);
+
         pendingTable.ajax.reload(null, false);
         rankingsTable.ajax.reload(null, false);
       } catch (err) {
@@ -140,10 +170,12 @@ export default async function renderManualRankingsView() {
       serverSide: true,
       processing: true,
       ajax: {
-        url: `https://fantasy-nfl-backend.onrender.com/rankings/manual?expert_id=${expertId}`,
+        url: `${BACKEND_URL}/rankings/manual`,
         type: 'GET',
+        data: function(d) { return { expert_id: expertId }; },
         dataSrc: d => d.players.map(p => ({
           id: p.id,
+          player_id: p.player_id,
           full_name: p.full_name,
           position: p.position,
           team: p.team,
@@ -175,14 +207,13 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Auto-save al cambiar input
     $('#manualRankingsTable tbody').off('change').on('change', '.rank-tier-input', async function() {
       const input = this;
       const id = input.dataset.id;
       const field = input.dataset.field;
       const value = input.value ? parseInt(input.value) : null;
       try {
-        await fetch(`https://fantasy-nfl-backend.onrender.com/rankings/manual/${id}`, {
+        await fetch(`${BACKEND_URL}/rankings/manual/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ [field]: value })
