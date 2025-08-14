@@ -77,23 +77,31 @@ router.get('/:source', async (req, res) => {
   }
 });
 
-// POST - Crear ranking manual
-// POST - Crear ranking manual
+// POST - Crear/Upsert ranking manual
 router.post('/manual', async (req, res) => {
-  let { expert_id, sleeper_player_id, rank, tier } = req.body;
+  try {
+    const { expert_id, sleeper_player_id, rank, tier } = req.body;
+    if (!expert_id || !sleeper_player_id || typeof rank !== 'number') {
+      return res.status(400).json({ error: 'expert_id, sleeper_player_id y rank son requeridos' });
+    }
 
-  // Si rank es null o undefined, asignamos 0
-  rank = rank ?? 0;
-  tier = tier ?? 0;
+    // upsert por (expert_id, sleeper_player_id)
+    const { data, error } = await supabase
+      .from('manual_rankings')
+      .upsert(
+        { expert_id, sleeper_player_id, rank, tier: tier ?? null, updated_at: new Date() },
+        { onConflict: 'expert_id,sleeper_player_id' }
+      )
+      .select();
 
-  const { data, error } = await supabase
-    .from('manual_rankings')
-    .insert([{ expert_id, sleeper_player_id, rank, tier }])
-    .select();
-
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true, data });
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ POST /manual', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
+
 
 
 // PUT - Editar ranking manual
@@ -189,6 +197,33 @@ router.get('/manual/pending', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST - Actualizar orden (rank) en bloque
+router.post('/manual/order', async (req, res) => {
+  try {
+    const updates = req.body; // [{id, rank}, ...]
+    if (!Array.isArray(updates)) return res.status(400).json({ error: 'Body inválido' });
+
+    const chunks = [];
+    const size = 100;
+    for (let i = 0; i < updates.length; i += size) chunks.push(updates.slice(i, i + size));
+
+    for (const chunk of chunks) {
+      const promises = chunk.map(u =>
+        supabase.from('manual_rankings').update({ rank: u.rank, updated_at: new Date() }).eq('id', u.id)
+      );
+      const results = await Promise.all(promises);
+      const err = results.find(r => r.error);
+      if (err) throw err.error;
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ POST /manual/order', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 
 export default router;

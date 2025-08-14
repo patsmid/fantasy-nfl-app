@@ -1,10 +1,17 @@
 import { fetchExperts } from '../api.js';
-import { showSuccess, showError, showLoadingBar } from '../../components/alerts.js';
+import { showSuccess, showError } from '../../components/alerts.js';
+import Sortable from 'sortablejs';
 
 const BACKEND_URL = 'https://fantasy-nfl-backend.onrender.com';
 
 export default async function renderManualRankingsView() {
   const content = document.getElementById('content-container');
+
+  // CSS para animaciones
+  injectStyles(`
+    @keyframes flashRow { 0%{background:rgba(40,167,69,.35)} 100%{background:transparent} }
+    .row-flash { animation: flashRow .9s ease-out 1; }
+  `);
 
   const experts = await fetchExperts();
   const manualExperts = experts.filter(e => e.source === 'manual');
@@ -14,6 +21,7 @@ export default async function renderManualRankingsView() {
     <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
         <h4 class="mb-4"><i class="bi bi-pencil-square text-warning"></i> Rankings manuales</h4>
+
         <div class="mb-3">
           <label class="form-label">Experto</label>
           <select class="form-select" id="manual-expert">
@@ -46,33 +54,31 @@ export default async function renderManualRankingsView() {
   const expertSelect = document.getElementById('manual-expert');
   let pendingTable, rankingsTable;
   let currentExpertId = null;
+  let lastAddedPlayerId = null; // para resaltar en rankings
 
   expertSelect.addEventListener('change', async (e) => {
     currentExpertId = e.target.value;
     if (!currentExpertId) return;
-    await loadTables(currentExpertId);
+    await renderPendingTable(currentExpertId);
+    await renderRankingsTable(currentExpertId);
   });
 
-  document.getElementById('btn-refresh-pending').addEventListener('click', async () => {
+  document.getElementById('btn-refresh-pending').addEventListener('click', () => {
     if (!currentExpertId) return showError('Selecciona un experto primero');
-    pendingTable.ajax.reload(null, false);
+    pendingTable?.ajax?.reload(null, false);
   });
-  document.getElementById('btn-refresh-rankings').addEventListener('click', async () => {
+  document.getElementById('btn-refresh-rankings').addEventListener('click', () => {
     if (!currentExpertId) return showError('Selecciona un experto primero');
-    rankingsTable.ajax.reload(null, false);
+    rankingsTable?.ajax?.reload(null, false);
   });
-
-  async function loadTables(expertId) {
-    await Promise.all([renderPendingTable(expertId), renderRankingsTable(expertId)]);
-  }
 
   // ==========================
-  // Pending players
+  // Pending players (server-side)
   // ==========================
   async function renderPendingTable(expertId) {
     if ($.fn.DataTable.isDataTable('#pendingPlayersTable')) {
       pendingTable.destroy();
-      $('#pendingPlayersTable tbody').empty();
+      $('#pendingPlayersTable').empty();
     }
 
     pendingTable = $('#pendingPlayersTable').DataTable({
@@ -81,19 +87,20 @@ export default async function renderManualRankingsView() {
       ajax: {
         url: `${BACKEND_URL}/rankings/manual/pending`,
         type: 'GET',
-        data: function(d) { return { ...d, expert_id: expertId, positions: 'WR,RB,TE,QB' }; },
-        dataSrc: d => d.players
+        data: d => ({ ...d, expert_id: expertId, positions: 'WR,RB,TE,QB' }),
+        dataSrc: d => d.players || []
       },
       columns: [
         { data: 'full_name', title: 'Nombre' },
-        { data: 'position', title: 'Posición' },
-        { data: 'team', title: 'Equipo' },
+        { data: 'position', title: 'Posición', width: '80px' },
+        { data: 'team', title: 'Equipo', width: '80px' },
         {
           data: null,
           title: 'Acción',
           orderable: false,
-          render: (data) => `
-            <button class="btn btn-sm btn-primary btn-add" data-player-id="${data.player_id}">
+          width: '60px',
+          render: (row) => `
+            <button class="btn btn-sm btn-primary btn-add" data-player-id="${row.player_id}">
               <i class="bi bi-arrow-right"></i>
             </button>`
         }
@@ -104,115 +111,229 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Botón agregar jugador
-    $('#pendingPlayersTable tbody').off('click').on('click', '.btn-add', async function() {
-      const player_id = this.dataset.playerId;
-      try {
-        // Obtener último rank +1 desde backend
-        const respRanks = await fetch(`${BACKEND_URL}/rankings/manual?expert_id=${expertId}`);
-        const ranksData = await respRanks.json();
-        const lastRank = ranksData.players?.reduce((max, p) => Math.max(max, p.rank || 0), 0) || 0;
+    // Agregar jugador a rankings (evita doble click + fadeOut + remove)
+    $('#pendingPlayersTable tbody').off('click').on('click', '.btn-add', async function () {
+      if (!currentExpertId) return showError('Selecciona un experto primero');
 
-        // Agregar jugador con rank = lastRank + 1
-        const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
+      const $btn = $(this);
+      const player_id = $btn.data('playerId');
+      const $row = $btn.closest('tr');
+
+      if ($btn.prop('disabled')) return;
+      $btn.prop('disabled', true).addClass('disabled');
+
+      try {
+        // 1) obtener lastRank + 1 (tolerante a errores)
+        let lastRank = 0;
+        try {
+          const resp = await fetch(`${BACKEND_URL}/rankings/manual?expert_id=${currentExpertId}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const players = json?.players || [];
+            lastRank = players.reduce((max, p) => Math.max(max, p.rank || 0), 0);
+          }
+        } catch {}
+
+        // 2) upsert (evita duplicado)
+        const post = await fetch(`${BACKEND_URL}/rankings/manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ expert_id: expertId, sleeper_player_id: player_id, rank: lastRank + 1, tier: null })
+          body: JSON.stringify({
+            expert_id: currentExpertId,
+            sleeper_player_id: player_id,
+            rank: lastRank + 1,
+            tier: null
+          })
         });
-        const result = await resp.json();
-        if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
+        const result = await post.json();
+        if (!post.ok || !result.success) throw new Error(result.error || 'No se pudo agregar');
+
+        lastAddedPlayerId = player_id;
+
+        // 3) animar y remover de pending (sin esperar reload)
+        $row.css('background-color', 'rgba(40,167,69,.35)');
+        $row.fadeOut(250, () => {
+          pendingTable.row($row).remove().draw(false);
+        });
+
+        // 4) recargar rankings y resaltar el insertado
+        rankingsTable.ajax.reload(() => {
+          flashInRankings(lastAddedPlayerId);
+        }, false);
 
         showSuccess('Jugador agregado al ranking');
-        pendingTable.ajax.reload(null, false);   // se elimina de pending
-        rankingsTable.ajax.reload(null, false); // se agrega a rankings
-
       } catch (err) {
         showError(err.message);
+        $btn.prop('disabled', false).removeClass('disabled');
+      }
+    });
+  }
+
+  function flashInRankings(playerId) {
+    // esperar al draw y resaltar fila
+    $('#manualRankingsTable').one('draw.dt', () => {
+      const idx = rankingsTable
+        .rows()
+        .indexes()
+        .toArray()
+        .find(i => rankingsTable.row(i).data()?.player_id === playerId);
+
+      if (idx !== undefined) {
+        const tr = $(rankingsTable.row(idx).node());
+        tr.addClass('row-flash');
+        setTimeout(() => tr.removeClass('row-flash'), 900);
       }
     });
   }
 
   // ==========================
-  // Rankings actuales
+  // Rankings (client-side ajax + Sortable)
   // ==========================
   async function renderRankingsTable(expertId) {
     if ($.fn.DataTable.isDataTable('#manualRankingsTable')) {
       rankingsTable.destroy();
-      $('#manualRankingsTable tbody').empty();
+      $('#manualRankingsTable').empty();
     }
 
     rankingsTable = $('#manualRankingsTable').DataTable({
-      serverSide: true,
+      serverSide: false,           // <- client-side para evitar "NaN" en info
       processing: true,
       ajax: {
         url: `${BACKEND_URL}/rankings/manual`,
         type: 'GET',
-        data: function(d) { return { expert_id: expertId }; },
-        dataSrc: d => d.players
+        data: () => ({ expert_id: expertId }),
+        dataSrc: d => d.players || []
       },
       columns: [
+        {
+          data: null,
+          title: '',
+          orderable: false,
+          width: '28px',
+          className: 'text-muted',
+          render: () => `<span class="drag-handle" title="Arrastrar"><i class="bi bi-grip-vertical"></i></span>`
+        },
         { data: 'full_name', title: 'Nombre' },
-        { data: 'position', title: 'Posición' },
-        { data: 'team', title: 'Equipo' },
+        { data: 'position', title: 'Posición', width: '80px' },
+        { data: 'team', title: 'Equipo', width: '80px' },
         {
           data: 'rank',
           title: 'Rank',
+          width: '100px',
           render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data || ''}" data-id="${row.id}" data-field="rank">`
+            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data ?? ''}" data-id="${row.id}" data-field="rank">`
         },
         {
           data: 'tier',
           title: 'Tier',
+          width: '100px',
           render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data || ''}" data-id="${row.id}" data-field="tier">`
+            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data ?? ''}" data-id="${row.id}" data-field="tier">`
         },
         {
           data: null,
           title: 'Eliminar',
           orderable: false,
-          render: (data) => `
-            <button class="btn btn-sm btn-danger btn-delete" data-id="${data.id}">
+          width: '70px',
+          render: (row) => `
+            <button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}">
               <i class="bi bi-trash"></i>
             </button>`
         }
       ],
+      rowId: row => `rank-${row.id}`,
       pageLength: 50,
       responsive: true,
       searching: true,
-      order: [[3, 'asc']],
+      ordering: false, // evitamos que DataTables cambie el DOM; lo manejamos con Sortable
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Inline edit solo en rankings
-    $('#manualRankingsTable tbody').off('change').on('change', '.rank-tier-input', async function() {
-      const input = this;
-      const id = input.dataset.id;
-      const field = input.dataset.field;
-      const value = input.value ? parseInt(input.value) : null;
+    // Re-aplicar Sortable tras cada draw
+    $('#manualRankingsTable').off('draw.dt').on('draw.dt', setupSortable);
+
+    setupSortable(); // primera vez
+
+    // Inline edit (solo rankings)
+    $('#manualRankingsTable tbody').off('change').on('change', '.rank-tier-input', async function () {
+      const id = this.dataset.id;
+      const field = this.dataset.field;
+      const value = this.value ? parseInt(this.value) : null;
+
       try {
-        await fetch(`${BACKEND_URL}/rankings/manual/${id}`, {
+        const resp = await fetch(`${BACKEND_URL}/rankings/manual/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ [field]: value })
         });
-        showSuccess(`${field.charAt(0).toUpperCase() + field.slice(1)} actualizado`);
+        const out = await resp.json();
+        if (!resp.ok) throw new Error(out.error || 'No se pudo actualizar');
+
+        showSuccess(`${capitalize(field)} actualizado`);
         if (field === 'rank') rankingsTable.ajax.reload(null, false);
       } catch (err) {
         showError(`Error al actualizar ${field}: ${err.message}`);
       }
     });
 
-    // Botón eliminar
-    $('#manualRankingsTable tbody').off('click').on('click', '.btn-delete', async function() {
+    // Eliminar
+    $('#manualRankingsTable tbody').off('click').on('click', '.btn-delete', async function () {
       const id = this.dataset.id;
       try {
-        await fetch(`${BACKEND_URL}/rankings/manual/${id}`, { method: 'DELETE' });
+        const del = await fetch(`${BACKEND_URL}/rankings/manual/${id}`, { method: 'DELETE' });
+        const out = await del.json();
+        if (!del.ok) throw new Error(out.error || 'No se pudo eliminar');
+
         showSuccess('Jugador eliminado');
-        pendingTable.ajax.reload(null, false);
         rankingsTable.ajax.reload(null, false);
+        pendingTable.ajax.reload(null, false); // vuelve a aparecer en pending
       } catch (err) {
         showError(err.message);
       }
     });
   }
-};
+
+  function setupSortable() {
+    const tbody = document.querySelector('#manualRankingsTable tbody');
+    if (!tbody) return;
+
+    // Evita crear 2 instancias
+    if (tbody._sortableAttached) return;
+    tbody._sortableAttached = true;
+
+    Sortable.create(tbody, {
+      animation: 150,
+      handle: '.drag-handle',
+      onEnd: async () => {
+        const updates = [];
+        $('#manualRankingsTable tbody tr').each((i, tr) => {
+          const id = tr.id.replace('rank-', '');
+          updates.push({ id: parseInt(id), rank: i + 1 });
+        });
+
+        try {
+          const res = await fetch(`${BACKEND_URL}/rankings/manual/order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+          });
+          const out = await res.json();
+          if (!res.ok) throw new Error(out.error || 'No se pudo guardar el orden');
+
+          showSuccess('Orden actualizado');
+          rankingsTable.ajax.reload(null, false);
+        } catch (err) {
+          showError('Error al guardar orden: ' + err.message);
+        }
+      }
+    });
+  }
+
+  function injectStyles(css) {
+    const tag = document.createElement('style');
+    tag.textContent = css;
+    document.head.appendChild(tag);
+  }
+
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+}
