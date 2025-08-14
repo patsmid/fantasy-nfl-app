@@ -1,4 +1,5 @@
 import express from 'express';
+import { supabase } from './supabaseClient.js';
 import { getFlockRankings, getFantasyProsRankings } from './lib/rankingsService.js';
 
 const router = express.Router();
@@ -42,7 +43,7 @@ router.get('/:source', async (req, res) => {
             id,
             rank,
             tier,
-            players:players(*),
+            players:players(full_name, position, team, player_id),
             expert:experts(experto, source)
           `)
           .eq('expert_id', expertId)
@@ -53,9 +54,12 @@ router.get('/:source', async (req, res) => {
         return res.json({
           source: 'manual',
           expert: data.length ? data[0].expert : null,
-          published: new Date().toISOString(),
           players: data.map(r => ({
-            ...r.players,
+            id: r.id,
+            player_id: r.players.player_id,
+            full_name: r.players.full_name,
+            position: r.players.position,
+            team: r.players.team,
             rank: r.rank,
             tier: r.tier
           }))
@@ -111,6 +115,56 @@ router.delete('/manual/:id', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
+});
+
+// GET - Jugadores pendientes de rankear para un experto
+// GET - Jugadores pendientes de rankear para un experto
+router.get('/manual/pending', async (req, res) => {
+  const expertId = req.query.expert_id;
+  if (!expertId) {
+    return res.status(400).json({ error: 'Debe indicar ?expert_id=<uuid>' });
+  }
+
+  try {
+    // 1️⃣ Obtener IDs de jugadores ya rankeados para ese experto
+    const { data: ranked, error: rankedError } = await supabase
+      .from('manual_rankings')
+      .select('sleeper_player_id')
+      .eq('expert_id', expertId);
+
+    if (rankedError) throw rankedError;
+    const rankedIds = ranked.map(r => r.sleeper_player_id);
+
+    // 2️⃣ Traer jugadores pendientes en chunks
+    const pageSize = 1000;
+    let allPlayers = [];
+    let from = 0;
+
+    while (true) {
+      let query = supabase
+        .from('players')
+        .select('*')
+        .not('team', 'is', null)
+        .not('team', 'eq', '')
+        .range(from, from + pageSize - 1);
+
+      if (rankedIds.length > 0) {
+        query = query.not('player_id', 'in', `(${rankedIds.join(',')})`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      allPlayers = allPlayers.concat(data);
+      from += pageSize;
+    }
+
+    res.json({ success: true, players: allPlayers });
+  } catch (err) {
+    console.error('❌ Error obteniendo jugadores pendientes:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
