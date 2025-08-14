@@ -70,7 +70,7 @@ export default async function renderManualRankingsView() {
   }
 
   // ==========================
-  // Pending players con server-side y editable
+  // Pending players
   // ==========================
   async function renderPendingTable(expertId) {
     if ($.fn.DataTable.isDataTable('#pendingPlayersTable')) {
@@ -98,23 +98,11 @@ export default async function renderManualRankingsView() {
         { data: 'position', title: 'Posición' },
         { data: 'team', title: 'Equipo' },
         {
-          data: 'rank',
-          title: 'Rank',
-          render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white pending-rank-tier" value="${data || 0}" data-id="${row.player_id}" data-field="rank">`
-        },
-        {
-          data: 'tier',
-          title: 'Tier',
-          render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white pending-rank-tier" value="${data || 0}" data-id="${row.player_id}" data-field="tier">`
-        },
-        {
           data: null,
           title: 'Acción',
           orderable: false,
           render: (data, type, row) =>
-            `<button class="btn btn-sm btn-primary btn-add" data-player='${JSON.stringify(row)}'>
+            `<button class="btn btn-sm btn-primary btn-add" data-player='${encodeURIComponent(JSON.stringify(row))}'>
               <i class="bi bi-arrow-right"></i>
             </button>`
         }
@@ -125,8 +113,34 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    attachAddButtons();
-    attachPendingInlineUpdate();
+    // Botón de agregar jugador al ranking
+    $('#pendingPlayersTable tbody').off('click', '.btn-add').on('click', '.btn-add', async function() {
+      const btn = this;
+      const player = JSON.parse(decodeURIComponent(btn.dataset.player));
+      try {
+        const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expert_id: currentExpertId,
+            sleeper_player_id: player.player_id,
+            rank: 0,
+            tier: 0
+          })
+        });
+        const result = await resp.json();
+        if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
+
+        showSuccess(`${player.full_name} agregado al ranking`);
+
+        // Recargar tablas
+        pendingTable.ajax.reload(null, false);
+        rankingsTable.ajax.reload(null, false);
+
+      } catch (err) {
+        showError(err.message);
+      }
+    });
   }
 
   // ==========================
@@ -170,6 +184,13 @@ export default async function renderManualRankingsView() {
           title: 'Tier',
           render: (data, type, row) =>
             `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data || 0}" data-id="${row.id}" data-field="tier">`
+        },
+        {
+          data: null,
+          title: 'Acción',
+          orderable: false,
+          render: (data, type, row) =>
+            `<button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}"><i class="bi bi-trash"></i></button>`
         }
       ],
       pageLength: 50,
@@ -179,54 +200,7 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    attachInlineUpdate();
-  }
-
-  // ==========================
-  // Botón flecha derecha Pending -> Rankings
-  // ==========================
-  function attachAddButtons() {
-    $('#pendingPlayersTable tbody').off('click', '.btn-add').on('click', '.btn-add', async function() {
-      const btn = this;
-      const player = JSON.parse(btn.dataset.player);
-      try {
-        const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expert_id: currentExpertId,
-            sleeper_player_id: player.player_id,
-            rank: 0,
-            tier: 0
-          })
-        });
-        const result = await resp.json();
-        if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
-
-        showSuccess(`${player.full_name} agregado al ranking`);
-
-        pendingTable.row($(btn).closest('tr')).remove().draw();
-
-        const newId = result.data[0].id;
-        rankingsTable.row.add([
-          player.full_name,
-          player.position,
-          player.team,
-          `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="0" data-id="${newId}" data-field="rank">`,
-          `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="0" data-id="${newId}" data-field="tier">`
-        ]).draw();
-
-        attachInlineUpdate();
-      } catch (err) {
-        showError(err.message);
-      }
-    });
-  }
-
-  // ==========================
-  // Inline update Rankings
-  // ==========================
-  function attachInlineUpdate() {
+    // Edición inline de rank/tier
     $('#manualRankingsTable tbody').off('change', '.rank-tier-input').on('change', '.rank-tier-input', async function() {
       const input = this;
       const id = input.dataset.id;
@@ -240,61 +214,22 @@ export default async function renderManualRankingsView() {
         });
         showSuccess(`${field.charAt(0).toUpperCase() + field.slice(1)} actualizado`);
         if (field === 'rank') rankingsTable.order([3, 'asc']).draw();
+        pendingTable.ajax.reload(null, false);
       } catch (err) {
         showError(`Error al actualizar ${field}: ${err.message}`);
       }
     });
-  }
 
-  // ==========================
-  // Inline update Pending
-  // ==========================
-  function attachPendingInlineUpdate() {
-    $('#pendingPlayersTable tbody').off('change', '.pending-rank-tier').on('change', '.pending-rank-tier', async function() {
-      const input = this;
-      const player_id = input.dataset.id;
-      const field = input.dataset.field;
-      const value = input.value ? parseInt(input.value) : 0;
-
+    // Botón eliminar
+    $('#manualRankingsTable tbody').off('click', '.btn-delete').on('click', '.btn-delete', async function() {
+      const id = this.dataset.id;
       try {
-        // Verificar si ya existe en Rankings
-        let rowExists = rankingsTable
-          .rows()
-          .data()
-          .toArray()
-          .find(r => r.player_id === player_id);
-
-        if (!rowExists) {
-          // Crear jugador en manual_rankings si no existe
-          const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              expert_id: currentExpertId,
-              sleeper_player_id: player_id,
-              rank: 0,
-              tier: 0
-            })
-          });
-          const result = await resp.json();
-          if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
-
-          rowExists = { id: result.data[0].id, player_id };
-        }
-
-        // Actualizar campo modificado
-        await fetch(`${BACKEND_URL}/rankings/manual/${rowExists.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [field]: value })
-        });
-        showSuccess(`${field.charAt(0).toUpperCase() + field.slice(1)} actualizado`);
-
-        // Recargar Rankings y Pending
-        pendingTable.ajax.reload(null, false);
+        await fetch(`${BACKEND_URL}/rankings/manual/${id}`, { method: 'DELETE' });
+        showSuccess('Jugador eliminado del ranking');
         rankingsTable.ajax.reload(null, false);
+        pendingTable.ajax.reload(null, false);
       } catch (err) {
-        showError(err.message);
+        showError('Error al eliminar jugador: ' + err.message);
       }
     });
   }
