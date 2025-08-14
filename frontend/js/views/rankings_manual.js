@@ -56,11 +56,11 @@ export default async function renderManualRankingsView() {
     await loadTables(currentExpertId);
   });
 
-  document.getElementById('btn-refresh-pending').addEventListener('click', () => {
+  document.getElementById('btn-refresh-pending').addEventListener('click', async () => {
     if (!currentExpertId) return showError('Selecciona un experto primero');
     pendingTable.ajax.reload(null, false);
   });
-  document.getElementById('btn-refresh-rankings').addEventListener('click', () => {
+  document.getElementById('btn-refresh-rankings').addEventListener('click', async () => {
     if (!currentExpertId) return showError('Selecciona un experto primero');
     rankingsTable.ajax.reload(null, false);
   });
@@ -100,11 +100,13 @@ export default async function renderManualRankingsView() {
         {
           data: null,
           title: 'Acción',
-          orderable: false,
-          render: (data, type, row) =>
-            `<button class="btn btn-sm btn-primary btn-add" data-player='${encodeURIComponent(JSON.stringify(row))}'>
-              <i class="bi bi-arrow-right"></i>
-            </button>`
+          render: (data, type, row) => {
+            // codificamos el objeto para evitar errores de JSON.parse
+            const playerData = encodeURIComponent(JSON.stringify(row));
+            return `<button class="btn btn-sm btn-primary btn-add" data-player='${playerData}'>
+                      <i class="bi bi-arrow-right"></i>
+                    </button>`;
+          }
         }
       ],
       pageLength: 50,
@@ -113,19 +115,23 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Botón de agregar jugador al ranking
+    // Botón agregar a rankings
     $('#pendingPlayersTable tbody').off('click', '.btn-add').on('click', '.btn-add', async function() {
       const btn = this;
       const player = JSON.parse(decodeURIComponent(btn.dataset.player));
       try {
+        // Obtener último rank actual
+        const rankingsData = rankingsTable.rows().data().toArray();
+        const lastRank = rankingsData.length ? Math.max(...rankingsData.map(r => r.rank || 0)) : 0;
+
         const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             expert_id: currentExpertId,
             sleeper_player_id: player.player_id,
-            rank: 0,
-            tier: 0
+            rank: lastRank + 1,
+            tier: 1
           })
         });
         const result = await resp.json();
@@ -165,8 +171,8 @@ export default async function renderManualRankingsView() {
           full_name: p.full_name,
           position: p.position,
           team: p.team,
-          rank: p.rank,
-          tier: p.tier
+          rank: p.rank !== null && p.rank !== undefined ? p.rank : 0,
+          tier: p.tier !== null && p.tier !== undefined ? p.tier : 1
         }))
       },
       columns: [
@@ -177,18 +183,17 @@ export default async function renderManualRankingsView() {
           data: 'rank',
           title: 'Rank',
           render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data || 0}" data-id="${row.id}" data-field="rank">`
+            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data}" data-id="${row.id}" data-field="rank">`
         },
         {
           data: 'tier',
           title: 'Tier',
           render: (data, type, row) =>
-            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data || 0}" data-id="${row.id}" data-field="tier">`
+            `<input type="number" class="form-control form-control-sm bg-dark text-white rank-tier-input" value="${data}" data-id="${row.id}" data-field="tier">`
         },
         {
           data: null,
-          title: 'Acción',
-          orderable: false,
+          title: 'Eliminar',
           render: (data, type, row) =>
             `<button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}"><i class="bi bi-trash"></i></button>`
         }
@@ -200,12 +205,12 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Edición inline de rank/tier
+    // Inline update rank/tier
     $('#manualRankingsTable tbody').off('change', '.rank-tier-input').on('change', '.rank-tier-input', async function() {
       const input = this;
       const id = input.dataset.id;
       const field = input.dataset.field;
-      const value = input.value ? parseInt(input.value) : 0;
+      const value = input.value ? parseInt(input.value) : null;
       try {
         await fetch(`${BACKEND_URL}/rankings/manual/${id}`, {
           method: 'PUT',
@@ -214,7 +219,6 @@ export default async function renderManualRankingsView() {
         });
         showSuccess(`${field.charAt(0).toUpperCase() + field.slice(1)} actualizado`);
         if (field === 'rank') rankingsTable.order([3, 'asc']).draw();
-        pendingTable.ajax.reload(null, false);
       } catch (err) {
         showError(`Error al actualizar ${field}: ${err.message}`);
       }
@@ -226,6 +230,7 @@ export default async function renderManualRankingsView() {
       try {
         await fetch(`${BACKEND_URL}/rankings/manual/${id}`, { method: 'DELETE' });
         showSuccess('Jugador eliminado del ranking');
+
         rankingsTable.ajax.reload(null, false);
         pendingTable.ajax.reload(null, false);
       } catch (err) {
