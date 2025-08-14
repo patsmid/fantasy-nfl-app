@@ -118,52 +118,75 @@ router.delete('/manual/:id', async (req, res) => {
 });
 
 // GET - Jugadores pendientes de rankear para un experto
-// GET - Jugadores pendientes de rankear para un experto
 router.get('/manual/pending', async (req, res) => {
-  const expertId = req.query.expert_id;
-  if (!expertId) {
-    return res.status(400).json({ error: 'Debe indicar ?expert_id=<uuid>' });
-  }
-
   try {
-    // 1️⃣ Obtener IDs de jugadores ya rankeados para ese experto
-    const { data: ranked, error: rankedError } = await supabase
-      .from('manual_rankings')
-      .select('sleeper_player_id')
-      .eq('expert_id', expertId);
+    const expertId = req.query.expert_id;
+    if (!expertId) return res.status(400).json({ error: 'Debe indicar ?expert_id=<uuid>' });
 
-    if (rankedError) throw rankedError;
-    const rankedIds = ranked.map(r => r.sleeper_player_id);
+    // Parámetros DataTables
+    const start = parseInt(req.query.start) || 0;
+    const length = parseInt(req.query.length) || 50;
+    const searchValue = req.query['search[value]']?.trim() || '';
 
-    // 2️⃣ Traer jugadores pendientes en chunks
-    const pageSize = 1000;
-    let allPlayers = [];
-    let from = 0;
+    // Contar total de jugadores
+    const { count: recordsTotal, error: countError } = await supabase
+      .from('players')
+      .select('player_id', { count: 'exact', head: true })
+      .not('team', 'is', null)
+      .not('team', 'eq', '');
 
-    while (true) {
-      let query = supabase
-        .from('players')
-        .select('*')
-        .not('team', 'is', null)
-        .not('team', 'eq', '')
-        .range(from, from + pageSize - 1);
+    if (countError) throw countError;
 
-      if (rankedIds.length > 0) {
-        query = query.not('player_id', 'in', `(${rankedIds.join(',')})`);
-      }
+    // Query principal con búsqueda y paginación
+    let query = supabase
+      .from('players')
+      .select('*')
+      .not('team', 'is', null)
+      .not('team', 'eq', '');
 
-      const { data, error } = await query;
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-
-      allPlayers = allPlayers.concat(data);
-      from += pageSize;
+    if (searchValue) {
+      query = query.or(
+        `full_name.ilike.%${searchValue}%,` +
+        `first_name.ilike.%${searchValue}%,` +
+        `last_name.ilike.%${searchValue}%,` +
+        `position.ilike.%${searchValue}%,` +
+        `team.ilike.%${searchValue}%`
+      );
     }
 
-    res.json({ success: true, players: allPlayers });
+    query = query.order('full_name', { ascending: true }).range(start, start + length - 1);
+
+    const { data: players, error } = await query;
+    if (error) throw error;
+
+    // Marcar qué jugadores ya están rankeados por este experto
+    const playerIds = players.map(p => p.player_id);
+    const { data: rankedPlayers } = await supabase
+      .from('manual_rankings')
+      .select('sleeper_player_id')
+      .eq('expert_id', expertId)
+      .in('sleeper_player_id', playerIds);
+
+    const rankedIds = rankedPlayers.map(r => r.sleeper_player_id);
+
+    // Formatear data para DataTables
+    const formatted = players.map(p => ({
+      id: p.id,
+      full_name: p.full_name,
+      position: p.position,
+      team: p.team,
+      pending: !rankedIds.includes(p.player_id)
+    }));
+
+    res.json({
+      draw: parseInt(req.query.draw) || 1,
+      recordsTotal,
+      recordsFiltered: formatted.length,
+      data: formatted
+    });
   } catch (err) {
-    console.error('❌ Error obteniendo jugadores pendientes:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('❌ Error en /manual/pending:', err.message || err);
+    res.status(500).json({ error: err.message || 'Error inesperado' });
   }
 });
 
