@@ -78,8 +78,13 @@ router.get('/:source', async (req, res) => {
 });
 
 // POST - Crear ranking manual
+// POST - Crear ranking manual
 router.post('/manual', async (req, res) => {
-  const { expert_id, sleeper_player_id, rank, tier } = req.body;
+  let { expert_id, sleeper_player_id, rank, tier } = req.body;
+
+  // Si rank es null o undefined, asignamos 0
+  rank = rank ?? 0;
+  tier = tier ?? 0;
 
   const { data, error } = await supabase
     .from('manual_rankings')
@@ -89,6 +94,7 @@ router.post('/manual', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true, data });
 });
+
 
 // PUT - Editar ranking manual
 router.put('/manual/:id', async (req, res) => {
