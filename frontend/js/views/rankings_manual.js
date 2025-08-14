@@ -8,7 +8,6 @@ export default async function renderManualRankingsView() {
 
   const experts = await fetchExperts();
   const manualExperts = experts.filter(e => e.source === 'manual');
-
   const expertOptions = manualExperts.map(e => `<option value="${e.id}">${e.experto}</option>`).join('');
 
   content.innerHTML = `
@@ -24,7 +23,7 @@ export default async function renderManualRankingsView() {
         </div>
 
         <div class="row g-4">
-          <div class="col-6">
+          <div class="col-12 col-md-6">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5>Jugadores por rankear</h5>
               <button class="btn btn-sm btn-secondary" id="btn-refresh-pending">Actualizar</button>
@@ -32,7 +31,7 @@ export default async function renderManualRankingsView() {
             <table id="pendingPlayersTable" class="table table-dark table-striped w-100"></table>
           </div>
 
-          <div class="col-6">
+          <div class="col-12 col-md-6">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5>Rankings actuales</h5>
               <button class="btn btn-sm btn-secondary" id="btn-refresh-rankings">Actualizar</button>
@@ -82,9 +81,7 @@ export default async function renderManualRankingsView() {
       ajax: {
         url: `${BACKEND_URL}/rankings/manual/pending`,
         type: 'GET',
-        data: function(d) {
-          return { ...d, expert_id: expertId, positions: 'WR,RB,TE,QB' };
-        },
+        data: function(d) { return { ...d, expert_id: expertId, positions: 'WR,RB,TE,QB' }; },
         dataSrc: d => d.players
       },
       columns: [
@@ -107,13 +104,16 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
+    // Botón agregar jugador
     $('#pendingPlayersTable tbody').off('click').on('click', '.btn-add', async function() {
       const player_id = this.dataset.playerId;
       try {
-        // Obtener último rank +1
-        const { data: ranks } = await fetch(`${BACKEND_URL}/rankings/manual?expert_id=${expertId}`).then(r => r.json());
-        const lastRank = ranks.players.reduce((max, p) => Math.max(max, p.rank || 0), 0);
+        // Obtener último rank +1 desde backend
+        const respRanks = await fetch(`${BACKEND_URL}/rankings/manual?expert_id=${expertId}`);
+        const ranksData = await respRanks.json();
+        const lastRank = ranksData.players?.reduce((max, p) => Math.max(max, p.rank || 0), 0) || 0;
 
+        // Agregar jugador con rank = lastRank + 1
         const resp = await fetch(`${BACKEND_URL}/rankings/manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -123,9 +123,8 @@ export default async function renderManualRankingsView() {
         if (!result.success) throw new Error(result.error || 'Error al agregar jugador');
 
         showSuccess('Jugador agregado al ranking');
-
-        pendingTable.ajax.reload(null, false);
-        rankingsTable.ajax.reload(null, false);
+        pendingTable.ajax.reload(null, false);   // se elimina de pending
+        rankingsTable.ajax.reload(null, false); // se agrega a rankings
 
       } catch (err) {
         showError(err.message);
@@ -184,7 +183,7 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Editar rank/tier inline
+    // Inline edit solo en rankings
     $('#manualRankingsTable tbody').off('change').on('change', '.rank-tier-input', async function() {
       const input = this;
       const id = input.dataset.id;
@@ -216,4 +215,4 @@ export default async function renderManualRankingsView() {
       }
     });
   }
-}
+};
