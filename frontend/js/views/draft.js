@@ -74,6 +74,16 @@ export default async function renderDraftView() {
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
 
+          <!-- NUEVO: Checkbox Solo jugadores libres -->
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="checkbox-only-free">
+              <label class="form-check-label" for="checkbox-only-free">
+                Solo jugadores libres
+              </label>
+            </div>
+          </div>
+
           <!-- NUEVO: Checkbox Sleeper ADP -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
@@ -161,6 +171,17 @@ export default async function renderDraftView() {
   // =============================
   // EVENTOS DE FILTROS
   // =============================
+  onlyFreeCheckbox.addEventListener('change', () => {
+    statusSelect.value = onlyFreeCheckbox.checked ? 'LIBRE' : 'TODOS';
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length) refreshUI(draftData);
+  });
+
+  statusSelect.addEventListener('change', () => {
+    onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length) refreshUI(draftData);
+  });
 
   // cuando cambia sleeperADP guardamos y recargamos datos del servidor
   sleeperADPCheckbox.addEventListener('change', () => {
