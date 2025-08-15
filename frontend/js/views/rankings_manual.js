@@ -1,13 +1,11 @@
 import { fetchExperts } from '../api.js';
 import { showSuccess, showError } from '../../components/alerts.js';
-import Sortable from 'sortablejs';
 
 const BACKEND_URL = 'https://fantasy-nfl-backend.onrender.com';
 
 export default async function renderManualRankingsView() {
   const content = document.getElementById('content-container');
 
-  // CSS para animaciones
   injectStyles(`
     @keyframes flashRow { 0%{background:rgba(40,167,69,.35)} 100%{background:transparent} }
     .row-flash { animation: flashRow .9s ease-out 1; }
@@ -54,7 +52,7 @@ export default async function renderManualRankingsView() {
   const expertSelect = document.getElementById('manual-expert');
   let pendingTable, rankingsTable;
   let currentExpertId = null;
-  let lastAddedPlayerId = null; // para resaltar en rankings
+  let lastAddedPlayerId = null;
 
   expertSelect.addEventListener('change', async (e) => {
     currentExpertId = e.target.value;
@@ -111,7 +109,7 @@ export default async function renderManualRankingsView() {
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
-    // Agregar jugador a rankings (evita doble click + fadeOut + remove)
+    // Agregar jugador a rankings
     $('#pendingPlayersTable tbody').off('click').on('click', '.btn-add', async function () {
       if (!currentExpertId) return showError('Selecciona un experto primero');
 
@@ -123,7 +121,7 @@ export default async function renderManualRankingsView() {
       $btn.prop('disabled', true).addClass('disabled');
 
       try {
-        // 1) obtener lastRank + 1 (tolerante a errores)
+        // 1) obtener lastRank + 1 (tolerante)
         let lastRank = 0;
         try {
           const resp = await fetch(`${BACKEND_URL}/rankings/manual?expert_id=${currentExpertId}`);
@@ -170,7 +168,6 @@ export default async function renderManualRankingsView() {
   }
 
   function flashInRankings(playerId) {
-    // esperar al draw y resaltar fila
     $('#manualRankingsTable').one('draw.dt', () => {
       const idx = rankingsTable
         .rows()
@@ -187,7 +184,7 @@ export default async function renderManualRankingsView() {
   }
 
   // ==========================
-  // Rankings (client-side ajax + Sortable)
+  // Rankings (client-side + Sortable)
   // ==========================
   async function renderRankingsTable(expertId) {
     if ($.fn.DataTable.isDataTable('#manualRankingsTable')) {
@@ -196,7 +193,7 @@ export default async function renderManualRankingsView() {
     }
 
     rankingsTable = $('#manualRankingsTable').DataTable({
-      serverSide: false,           // <- client-side para evitar "NaN" en info
+      serverSide: false,
       processing: true,
       ajax: {
         url: `${BACKEND_URL}/rankings/manual`,
@@ -245,16 +242,16 @@ export default async function renderManualRankingsView() {
       pageLength: 50,
       responsive: true,
       searching: true,
-      ordering: false, // evitamos que DataTables cambie el DOM; lo manejamos con Sortable
+      ordering: false,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
     });
 
     // Re-aplicar Sortable tras cada draw
-    $('#manualRankingsTable').off('draw.dt').on('draw.dt', setupSortable);
+    $('#manualRankingsTable').off('draw.dt').on('draw.dt', () => setupSortable());
 
     setupSortable(); // primera vez
 
-    // Inline edit (solo rankings)
+    // Inline edit
     $('#manualRankingsTable tbody').off('change').on('change', '.rank-tier-input', async function () {
       const id = this.dataset.id;
       const field = this.dataset.field;
@@ -293,22 +290,25 @@ export default async function renderManualRankingsView() {
     });
   }
 
-  function setupSortable() {
+  // ===== Sortable (sin import): carga dinámica desde CDN si no existe) =====
+  async function ensureSortable() {
+    if (window.Sortable) return;
+    await loadScript('https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js');
+  }
+  async function setupSortable() {
+    await ensureSortable();
     const tbody = document.querySelector('#manualRankingsTable tbody');
-    if (!tbody) return;
-
-    // Evita crear 2 instancias
-    if (tbody._sortableAttached) return;
+    if (!tbody || tbody._sortableAttached) return;
     tbody._sortableAttached = true;
 
-    Sortable.create(tbody, {
+    window.Sortable.create(tbody, {
       animation: 150,
       handle: '.drag-handle',
       onEnd: async () => {
         const updates = [];
         $('#manualRankingsTable tbody tr').each((i, tr) => {
           const id = tr.id.replace('rank-', '');
-          updates.push({ id: parseInt(id), rank: i + 1 });
+          updates.push({ id: parseInt(id, 10), rank: i + 1 });
         });
 
         try {
@@ -319,7 +319,6 @@ export default async function renderManualRankingsView() {
           });
           const out = await res.json();
           if (!res.ok) throw new Error(out.error || 'No se pudo guardar el orden');
-
           showSuccess('Orden actualizado');
           rankingsTable.ajax.reload(null, false);
         } catch (err) {
@@ -329,11 +328,21 @@ export default async function renderManualRankingsView() {
     });
   }
 
+  // helpers
   function injectStyles(css) {
     const tag = document.createElement('style');
     tag.textContent = css;
     document.head.appendChild(tag);
   }
-
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+      document.head.appendChild(s);
+    });
+  }
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 }
