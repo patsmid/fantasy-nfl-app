@@ -93,8 +93,8 @@ export async function getDraftData(
 
   // 3. Jugadores y ADP
   let adpData;
-
-  if (dynasty || superFlex) {
+  const sleeperADP = true;
+  if (dynasty || superFlex || sleeperADP) {
     adpData = await getADPData(adpType);
   } else {
     const adp_type = scoring === 'PPR'
