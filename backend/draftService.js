@@ -174,29 +174,35 @@ export async function getDraftData(
     const draftedMap = new Map((drafted || []).map(p => [toId(p.player_id), p]));
     const positionMap = new Map((playersData || []).map(p => [toId(p.player_id), p.position]));
 
-    // 8. enrich projections - coherente con keys String
+    // 8. enrich projections - filtrar solo jugadores válidos
     const enrichedProjections = (projections || []).map(p => {
       const pid = toId(p.player_id);
       const pos = positionMap.get(pid) || null;
-      if (!pos) {
-        // advertimos para diagnosis — opcional
-        // console.warn(`Sin posición para ${pid} en playersData; lo dejaré como null (podría excluirse del VOR).`);
-      }
       return {
         ...p,
         position: pos,
-        status: draftedMap.has(pid) ? 'DRAFTEADO' : 'LIBRE'
+        status: draftedMap.has(pid) ? 'DRAFTEADO' : 'LIBRE',
+        total_projected: Number(p.total_projected || 0), // aseguro número
+        player_id: pid // asegurar que player_id sea string
       };
-    });
+    }).filter(p => p.player_id && typeof p.total_projected === 'number');
 
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
-    // 9. VOR (asegurar que la función recibe posiciones correctas)
+    // prevenir error si no hay jugadores válidos
+    if (!projectionsWithStdDev.length) {
+      return {
+        params: { leagueId, position, byeCondition, idExpert, scoring, dynasty, superFlex },
+        data: []
+      };
+    }
+
     const vorList = calculateVORandDropoffPro(
       projectionsWithStdDev,
       starterPositions,
       numTeams
     );
+
 
     // normalizamos vorMap keys a String
     const vorMap = new Map((vorList || []).map(p => [toId(p.player_id), p]));

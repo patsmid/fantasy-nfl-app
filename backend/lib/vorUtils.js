@@ -34,7 +34,7 @@ export function calculateVORandDropoffPro(projections, starterPositions, numTeam
     const baseReplacementIndex = N + (opts.replacementOffset[pos] || 0);
     const boundedIndex = clamp(baseReplacementIndex, 0, sorted.length - 1);
 
-    const replacementValue = meanWindow(sorted, boundedIndex, opts.replacementWindow, p => p.total_projected || 0);
+    const replacementValue = meanWindow(sorted, boundedIndex, opts.replacementWindow, p => p.total_projected || 0) ?? 0;
     const avgDropoff = computeWeightedDropoffStable(sorted, Math.max(1,N), opts.dropoffWindow);
     const scarcityFactor = clamp(
       computeScarcityFactorRobust(pos, startersAtPos, numTeams, avgDropoff, replacementValue, opts),
