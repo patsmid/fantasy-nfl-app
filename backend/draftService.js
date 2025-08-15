@@ -49,16 +49,11 @@ function getLatestDateFromADP(normalizedAdp) {
 
 export async function getDraftData(
   leagueId,
-  { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}
+  { position = 'TODAS', byeCondition = 0, idExpert = 3701, sleeperADP = false } = {}
 ) {
   try {
     // 1. Datos base
-    const [
-      leagueData,
-      season,
-      mainUserId,
-      tipoLiga
-    ] = await Promise.all([
+    const [leagueData, season, mainUserId, tipoLiga] = await Promise.all([
       getSleeperLeague(leagueId),
       getConfigValue('season'),
       getConfigValue('main_user_id'),
@@ -113,16 +108,29 @@ export async function getDraftData(
 
     // 4. ADP
     const adpType = getADPtype(scoring, dynasty, superFlex);
-    const sleeperADP = false;
+    console.log('📊 ADP Flow:', { scoring, dynasty, superFlex, sleeperADP, adpType });
+
     let rawAdpData = [];
     if (dynasty || superFlex || sleeperADP) {
       rawAdpData = (await getADPData(adpType)) || [];
+      console.log('📌 getADPData returned:', rawAdpData.length, 'records');
     } else {
       const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
       rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
+      console.log('📌 getFantasyProsADPDataSimple returned:', rawAdpData.length, 'records');
     }
-    const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros');
+
+    // Normalización y conversión a número
+    const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros')
+      .map(a => ({ ...a, adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null }));
+
+    console.log('🔹 normalizedAdp sample:', normalizedAdp.slice(0, 5));
+
     const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean));
+    console.log('🆔 ADP Player IDs count:', adpPlayerIds.size);
+
+    const adpDate = getLatestDateFromADP(normalizedAdp);
+    console.log('📅 Latest ADP date:', adpDate);
 
     // 5. allPlayerIds
     const allPlayerIds = new Set([...adpPlayerIds]);
@@ -135,7 +143,6 @@ export async function getDraftData(
 
     // 7. proyecciones y picks
     const [projections, drafted] = await Promise.all([projectionsPromise, draftedPromise]);
-
     const draftedMap = new Map((drafted || []).map(p => [toId(p.player_id), p]));
     const positionMap = new Map((playersData || []).map(p => [toId(p.player_id), p.position]));
 
@@ -165,12 +172,11 @@ export async function getDraftData(
 
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
-    // 9. VOR seguro + logging
+    // 9. VOR
     const validProjections = projectionsWithStdDev.filter(p => p.position);
     if (!validProjections.length) {
       console.warn('⚠️ No hay jugadores con posición válida para VOR');
     }
-
     const vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams) || [];
     const vorMap = new Map(vorList.map(p => [toId(p.player_id), p]));
 
@@ -200,7 +206,7 @@ export async function getDraftData(
         dynasty,
         superFlex,
         ranks_published,
-        ADPdate: getLatestDateFromADP(normalizedAdp),
+        ADPdate: adpDate,
         source
       },
       data: players
