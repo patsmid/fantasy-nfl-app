@@ -9,16 +9,29 @@ export default async function renderDraftView() {
   content.innerHTML = `
     <style>
       /* Cards para móvil */
-      #draft-cards .draft-card { background: var(--bg-secondary,#1e1e1e); color: var(--text-primary,#f8f9fa); border: 1px solid var(--border,rgba(255,255,255,.08)); border-radius:.75rem; padding:.75rem .9rem; }
-      #draft-cards .title-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.35rem; }
-      #draft-cards .player { font-weight:600; font-size:1rem; line-height:1.2; }
-      #draft-cards .meta { display:flex; flex-wrap:wrap; gap:.5rem .75rem; font-size:.85rem; opacity:.9; }
+      #draft-cards .draft-card {
+        background: var(--bg-secondary, #1e1e1e);
+        color: var(--text-primary, #f8f9fa);
+        border: 1px solid var(--border, rgba(255,255,255,.08));
+        border-radius: .75rem;
+        padding: .75rem .9rem;
+      }
+      #draft-cards .title-row {
+        display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.35rem;
+      }
+      #draft-cards .player {
+        font-weight:600; font-size:1rem; line-height:1.2;
+      }
+      #draft-cards .meta {
+        display:flex; flex-wrap:wrap; gap:.5rem .75rem; font-size:.85rem; opacity:.9;
+      }
       #draft-cards .kv { display:flex; gap:.25rem; align-items:center; }
       #draft-cards .progress { height:10px; background: rgba(255,255,255,.08); }
       #draft-cards .progress-bar { background-color:#0dcaf0; }
 
-      /* Tabla escritorio */
+      /* Para la tabla de escritorio mantenemos el look original */
       #draftTable td, #draftTable th { vertical-align: middle; }
+      /* Evita que badges y barras se rompan feo en escritorio */
       #draftTable .badge { white-space: nowrap; }
       #draftTable .progress { height:12px; min-width:120px; }
     </style>
@@ -60,12 +73,17 @@ export default async function renderDraftView() {
             <label for="input-bye" class="form-label">Bye condición</label>
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
+
+          <!-- NUEVO: Checkbox Sleeper ADP -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
-              <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
+              <label class="form-check-label" for="chk-sleeperADP">
+                Sleeper ADP
+              </label>
             </div>
           </div>
+
         </form>
 
         <div class="d-flex flex-wrap gap-3 mb-3">
@@ -74,8 +92,11 @@ export default async function renderDraftView() {
         </div>
 
         <div class="mb-3" id="draft-summary"></div>
+
+        <!-- Vista móvil: cards -->
         <div id="draft-cards" class="d-md-none"></div>
 
+        <!-- Vista escritorio: tabla (no responsive de DataTables) -->
         <div class="d-none d-md-block">
           <div class="table-responsive">
             <table id="draftTable" class="table table-dark table-hover align-middle w-100">
@@ -106,6 +127,7 @@ export default async function renderDraftView() {
             </table>
           </div>
         </div>
+
       </div>
     </div>
   `;
@@ -116,11 +138,8 @@ export default async function renderDraftView() {
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
+  const onlyFreeCheckbox = document.getElementById('checkbox-only-free');
   const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
-
-  // ======= Inicializar Tom Select
-  await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
-  await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
 
   // Restaurar valores guardados
   const savedStatus = localStorage.getItem('draftStatusFilter');
@@ -130,34 +149,29 @@ export default async function renderDraftView() {
   const savedSleeperADP = localStorage.getItem('draftSleeperADP');
 
   if (savedStatus) statusSelect.value = savedStatus;
-  if (savedLeague) leagueSelect.tomselect?.setValue(savedLeague);
-  if (savedExpert) expertSelect.tomselect?.setValue(savedExpert);
+  if (savedLeague) leagueSelect.value = savedLeague;
+  if (savedExpert) expertSelect.value = savedExpert;
   if (savedPosition) positionSelect.value = savedPosition;
-  sleeperADPCheckbox.checked = savedSleeperADP === 'true';
+  onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
+  if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
+
+  await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
+  await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
 
   // =============================
   // EVENTOS DE FILTROS
   // =============================
-  positionSelect.addEventListener('change', () => {
-    localStorage.setItem('draftPosition', positionSelect.value);
-    loadDraftData();
-  });
 
+  // cuando cambia sleeperADP guardamos y recargamos datos del servidor
   sleeperADPCheckbox.addEventListener('change', () => {
     localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked);
+    // recargamos los datos porque este flag afecta la consulta al backend
     loadDraftData();
   });
 
-  expertSelect.tomselect?.on('change', value => {
-    localStorage.setItem('draftExpert', value);
-    loadDraftData();
-  });
-
-  leagueSelect.tomselect?.on('change', value => {
-    localStorage.setItem('draftLeague', value);
-    loadDraftData();
-  });
-
+  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
+  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
+  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
   let draftData = [];
@@ -196,12 +210,13 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // TABLA
+  // TABLA (ESCRITORIO)
   // ================================
   function updateTable(filtered) {
     if (!filtered.length) {
       if ($.fn.dataTable.isDataTable('#draftTable')) {
-        $('#draftTable').DataTable().clear().draw();
+        const t = $('#draftTable').DataTable();
+        t.clear().draw();
       }
       return;
     }
@@ -246,19 +261,20 @@ export default async function renderDraftView() {
         autoWidth: false,
         destroy: true,
         pageLength: 25,
-        order: [[0,'desc']],
+        order: [[0, 'desc']],
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
         columnDefs: [
-          { targets: [9,16,17,18], orderable:false },
-          { targets: [9,16,17,18], className:'text-nowrap text-center' }
+          { targets: [9, 16, 17, 18], orderable: false },
+          { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }
         ],
-        rowCallback: function(row,data) {
+        rowCallback: function (row, data) {
           const tier = $(data[17]).text().toLowerCase();
           $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
           if (tier.includes('elite')) $(row).addClass('tier-elite');
           else if (tier.includes('starter')) $(row).addClass('tier-starter');
           else if (tier.includes('bench')) $(row).addClass('tier-bench');
+
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         }
       });
@@ -266,7 +282,7 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // CARDS
+  // CARDS (MÓVIL)
   // ================================
   function updateCards(filtered) {
     const cont = document.getElementById('draft-cards');
@@ -274,7 +290,9 @@ export default async function renderDraftView() {
       cont.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
       return;
     }
+
     const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0)) || 1;
+
     cont.innerHTML = `
       <div class="row g-2">
         ${filtered.map(p => {
@@ -285,7 +303,9 @@ export default async function renderDraftView() {
             <div class="col-12">
               <div class="draft-card">
                 <div class="title-row">
-                  <div class="player">${p.nombre ?? ''}</div>
+                  <div class="player">
+                    ${p.nombre ?? ''}
+                  </div>
                   <span class="badge bg-info text-dark">Prio: ${prio}</span>
                 </div>
                 <div class="meta mb-2">
@@ -296,10 +316,12 @@ export default async function renderDraftView() {
                   <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
                   <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
                 </div>
+
                 <div class="mb-2">
                   <div class="small mb-1">Proyección</div>
                   <div class="progress"><div class="progress-bar" style="width:${projPct}%"></div></div>
                 </div>
+
                 <div class="meta">
                   <span class="kv"><strong>VOR:</strong> ${safeNum(p.vor)}</span>
                   <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
@@ -307,6 +329,7 @@ export default async function renderDraftView() {
                   <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
                   <span class="kv"><strong>Steal:</strong> ${safeNum(p.stealScore)}</span>
                 </div>
+
                 <div class="mt-2 d-flex flex-wrap gap-2">
                   ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
                   ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
@@ -322,14 +345,15 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // REFRESH UI
+  // REFRESH (aplica filtro, cards + tabla)
   // ================================
   function refreshUI(data) {
     const statusFilter = statusSelect.value;
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
+
     renderSummary(filtered);
-    updateCards(filtered);
-    updateTable(filtered);
+    updateCards(filtered);   // móvil
+    updateTable(filtered);   // desktop
   }
 
   // ================================
@@ -337,23 +361,60 @@ export default async function renderDraftView() {
   // ================================
   async function loadDraftData() {
     try {
-      const leagueId = leagueSelect.tomselect?.getValue() || '';
+      const leagueId = leagueSelect.value;
       const position = positionSelect.value;
       const byeCondition = byeInput.value || 0;
-      const idExpert = expertSelect.tomselect?.getValue() || '';
+      const selectedOption = expertSelect.selectedOptions[0];
+      const idExpert = selectedOption?.dataset.id || '';
       const sleeperADP = sleeperADPCheckbox.checked;
 
-      showLoadingBar(true);
-      draftData = await fetchDraftData({ leagueId, position, idExpert, byeCondition, sleeperADP });
+      if (!leagueId || !idExpert) {
+        return showError('Selecciona una liga y un experto');
+      }
+
+      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+
+      // PASAMOS sleeperADP al fetchDraftData (bool)
+      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
+
+      if (!players.length) {
+        Swal.close();
+        return showError('No se encontraron jugadores.');
+      }
+
+      draftData = players;
       refreshUI(draftData);
+
+      // Fechas
+      const ranksLabel = document.getElementById('ranks-updated-label');
+      if (ranksLabel && params?.ranks_published) {
+        const fecha = new Date(params.ranks_published);
+        ranksLabel.innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-calendar-check-fill text-success"></i>
+            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>`;
+      }
+
+      const adpLabel = document.getElementById('adp-updated-label');
+      if (adpLabel && params?.ADPdate) {
+        const adpDate = new Date(params.ADPdate);
+        adpLabel.innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-clock-history text-warning"></i>
+            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+          </div>`;
+      }
+
+      Swal.close();
     } catch (err) {
-      console.error(err);
-      showError('Error al cargar el draft.');
-    } finally {
-      showLoadingBar(false);
+      Swal.close();
+      console.error('Error en loadDraftData:', err);
+      showError('Error al actualizar draft: ' + err.message);
     }
   }
 
-  // ======= CARGA INICIAL =======
-  loadDraftData();
+  if (savedLeague && savedPosition && savedExpert) loadDraftData();
 }
