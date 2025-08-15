@@ -132,7 +132,6 @@ router.delete('/manual/:id', async (req, res) => {
 });
 
 // GET - Jugadores pendientes de rankear para un experto
-// rankings.js
 router.get('/manual/pending', async (req, res) => {
   try {
     const expertId = req.query.expert_id;
@@ -145,7 +144,7 @@ router.get('/manual/pending', async (req, res) => {
 
     if (!expertId) return res.status(400).json({ error: 'Debe indicar expert_id' });
 
-    // 1️⃣ Obtener player_ids ya rankeados por este experto
+    // 1️⃣ Obtener sleeper_player_ids ya rankeados por este experto
     const { data: ranked, error: errRanked } = await supabase
       .from('manual_rankings')
       .select('sleeper_player_id')
@@ -153,15 +152,20 @@ router.get('/manual/pending', async (req, res) => {
 
     if (errRanked) throw errRanked;
 
-    const rankedIds = ranked.map(r => r.sleeper_player_id);
+    const rankedIds = ranked.map(r => r.sleeper_player_id).filter(Boolean);
 
     // 2️⃣ Consulta a players filtrando posiciones, no rankeados y búsqueda
-    let query = supabase.from('players')
+    let query = supabase
+      .from('players')
       .select('*', { count: 'exact' })
       .in('position', positions);
 
     if (rankedIds.length) {
-      query = query.not('player_id', 'in', `(${rankedIds.map(id => `'${id}'`).join(',')})`);
+      query = query.not(
+        'sleeper_player_id',
+        'in',
+        `(${rankedIds.map(id => `'${id}'`).join(',')})`
+      );
     }
 
     if (search) {
@@ -178,6 +182,7 @@ router.get('/manual/pending', async (req, res) => {
 
     const processed = data.map(p => ({
       player_id: p.player_id,
+      sleeper_player_id: p.sleeper_player_id,
       full_name: p.full_name,
       position: p.position,
       team: p.team,
