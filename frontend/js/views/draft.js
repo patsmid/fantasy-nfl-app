@@ -31,7 +31,6 @@ export default async function renderDraftView() {
 
       /* Para la tabla de escritorio mantenemos el look original */
       #draftTable td, #draftTable th { vertical-align: middle; }
-      /* Evita que badges y barras se rompan feo en escritorio */
       #draftTable .badge { white-space: nowrap; }
       #draftTable .progress { height:12px; min-width:120px; }
     </style>
@@ -74,26 +73,13 @@ export default async function renderDraftView() {
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
 
-          <!-- NUEVO: Checkbox Solo jugadores libres -->
-          <div class="col-md-2 d-flex align-items-end">
-            <div class="form-check mt-2">
-              <input class="form-check-input" type="checkbox" id="checkbox-only-free">
-              <label class="form-check-label" for="checkbox-only-free">
-                Solo jugadores libres
-              </label>
-            </div>
-          </div>
-
           <!-- NUEVO: Checkbox Sleeper ADP -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
-              <label class="form-check-label" for="chk-sleeperADP">
-                Sleeper ADP
-              </label>
+              <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
             </div>
           </div>
-
         </form>
 
         <div class="d-flex flex-wrap gap-3 mb-3">
@@ -148,7 +134,6 @@ export default async function renderDraftView() {
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
-  const onlyFreeCheckbox = document.getElementById('checkbox-only-free');
   const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
 
   // Restaurar valores guardados
@@ -162,31 +147,17 @@ export default async function renderDraftView() {
   if (savedLeague) leagueSelect.value = savedLeague;
   if (savedExpert) expertSelect.value = savedExpert;
   if (savedPosition) positionSelect.value = savedPosition;
-  onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
-  if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
+  sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
+  // Render select con tom-select y sin abrir al seleccionar
   await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
   await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
 
   // =============================
   // EVENTOS DE FILTROS
   // =============================
-  onlyFreeCheckbox.addEventListener('change', () => {
-    statusSelect.value = onlyFreeCheckbox.checked ? 'LIBRE' : 'TODOS';
-    localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length) refreshUI(draftData);
-  });
-
-  statusSelect.addEventListener('change', () => {
-    onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
-    localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length) refreshUI(draftData);
-  });
-
-  // cuando cambia sleeperADP guardamos y recargamos datos del servidor
   sleeperADPCheckbox.addEventListener('change', () => {
     localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked);
-    // recargamos los datos porque este flag afecta la consulta al backend
     loadDraftData();
   });
 
@@ -324,9 +295,7 @@ export default async function renderDraftView() {
             <div class="col-12">
               <div class="draft-card">
                 <div class="title-row">
-                  <div class="player">
-                    ${p.nombre ?? ''}
-                  </div>
+                  <div class="player">${p.nombre ?? ''}</div>
                   <span class="badge bg-info text-dark">Prio: ${prio}</span>
                 </div>
                 <div class="meta mb-2">
@@ -373,8 +342,8 @@ export default async function renderDraftView() {
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
 
     renderSummary(filtered);
-    updateCards(filtered);   // móvil
-    updateTable(filtered);   // desktop
+    updateCards(filtered);
+    updateTable(filtered);
   }
 
   // ================================
@@ -385,57 +354,20 @@ export default async function renderDraftView() {
       const leagueId = leagueSelect.value;
       const position = positionSelect.value;
       const byeCondition = byeInput.value || 0;
-      const selectedOption = expertSelect.selectedOptions[0];
-      const idExpert = selectedOption?.dataset.id || '';
+      const idExpert = expertSelect.selectedOptions[0]?.dataset.id || '';
       const sleeperADP = sleeperADPCheckbox.checked;
 
-      if (!leagueId || !idExpert) {
-        return showError('Selecciona una liga y un experto');
-      }
-
-      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-
-      // PASAMOS sleeperADP al fetchDraftData (bool)
-      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
-
-      if (!players.length) {
-        Swal.close();
-        return showError('No se encontraron jugadores.');
-      }
-
-      draftData = players;
+      showLoadingBar(true);
+      draftData = await fetchDraftData({ leagueId, position, idExpert, byeCondition, sleeperADP });
       refreshUI(draftData);
-
-      // Fechas
-      const ranksLabel = document.getElementById('ranks-updated-label');
-      if (ranksLabel && params?.ranks_published) {
-        const fecha = new Date(params.ranks_published);
-        ranksLabel.innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-calendar-check-fill text-success"></i>
-            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
-          </div>`;
-      }
-
-      const adpLabel = document.getElementById('adp-updated-label');
-      if (adpLabel && params?.ADPdate) {
-        const adpDate = new Date(params.ADPdate);
-        adpLabel.innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-clock-history text-warning"></i>
-            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
-          </div>`;
-      }
-
-      Swal.close();
     } catch (err) {
-      Swal.close();
-      console.error('Error en loadDraftData:', err);
-      showError('Error al actualizar draft: ' + err.message);
+      console.error(err);
+      showError('Error al cargar el draft.');
+    } finally {
+      showLoadingBar(false);
     }
   }
 
-  if (savedLeague && savedPosition && savedExpert) loadDraftData();
+  // Carga inicial
+  loadDraftData();
 }

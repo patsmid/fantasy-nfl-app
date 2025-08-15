@@ -20,12 +20,12 @@ export async function fetchLineupData(leagueId, idExpert) {
 }
 
 export async function fetchDraftData(
-    leagueId,
-    position = 'TODAS',
-    byeCondition = 0,
-    idExpert = 3701,
-    sleeperADP = false  // nuevo parámetro
-  ) {
+  leagueId,
+  position = 'TODAS',
+  byeCondition = 0,
+  idExpert = 3701,
+  sleeperADP = false  // nuevo parámetro
+) {
   const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&idExpert=${idExpert}&sleeperADP=${sleeperADP}`;
 
   try {
@@ -38,13 +38,13 @@ export async function fetchDraftData(
     const json = await res.json();
 
     // Validar estructura esperada
-    if (!json?.players || !Array.isArray(json.players)) {
+    if (!json?.data?.players || !Array.isArray(json.data.players)) {
       console.error('Respuesta inesperada del servidor:', json);
       throw new Error('Formato inválido: faltan jugadores en la respuesta');
     }
 
     return {
-      players: json.players,
+      players: json.data.players,
       params: json.params || {}
     };
   } catch (err) {
@@ -52,7 +52,6 @@ export async function fetchDraftData(
     throw err;
   }
 }
-
 
 export async function fetchPlayers() {
   const res = await fetchWithTimeout(`${API_BASE}/players`);
