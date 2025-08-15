@@ -1,8 +1,8 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiers, assignTiersHybrid } from '../utils/tiering.js';
+import { assignTiers } from '../utils/tiering.js';
 
-const useClustering = true; // Cambia para alternar método
+const useHybridTiers = true; // true = hybrid adjustedVOR + dropoff, false = clásico
 
 export function buildFinalPlayers({
   adpData,
@@ -48,7 +48,7 @@ export function buildFinalPlayers({
     const adpBefore = adp.adp_value_prev || 500;
     const status = draftedMap.has(playerId) ? '' : 'LIBRE';
 
-    // Ranking: búsqueda exacta o fuzzy
+    // Ranking: exacto o fuzzy
     let playerRankMatch = rankings.some(r => String(r.player_id) === playerId)
       ? rankings.filter(r => String(r.player_id) === playerId)
       : fuzzySearch(fullName, rankings);
@@ -108,10 +108,10 @@ export function buildFinalPlayers({
   // ===============================
   // ASIGNACIÓN DE TIERS
   // ===============================
-  if (useClustering) {
-    assignTiersHybrid(players, { method: 'kmeans', features: ['adjustedVOR', 'dropoff'] });
+  if (useHybridTiers) {
+    assignTiers(players, false); // global híbrido
   } else {
-    assignTiers(players, false); // global
+    assignTiers(players, false); // global clásico
   }
 
   const maxGlobalTier = Math.max(...players.map(p => p.tier));
@@ -120,7 +120,7 @@ export function buildFinalPlayers({
     p.tier_global_label = getTierLabel(p.tier, maxGlobalTier);
   }
 
-  assignTiers(players, true); // posición
+  assignTiers(players, true); // por posición
   const maxTierPos = Math.max(...players.map(p => p.tier));
   for (const p of players) {
     p.tier_pos = p.tier;
