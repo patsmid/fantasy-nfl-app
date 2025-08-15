@@ -129,7 +129,7 @@ export async function getDraftData(
 
   const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
-  const vorList = calculateVORandDropoff(
+  const vorList = calculateVORandDropoffPro(
     projectionsWithStdDev,
     starterPositions,
     numTeams
