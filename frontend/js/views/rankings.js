@@ -85,17 +85,20 @@ export default async function renderRankingsView() {
       );
       const source = selectedExpert?.source || 'flock';
 
-      // Construir URL según source
+      // Construir URL según source y tipo de identificador
       let queryUrl;
       switch (source) {
         case 'flock':
-          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expertId}`;
+          // Flock espera el nombre del experto
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${encodeURIComponent(selectedExpert.experto)}`;
           break;
         case 'fantasypros':
-          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/fantasypros?season=2025&scoring=PPR&idExpert=${expertId}`;
+          // FantasyPros espera idExpert
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/fantasypros?season=2025&scoring=PPR&idExpert=${selectedExpert.id_experto}`;
           break;
         case 'manual':
-          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/manual?expert_id=${expertId}`;
+          // Manual espera expert_id
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/manual?expert_id=${selectedExpert.id_experto}`;
           break;
         default:
           queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}`;
@@ -103,15 +106,19 @@ export default async function renderRankingsView() {
 
       const res = await fetch(queryUrl);
       const result = await res.json();
+      console.log('💡 Resultado del fetch:', result); // para depuración
       Swal.close();
 
-      // Obtener lista de jugadores según formato de respuesta
+      // Manejo flexible de la respuesta
       let players = [];
       if (result.players) {
         players = result.players;
       } else if (Array.isArray(result.data)) {
         players = result.data;
+      } else if (Array.isArray(result)) {
+        players = result;
       } else {
+        console.error('💥 Resultado inesperado:', result);
         throw new Error('Formato de respuesta inesperado');
       }
 
@@ -122,13 +129,18 @@ export default async function renderRankingsView() {
       // Llenar tabla
       players.forEach(p => {
         const rankValue = p.rank ?? p.average_rank ?? '-';
+        const playerName = p.full_name || p.player_name || '-';
+        const position = p.position || '-';
+        const team = p.team || '-';
+        const avgRank = p.average_rank ?? '-';
+
         tbody.innerHTML += `
           <tr>
             <td>${rankValue}</td>
-            <td>${p.full_name || p.player_name}</td>
-            <td>${p.position}</td>
-            <td>${p.team}</td>
-            <td>${p.average_rank ?? '-'}</td>
+            <td>${playerName}</td>
+            <td>${position}</td>
+            <td>${team}</td>
+            <td>${avgRank}</td>
           </tr>
         `;
       });
@@ -151,4 +163,5 @@ export default async function renderRankingsView() {
       showError('Error al obtener rankings: ' + err.message);
     }
   });
+
 }
