@@ -34,6 +34,30 @@ export function buildFinalPlayers({
     try {
       const playerId = String(adp.sleeper_player_id);
       const playerInfo = playersDataMap.get(playerId);
+
+      // =========================
+      // LOGS DE DIAGNÓSTICO ADP
+      // =========================
+      if (!playerInfo) {
+        console.warn('⚠️ ADP player sin match en playersData:', {
+          sleeper_player_id: playerId,
+          full_name: adp.raw?.full_name,
+          adpValue: adp.adp_rank ?? adp.adp_value
+        });
+      } else if (adp.adp_rank === null || adp.adp_rank === 0) {
+        console.warn('⚠️ ADP player con adp_rank inválido:', {
+          playerId,
+          full_name: playerInfo.full_name,
+          adpValue: adp.adp_rank ?? adp.adp_value
+        });
+      } else {
+        console.log('✅ ADP player match OK:', {
+          playerId,
+          full_name: playerInfo.full_name,
+          adpValue: adp.adp_rank ?? adp.adp_value
+        });
+      }
+
       if (!playerInfo?.full_name) return acc;
 
       const fullName = playerInfo.full_name;
@@ -78,6 +102,20 @@ export function buildFinalPlayers({
       const priorityScore = Number(
         ((adjustedVor * 0.6 + projection * 0.3) / Math.max(1, adpValue)).toFixed(3)
       );
+
+      // =========================
+      // LOG ADP FINAL POR JUGADOR
+      // =========================
+      console.log('🔹 Procesando jugador:', {
+        playerId,
+        fullName,
+        adpValue,
+        adpBefore,
+        rank,
+        status,
+        projection,
+        adjustedVor
+      });
 
       acc.push({
         player_id: playerId,
