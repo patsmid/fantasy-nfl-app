@@ -1,8 +1,8 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiers } from '../utils/tiering.js';
+import { assignTiers, assignTiersHybrid } from '../utils/tiering.js';
 
-const useHybridTiers = true; // true = hybrid adjustedVOR + dropoff, false = clásico
+const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff, false = clásico
 
 export function buildFinalPlayers({
   adpData,
@@ -109,22 +109,24 @@ export function buildFinalPlayers({
   // ASIGNACIÓN DE TIERS
   // ===============================
   if (useHybridTiers) {
-    assignTiers(players, false); // global híbrido
+    assignTiersHybrid(players, { method: 'kmeans', features: ['adjustedVOR', 'dropoff'] });
   } else {
     assignTiers(players, false); // global clásico
   }
 
+  // Tiers globales
   const maxGlobalTier = Math.max(...players.map(p => p.tier));
   for (const p of players) {
     p.tier_global = p.tier;
-    p.tier_global_label = getTierLabel(p.tier, maxGlobalTier);
+    p.tier_global_label = getTierLabel(p.tier, maxGlobalTier, 'global');
   }
 
-  assignTiers(players, true); // por posición
+  // Tiers por posición
+  assignTiers(players, true);
   const maxTierPos = Math.max(...players.map(p => p.tier));
   for (const p of players) {
     p.tier_pos = p.tier;
-    p.tier_pos_label = getTierLabel(p.tier, maxTierPos);
+    p.tier_pos_label = getTierLabel(p.tier, maxTierPos, 'pos');
   }
 
   return players.sort((a, b) => a.rank - b.rank);
@@ -133,8 +135,8 @@ export function buildFinalPlayers({
 // ==================================
 // HELPERS
 // ==================================
-function getTierLabel(tier, totalTiers = 5) {
-  const labels = [
+function getTierLabel(tier, totalTiers = 5, type = 'global') {
+  const labelsGlobal = [
     '🔥 Elite',
     '💎 Top',
     '⭐ Starter',
@@ -144,10 +146,21 @@ function getTierLabel(tier, totalTiers = 5) {
     '⚠️ Riesgo',
     '🪑 Bench'
   ];
-  const available = labels.slice(0, totalTiers).concat(
-    Array(Math.max(0, totalTiers - labels.length)).fill(labels[labels.length - 1])
-  );
-  return available[Math.min(tier - 1, available.length - 1)];
+
+  const labelsPos = [
+    '🏆 Elite Pos',
+    '💎 Top Pos',
+    '⭐ Starter Pos',
+    '✅ Confiable Pos',
+    '🔄 Relleno Pos',
+    '📦 Profundidad Pos',
+    '⚠️ Riesgo Pos',
+    '🪑 Bench Pos'
+  ];
+
+  const labels = type === 'global' ? labelsGlobal : labelsPos;
+
+  return labels[Math.min(tier - 1, labels.length - 1)];
 }
 
 function getRiskTags(player = {}) {
