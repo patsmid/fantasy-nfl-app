@@ -93,13 +93,13 @@ export default async function renderDraftView() {
 
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
-  const savedPosition = localStorage.getItem('draftPosition');
   const savedExpert = localStorage.getItem('draftExpert');
+  const savedPosition = localStorage.getItem('draftPosition');
 
   if (savedStatus) statusSelect.value = savedStatus;
   if (savedLeague) leagueSelect.value = savedLeague;
-  if (savedPosition) positionSelect.value = savedPosition;
   if (savedExpert) expertSelect.value = savedExpert;
+  if (savedPosition) positionSelect.value = savedPosition;
 
   await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
   await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
@@ -112,6 +112,9 @@ export default async function renderDraftView() {
 
   let draftData = [];
 
+  // ================================
+  // FUNCIONES AUXILIARES
+  // ================================
   const getHeatColor = (value, min, max) => {
     if (max === min) return '#888';
     const ratio = (value - min) / (max - min);
@@ -142,6 +145,8 @@ export default async function renderDraftView() {
     const statusFilter = statusSelect.value;
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
 
+    if (!filtered.length) return;
+
     const minPriority = Math.min(...filtered.map(p => p.priorityScore));
     const maxPriority = Math.max(...filtered.map(p => p.priorityScore));
 
@@ -166,9 +171,9 @@ export default async function renderDraftView() {
       `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.vor}</span>`,
       `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.adjustedVOR}</span>`,
       p.dropoff ?? '',
-      Number(p.valueOverADP?.toFixed(2) ?? 0),
-      Number(p.stealScore?.toFixed(2) ?? 0),
-      (p.riskTags || []).join(', '),
+      Number(p.valueOverADP.toFixed(2)),
+      Number(p.stealScore.toFixed(2)),
+      p.riskTags.join(', '),
       p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
       `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
@@ -176,30 +181,35 @@ export default async function renderDraftView() {
 
     renderSummary(filtered);
 
-    $('#draftTable').DataTable({
-      data: dataSet,
-      responsive: true,
-      scrollX: true,
-      destroy: true,
-      pageLength: 25,
-      order: [[0, 'desc']],
-      language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
-      dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
-      columnDefs: [
-        { targets: [9, 16, 17, 18], orderable: false },
-        { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }
-      ],
-      rowCallback: function (row, data) {
-        const tier = $(data[17]).text().toLowerCase();
-        $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
+    if ($.fn.dataTable.isDataTable('#draftTable')) {
+      const table = $('#draftTable').DataTable();
+      table.clear();
+      table.rows.add(dataSet);
+      table.draw();
+    } else {
+      $('#draftTable').DataTable({
+        data: dataSet,
+        responsive: true,
+        scrollX: true,
+        autoWidth: false,
+        destroy: true,
+        pageLength: 25,
+        order: [[0, 'desc']],
+        language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
+        dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
+        columnDefs: [{ targets: [9, 16, 17, 18], orderable: false }, { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }],
+        rowCallback: function (row, data) {
+          const tier = $(data[17]).text().toLowerCase();
+          $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
 
-        if (tier.includes('elite')) $(row).addClass('tier-elite');
-        else if (tier.includes('starter')) $(row).addClass('tier-starter');
-        else if (tier.includes('bench')) $(row).addClass('tier-bench');
+          if (tier.includes('elite')) $(row).addClass('tier-elite');
+          else if (tier.includes('starter')) $(row).addClass('tier-starter');
+          else if (tier.includes('bench')) $(row).addClass('tier-bench');
 
-        if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
-      }
-    });
+          if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
+        }
+      });
+    }
   }
 
   async function loadDraftData() {
@@ -214,21 +224,22 @@ export default async function renderDraftView() {
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
 
-      draftData = res.data?.players || [];
-      await updateTable(draftData);
+      // CORRECCIÓN: acceder correctamente a players
+      draftData = res.data?.data?.players || [];
+      updateTable(draftData);
 
       // Fechas
       const ranksLabel = document.getElementById('ranks-updated-label');
-      if (ranksLabel && res?.params?.ranks_published) {
-        const fecha = new Date(res.params.ranks_published);
+      if (ranksLabel && res?.data?.params?.ranks_published) {
+        const fecha = new Date(res.data.params.ranks_published);
         ranksLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
           <i class="bi bi-calendar-check-fill text-success"></i> Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
         </div>`;
       }
 
       const adpLabel = document.getElementById('adp-updated-label');
-      if (adpLabel && res?.params?.ADPdate) {
-        const adpDate = new Date(res.params.ADPdate);
+      if (adpLabel && res?.data?.params?.ADPdate) {
+        const adpDate = new Date(res.data.params.ADPdate);
         adpLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
           <i class="bi bi-clock-history text-warning"></i> ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
         </div>`;
