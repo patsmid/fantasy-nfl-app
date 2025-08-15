@@ -94,10 +94,12 @@ export default async function renderDraftView() {
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedExpert = localStorage.getItem('draftExpert');
+  const savedPosition = localStorage.getItem('draftPosition');
 
   if (savedStatus) statusSelect.value = savedStatus;
   if (savedLeague) leagueSelect.value = savedLeague;
   if (savedExpert) expertSelect.value = savedExpert;
+  if (savedPosition) positionSelect.value = savedPosition;
 
   await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
   await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
@@ -110,9 +112,6 @@ export default async function renderDraftView() {
 
   let draftData = [];
 
-  // ================================
-  // FUNCIONES AUXILIARES
-  // ================================
   const getHeatColor = (value, min, max) => {
     if (max === min) return '#888';
     const ratio = (value - min) / (max - min);
@@ -124,9 +123,9 @@ export default async function renderDraftView() {
   function renderSummary(players) {
     const summary = { tiers: {}, steals: 0, risks: 0 };
     players.forEach(p => {
-      summary.tiers[p.tier_global_label] = (summary.tiers[p.tier_global_label] || 0) + 1;
+      summary.tiers[p.tier_global_label || ''] = (summary.tiers[p.tier_global_label || ''] || 0) + 1;
       if (p.valueTag === '💎 Steal') summary.steals++;
-      if (p.riskTags.length) summary.risks++;
+      if (p.riskTags && p.riskTags.length) summary.risks++;
     });
 
     const container = document.getElementById('draft-summary');
@@ -143,33 +142,33 @@ export default async function renderDraftView() {
     const statusFilter = statusSelect.value;
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
 
-    const minPriority = Math.min(...filtered.map(p => p.priorityScore));
-    const maxPriority = Math.max(...filtered.map(p => p.priorityScore));
+    const minPriority = Math.min(...filtered.map(p => p.priorityScore || 0));
+    const maxPriority = Math.max(...filtered.map(p => p.priorityScore || 0));
 
-    const minVOR = Math.min(...filtered.map(p => p.adjustedVOR));
-    const maxVOR = Math.max(...filtered.map(p => p.adjustedVOR));
+    const minVOR = Math.min(...filtered.map(p => p.adjustedVOR || 0));
+    const maxVOR = Math.max(...filtered.map(p => p.adjustedVOR || 0));
 
-    const maxProj = Math.max(...filtered.map(p => p.projection));
+    const maxProj = Math.max(...filtered.map(p => p.projection || 0));
 
     const dataSet = filtered.map(p => [
-      `<span style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;">${p.priorityScore}</span>`,
-      p.adpValue ?? '',
-      p.nombre,
-      p.position,
-      p.team,
-      p.bye ?? '',
+      `<span style="background-color:${getHeatColor(p.priorityScore || 0, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;">${p.priorityScore || 0}</span>`,
+      p.adpValue ?? 0,
+      p.nombre ?? '',
+      p.position ?? '',
+      p.team ?? '',
+      p.bye ?? 0,
       p.rank ?? '',
-      p.status,
-      p.adpRound ?? '',
+      p.status ?? '',
+      p.adpRound ?? 0,
       `<div class="progress" style="height:12px;">
-        <div class="progress-bar bg-info" role="progressbar" style="width:${Math.min(100,(p.projection/maxProj)*100)}%"></div>
+        <div class="progress-bar bg-info" role="progressbar" style="width:${Math.min(100, ((p.projection || 0)/maxProj)*100)}%"></div>
       </div>`,
-      `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.vor}</span>`,
-      `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.adjustedVOR}</span>`,
-      p.dropoff ?? '',
-      Number(p.valueOverADP.toFixed(2)),
-      Number(p.stealScore.toFixed(2)),
-      p.riskTags.join(', '),
+      `<span style="background-color:${getHeatColor(p.vor || 0, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.vor || 0}</span>`,
+      `<span style="background-color:${getHeatColor(p.adjustedVOR || 0, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.adjustedVOR || 0}</span>`,
+      p.dropoff ?? 0,
+      Number((p.valueOverADP || 0).toFixed(2)),
+      Number((p.stealScore || 0).toFixed(2)),
+      (p.riskTags || []).join(', '),
       p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
       `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
@@ -186,11 +185,15 @@ export default async function renderDraftView() {
       $('#draftTable').DataTable({
         data: dataSet,
         responsive: true,
+        scrollX: true,
         pageLength: 25,
         order: [[0, 'desc']], // prioridad primero
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
-        columnDefs: [{ targets: [9, 16, 17, 18], orderable: false }, { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }],
+        columnDefs: [
+          { targets: [9, 16, 17, 18], orderable: false },
+          { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }
+        ],
         rowCallback: function (row, data) {
           const tier = $(data[17]).text().toLowerCase();
           $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
@@ -199,7 +202,6 @@ export default async function renderDraftView() {
           else if (tier.includes('starter')) $(row).addClass('tier-starter');
           else if (tier.includes('bench')) $(row).addClass('tier-bench');
 
-          // Destacar steals
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         }
       });
@@ -217,7 +219,7 @@ export default async function renderDraftView() {
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-      draftData = res.data;
+      draftData = res.data.players || [];
       updateTable(draftData);
 
       // Fechas
