@@ -1,8 +1,5 @@
-// ===============================
-// CONFIGURACIÓN
-// ===============================
-const minTierSize = 4; // solo para Dropoff
-const defaultMaxClusters = 7; // máximo de tiers posibles
+const minTierSize = 4;
+const defaultMaxClusters = 7;
 const tierLabels = [
   '🔥 Elite',
   '💎 Top',
@@ -14,9 +11,6 @@ const tierLabels = [
   '🪑 Bench'
 ];
 
-// ===============================
-// ASIGNACIÓN PRINCIPAL DE TIERS
-// ===============================
 export function assignTiers(players, groupByPosition = false) {
   if (!Array.isArray(players) || players.length === 0) return players;
 
@@ -33,7 +27,6 @@ export function assignTiers(players, groupByPosition = false) {
       : assignTiersByDropoff(players, groupByPosition);
   }
 
-  // Asignación automática de labels
   const tiers = players.map(p => p.tier);
   const maxTier = Math.max(...tiers);
   for (const p of players) {
@@ -50,9 +43,6 @@ function getTierLabel(tier, totalTiers = 5) {
   return available[Math.min(tier - 1, available.length - 1)];
 }
 
-// ===============================
-// VERSIÓN HÍBRIDA (adjustedVOR + dropoff) DINÁMICA
-// ===============================
 export function assignTiersHybrid(players, groupByPosition = false) {
   const grouped = groupByPosition
     ? groupBy(players, p => p.position)
@@ -64,37 +54,60 @@ export function assignTiersHybrid(players, groupByPosition = false) {
       Number(p.dropoff || 0)
     ]);
 
+    const dropoffs = dataset.map(d => d[1]);
+    const avgDropoff = average(dropoffs);
+    const maxDropoff = Math.max(...dropoffs);
+    const relativeGap = avgDropoff > 0 ? maxDropoff / avgDropoff : 0;
+
     const vorValues = dataset.map(d => d[0]);
     const vorRange = Math.max(...vorValues) - Math.min(...vorValues);
-    let k = Math.min(defaultMaxClusters, Math.ceil(group.length / 5));
-    if (vorRange < 20) k = Math.max(2, Math.floor(k / 2));
-    if (vorRange > 100) k = Math.min(defaultMaxClusters, k + 1);
 
-    const labels = kmeansSimple(dataset, k);
+    const k = Math.min(defaultMaxClusters, Math.ceil(group.length / 5));
 
-    const avgByCluster = {};
-    labels.forEach((cluster, i) => {
-      if (!avgByCluster[cluster]) avgByCluster[cluster] = [];
-      avgByCluster[cluster].push(dataset[i][0]);
-    });
+    // Elección automática del método
+    if (relativeGap >= 1.15) {
+      // Dropoff dominante
+      assignTiersByDropoff(group, false);
+    } else if (vorRange < 20) {
+      // Valores muy juntos → clustering
+      assignTiersByClustering(group, false);
+    } else {
+      // Híbrido → cortes grandes por dropoff y clustering en el resto
+      const preliminary = [];
+      let tier = 1;
+      let segment = [];
 
-    const clusterOrder = Object.keys(avgByCluster)
-      .sort((a, b) => average(avgByCluster[b]) - average(avgByCluster[a]));
+      const sorted = [...group].sort((a, b) => b.adjustedVOR - a.adjustedVOR);
 
-    const clusterRankMap = {};
-    clusterOrder.forEach((c, i) => (clusterRankMap[c] = i + 1));
+      for (let i = 0; i < sorted.length; i++) {
+        const p = sorted[i];
+        segment.push(p);
+        const drop = Math.abs(p.dropoff || 0);
+        const nextDrop = sorted[i + 1] ? Math.abs(sorted[i + 1].dropoff || 0) : 0;
 
-    group.forEach((p, i) => {
-      p.tier = clusterRankMap[labels[i]];
-    });
+        if (drop > avgDropoff * 1.1 && segment.length >= minTierSize) {
+          // cluster dentro del segmento actual
+          assignTiersByClustering(segment, false);
+          const maxSegTier = Math.max(...segment.map(s => s.tier));
+          // Ajustar offset global
+          segment.forEach(s => s.tier += (tier - 1));
+          tier += maxSegTier;
+          segment = [];
+        }
+      }
+
+      // Último segmento si queda
+      if (segment.length) {
+        assignTiersByClustering(segment, false);
+        const maxSegTier = Math.max(...segment.map(s => s.tier));
+        segment.forEach(s => s.tier += (tier - 1));
+      }
+    }
   }
 
   return players;
 }
 
-// ===============================
-// VERSIÓN K-MEANS CLUSTERING (1D)
-// ===============================
 export function assignTiersByClustering(players, groupByPosition = false) {
   const grouped = groupByPosition
     ? groupBy(players, p => p.position)
@@ -102,23 +115,20 @@ export function assignTiersByClustering(players, groupByPosition = false) {
 
   for (const group of Object.values(grouped)) {
     const values = group
-      .map(p => p.vor)
+      .map(p => p.vor || p.adjustedVOR)
       .filter(v => typeof v === 'number');
 
     const k = Math.min(defaultMaxClusters, Math.max(2, Math.floor(values.length / 4)));
     const assignments = kMeans(values, k);
 
     for (const player of group) {
-      player.tier = assignments.get(player.vor) || k;
+      player.tier = assignments.get(player.vor || player.adjustedVOR) || k;
     }
   }
 
   return players;
 }
 
-// ===============================
-// VERSIÓN BASADA EN DROPOFF
-// ===============================
 export function assignTiersByDropoff(players, groupByPosition = false) {
   const grouped = groupByPosition
     ? groupBy(players, p => p.position)
@@ -126,8 +136,8 @@ export function assignTiersByDropoff(players, groupByPosition = false) {
 
   for (const group of Object.values(grouped)) {
     const sorted = group
-      .filter(p => typeof p.vor === 'number')
-      .sort((a, b) => b.vor - a.vor);
+      .filter(p => typeof (p.vor || p.adjustedVOR) === 'number')
+      .sort((a, b) => (b.vor || b.adjustedVOR) - (a.vor || a.adjustedVOR));
 
     let tier = 1;
     let count = 0;
@@ -149,9 +159,6 @@ export function assignTiersByDropoff(players, groupByPosition = false) {
   return players;
 }
 
-// ===============================
-// MÉTODOS AUXILIARES
-// ===============================
 function groupBy(arr, keyFn) {
   return arr.reduce((acc, item) => {
     const key = keyFn(item);
@@ -165,7 +172,6 @@ function average(arr) {
   return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 }
 
-// --- KMeans multidimensional para assignTiersHybrid ---
 function kmeansSimple(data, k = 3, maxIter = 100) {
   const centroids = data.slice(0, k).map(v => [...v]);
   let labels = new Array(data.length).fill(0);
@@ -206,7 +212,6 @@ function averagePoint(points) {
   return avg;
 }
 
-// --- KMeans 1D para assignTiersByClustering ---
 function kMeans(values, k) {
   const maxIterations = 100;
   let centroids = values.slice(0, k);

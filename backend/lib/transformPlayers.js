@@ -1,8 +1,8 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiers, useClustering } from '../utils/tiering.js';
+import { assignTiersHybrid, assignTiersByDropoff } from '../utils/tiering.js';
 
-const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff, false = clásico
+const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff, false = clásico dropoff
 
 export function buildFinalPlayers({
   adpData,
@@ -109,11 +109,10 @@ export function buildFinalPlayers({
   // ===============================
   // ASIGNACIÓN DE TIERS
   // ===============================
-  // Global
-  if (useHybridTiers && useClustering) {
-    assignTiers(players, false); // híbrido con clustering
+  if (useHybridTiers) {
+    assignTiersHybrid(players, false); // híbrido global
   } else {
-    assignTiers(players, false); // clásico dropoff
+    assignTiersByDropoff(players, false); // clásico dropoff global
   }
 
   const maxGlobalTier = Math.max(...players.map(p => p.tier));
@@ -123,7 +122,11 @@ export function buildFinalPlayers({
   }
 
   // Por posición
-  assignTiers(players, true);
+  if (useHybridTiers) {
+    assignTiersHybrid(players, true);
+  } else {
+    assignTiersByDropoff(players, true);
+  }
   const maxTierPos = Math.max(...players.map(p => p.tier));
   for (const p of players) {
     p.tier_pos = p.tier;
