@@ -93,7 +93,7 @@ export async function getDraftData(
 
   // 3. Jugadores y ADP
   let adpData;
-  const sleeperADP = true;
+  const sleeperADP = false;
   if (dynasty || superFlex || sleeperADP) {
     adpData = await getADPData(adpType);
   } else {

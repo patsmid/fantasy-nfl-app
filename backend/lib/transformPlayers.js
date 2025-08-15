@@ -1,6 +1,6 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiers, assignTiersHybrid } from '../utils/tiering.js';
+import { assignTiers, useClustering } from '../utils/tiering.js';
 
 const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff, false = clásico
 
@@ -48,13 +48,14 @@ export function buildFinalPlayers({
     const adpBefore = adp.adp_value_prev || 500;
     const status = draftedMap.has(playerId) ? '' : 'LIBRE';
 
-    // Ranking: exacto o fuzzy
-    let playerRankMatch = rankings.some(r => String(r.player_id) === playerId)
-      ? rankings.filter(r => String(r.player_id) === playerId)
-      : fuzzySearch(fullName, rankings);
+    // Ranking: exacto por player_id, fallback a fuzzy search
+    let playerRank = rankings.find(r => String(r.player_id) === playerId);
+    if (!playerRank) {
+      const fuzzyMatches = fuzzySearch(fullName, rankings);
+      playerRank = fuzzyMatches.length ? fuzzyMatches[0] : {};
+    }
 
-    const playerRank = playerRankMatch[0] || {};
-    const rank = !playerRankMatch.length
+    const rank = !playerRank.rank
       ? 9999
       : ['DST', 'K'].includes(playerRank.player_eligibility)
         ? playerRank.rank + 1000
@@ -108,20 +109,20 @@ export function buildFinalPlayers({
   // ===============================
   // ASIGNACIÓN DE TIERS
   // ===============================
-  if (useHybridTiers) {
-    assignTiersHybrid(players, { method: 'kmeans', features: ['adjustedVOR', 'dropoff'] });
+  // Global
+  if (useHybridTiers && useClustering) {
+    assignTiers(players, false); // híbrido con clustering
   } else {
-    assignTiers(players, false); // global clásico
+    assignTiers(players, false); // clásico dropoff
   }
 
-  // Tiers globales
   const maxGlobalTier = Math.max(...players.map(p => p.tier));
   for (const p of players) {
     p.tier_global = p.tier;
     p.tier_global_label = getTierLabel(p.tier, maxGlobalTier, 'global');
   }
 
-  // Tiers por posición
+  // Por posición
   assignTiers(players, true);
   const maxTierPos = Math.max(...players.map(p => p.tier));
   for (const p of players) {
@@ -160,7 +161,11 @@ function getTierLabel(tier, totalTiers = 5, type = 'global') {
 
   const labels = type === 'global' ? labelsGlobal : labelsPos;
 
-  return labels[Math.min(tier - 1, labels.length - 1)];
+  const available = labels.slice(0, totalTiers).concat(
+    Array(Math.max(0, totalTiers - labels.length)).fill(labels[labels.length - 1])
+  );
+
+  return available[Math.min(tier - 1, available.length - 1)];
 }
 
 function getRiskTags(player = {}) {
