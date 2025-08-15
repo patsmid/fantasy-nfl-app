@@ -610,3 +610,120 @@ table.dataTable tbody tr.selected {
   color: #0d6efd; /* azul Bootstrap primario */
   font-size: 0.9rem;
 }
+
+/* ===========================
+DRAFT
+   Tiers en filas de la tabla
+   =========================== */
+.tier-elite {
+  background-color: rgba(255, 69, 0, 0.2); /* naranja */
+}
+
+.tier-starter {
+  background-color: rgba(0, 123, 255, 0.2); /* azul */
+}
+
+.tier-bench {
+  background-color: rgba(108, 117, 125, 0.2); /* gris */
+}
+
+.tier-steal {
+  background-color: rgba(40, 167, 69, 0.25); /* verde */
+  font-weight: bold;
+}
+
+/* ===========================
+   Heatmap de Priority Score y VOR
+   =========================== */
+.table-dark td span[style*="background-color:rgb"] {
+  display: inline-block;
+  min-width: 40px;
+  text-align: center;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  padding: 2px 4px;
+}
+
+/* ===========================
+   Progress bars internas
+   =========================== */
+.progress {
+  height: 12px;
+  background-color: rgba(255,255,255,0.1);
+  border-radius: 6px;
+}
+
+.progress-bar {
+  height: 12px;
+  border-radius: 6px;
+}
+
+/* ===========================
+   Badges para tiers y summary
+   =========================== */
+.badge {
+  font-size: 0.8rem;
+  padding: 0.4em 0.6em;
+}
+
+#draft-summary .badge {
+  font-size: 0.85rem;
+  padding: 0.5em 0.75em;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* ===========================
+   Tags de valor y riesgo
+   =========================== */
+td span.value-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+td span.risk-tag {
+  display: inline-block;
+  margin-right: 2px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background-color: rgba(255, 193, 7, 0.3);
+  color: #ffc107;
+  font-size: 0.75rem;
+}
+
+/* ===========================
+   Ajustes generales tabla dark
+   =========================== */
+.table-dark tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.table-dark th, .table-dark td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* ===========================
+   Responsive table tweaks
+   =========================== */
+@media (max-width: 1200px) {
+  .table-responsive {
+    overflow-x: auto;
+  }
+
+  #draftTable td span[style*="background-color:rgb"] {
+    min-width: 32px;
+  }
+}
+
+/* ===========================
+   Resumen dinámico arriba
+   =========================== */
+#draft-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}

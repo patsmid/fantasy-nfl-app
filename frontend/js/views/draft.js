@@ -11,7 +11,7 @@ export default async function renderDraftView() {
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h4 class="m-0 d-flex align-items-center gap-2">
-            <i class="bi bi-clipboard-data text-info"></i> Draft
+            <i class="bi bi-clipboard-data text-info"></i> Draft Inteligente
           </h4>
           <button class="btn btn-sm btn-primary" id="btn-update-draft">
             <i class="bi bi-arrow-clockwise"></i> Actualizar Draft
@@ -45,14 +45,19 @@ export default async function renderDraftView() {
             </select>
           </div>
         </form>
-				<div class="d-flex flex-wrap gap-3 mb-3">
-				  <div id="ranks-updated-label" class="text-start"></div>
-				  <div id="adp-updated-label" class="text-start"></div>
-				</div>
+
+        <div class="d-flex flex-wrap gap-3 mb-3">
+          <div id="ranks-updated-label" class="text-start"></div>
+          <div id="adp-updated-label" class="text-start"></div>
+        </div>
+
+        <div class="mb-3" id="draft-summary"></div>
+
         <div class="table-responsive">
           <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
               <tr>
+                <th>Priority</th>
                 <th>ADP</th>
                 <th>Jugador</th>
                 <th>Posición</th>
@@ -65,6 +70,10 @@ export default async function renderDraftView() {
                 <th>VOR</th>
                 <th>VOR Ajustado</th>
                 <th>Dropoff</th>
+                <th>Value/ADP</th>
+                <th>Steal Score</th>
+                <th>Risk Tags</th>
+                <th>Value Tags</th>
                 <th>Tier Global</th>
                 <th>Tier Posición</th>
               </tr>
@@ -86,86 +95,64 @@ export default async function renderDraftView() {
   const savedLeague = localStorage.getItem('draftLeague');
   const savedExpert = localStorage.getItem('draftExpert');
 
-  let leagueConfig = {};
-  try {
-    leagueConfig = JSON.parse(localStorage.getItem('draftLeagueConfigs')) || {};
-  } catch {
-    leagueConfig = {};
-  }
-
-  const savedPosition = savedLeague && leagueConfig[savedLeague]?.position;
-  const savedBye = savedLeague && leagueConfig[savedLeague]?.bye;
-
   if (savedStatus) statusSelect.value = savedStatus;
-  if (savedPosition) positionSelect.value = savedPosition;
-  if (savedBye !== undefined) byeInput.value = savedBye;
+  if (savedLeague) leagueSelect.value = savedLeague;
+  if (savedExpert) expertSelect.value = savedExpert;
 
-  await renderExpertSelect('#select-expert', {
-    plugins: ['dropdown_input'],
-    dropdownInput: false,
-    create: false,
-    persist: false,
-		onChange() {
-			this.blur();
-		}
-  });
+  await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
+  await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
 
-  await renderLeagueSelect('#select-league', {
-    plugins: ['dropdown_input'],
-    dropdownInput: false,
-    create: false,
-    persist: false,
-		onChange() {
-			this.blur();
-		}
-  });
-
-  const expertTS = document.querySelector('#select-expert')?.tomselect;
-  if (expertTS) {
-    expertTS.setValue(savedExpert || '');
-    expertTS.on('change', value => {
-      localStorage.setItem('draftExpert', value);
-      loadDraftData();
-    });
-  }
-
-  const leagueTS = document.querySelector('#select-league')?.tomselect;
-  if (leagueTS) {
-    leagueTS.setValue(savedLeague || '');
-    leagueTS.on('change', value => {
-      localStorage.setItem('draftLeague', value);
-      const newConfig = JSON.parse(localStorage.getItem('draftLeagueConfigs') || '{}');
-      const newPos = newConfig[value]?.position || 'TODAS';
-      const newBye = newConfig[value]?.bye || '';
-
-      positionSelect.value = newPos;
-      byeInput.value = newBye;
-      loadDraftData();
-    });
-  }
-
-  positionSelect.addEventListener('change', () => {
-    localStorage.setItem('draftPosition', positionSelect.value);
-    loadDraftData();
-  });
-
-  statusSelect.addEventListener('change', () => {
-    localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length) updateTable(draftData);
-  });
-
+  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); if (draftData.length) updateTable(draftData); });
+  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
+  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
+  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
   let draftData = [];
 
-  async function updateTable(data) {
-    const statusFilter = statusSelect.value;
-    const filteredData = data.filter(p => {
-      const statusMatch = statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre';
-      return statusMatch;
+  // ================================
+  // FUNCIONES AUXILIARES
+  // ================================
+  const getHeatColor = (value, min, max) => {
+    if (max === min) return '#888';
+    const ratio = (value - min) / (max - min);
+    const r = Math.floor(255 * (1 - ratio));
+    const g = Math.floor(255 * ratio);
+    return `rgb(${r},${g},0)`;
+  };
+
+  function renderSummary(players) {
+    const summary = { tiers: {}, steals: 0, risks: 0 };
+    players.forEach(p => {
+      summary.tiers[p.tier_global_label] = (summary.tiers[p.tier_global_label] || 0) + 1;
+      if (p.valueTag === '💎 Steal') summary.steals++;
+      if (p.riskTags.length) summary.risks++;
     });
 
-    const dataSet = filteredData.map(p => [
+    const container = document.getElementById('draft-summary');
+    container.innerHTML = `
+      <div class="d-flex gap-3 flex-wrap">
+        ${Object.entries(summary.tiers).map(([tier, count]) => `<span class="badge bg-info">${tier}: ${count}</span>`).join('')}
+        <span class="badge bg-success">Steals: ${summary.steals}</span>
+        <span class="badge bg-warning text-dark">Riesgos: ${summary.risks}</span>
+      </div>
+    `;
+  }
+
+  async function updateTable(data) {
+    const statusFilter = statusSelect.value;
+    const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
+
+    const minPriority = Math.min(...filtered.map(p => p.priorityScore));
+    const maxPriority = Math.max(...filtered.map(p => p.priorityScore));
+
+    const minVOR = Math.min(...filtered.map(p => p.adjustedVOR));
+    const maxVOR = Math.max(...filtered.map(p => p.adjustedVOR));
+
+    const maxProj = Math.max(...filtered.map(p => p.projection));
+
+    const dataSet = filtered.map(p => [
+      `<span style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;">${p.priorityScore}</span>`,
       p.adpValue ?? '',
       p.nombre,
       p.position,
@@ -174,13 +161,21 @@ export default async function renderDraftView() {
       p.rank ?? '',
       p.status,
       p.adpRound ?? '',
-      `<span class="text-info fw-bold">${p.projection ?? ''}</span>`,
-      p.vor ?? '',
-      p.adjustedVOR ?? '',
+      `<div class="progress" style="height:12px;">
+        <div class="progress-bar bg-info" role="progressbar" style="width:${Math.min(100,(p.projection/maxProj)*100)}%"></div>
+      </div>`,
+      `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.vor}</span>`,
+      `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${p.adjustedVOR}</span>`,
       p.dropoff ?? '',
+      Number(p.valueOverADP.toFixed(2)),
+      Number(p.stealScore.toFixed(2)),
+      p.riskTags.join(', '),
+      p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
       `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
     ]);
+
+    renderSummary(filtered);
 
     if ($.fn.dataTable.isDataTable('#draftTable')) {
       const table = $('#draftTable').DataTable();
@@ -192,26 +187,20 @@ export default async function renderDraftView() {
         data: dataSet,
         responsive: true,
         pageLength: 25,
-        order: [[5, 'asc']],
-        language: {
-          url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-        },
+        order: [[0, 'desc']], // prioridad primero
+        language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
-        columnDefs: [
-          { targets: [8, 12, 13], orderable: false },
-          { targets: [8, 12, 13], className: 'text-nowrap text-center' }
-        ],
+        columnDefs: [{ targets: [9, 16, 17, 18], orderable: false }, { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' }],
         rowCallback: function (row, data) {
-          const tier = $(data[12]).text().toLowerCase();
-          $(row).removeClass('tier-elite tier-starter tier-bench');
+          const tier = $(data[17]).text().toLowerCase();
+          $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
 
-          if (tier.includes('elite')) {
-            $(row).addClass('tier-elite');
-          } else if (tier.includes('starter')) {
-            $(row).addClass('tier-starter');
-          } else if (tier.includes('bench')) {
-            $(row).addClass('tier-bench');
-          }
+          if (tier.includes('elite')) $(row).addClass('tier-elite');
+          else if (tier.includes('starter')) $(row).addClass('tier-starter');
+          else if (tier.includes('bench')) $(row).addClass('tier-bench');
+
+          // Destacar steals
+          if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         }
       });
     }
@@ -222,71 +211,31 @@ export default async function renderDraftView() {
       const leagueId = leagueSelect.value;
       const position = positionSelect.value;
       const byeCondition = byeInput.value || 0;
-      //const idExpert = expertSelect.value;
       const selectedOption = expertSelect.selectedOptions[0];
-      const expertValue = expertSelect.value;
       const idExpert = selectedOption?.dataset.id || '';
-
-      if (!leagueId || !idExpert) {
-        return showError('Selecciona una liga y un experto');
-      }
-
-      localStorage.setItem('draftLeague', leagueId);
-      let config = {};
-      try {
-        config = JSON.parse(localStorage.getItem('draftLeagueConfigs')) || {};
-      } catch {
-        config = {};
-      }
-
-      // Guardar valores por liga
-      config[leagueId] = {
-        position,
-        bye: byeCondition
-      };
-
-      localStorage.setItem('draftLeagueConfigs', JSON.stringify(config));
-      localStorage.setItem('draftExpert', expertValue);
+      if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-
       const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
-
-      const ranksLabel = document.getElementById('ranks-updated-label');
-      if (ranksLabel && res?.params?.ranks_published) {
-        const source = res.params.source;
-        const fecha = new Date(res.params.ranks_published);
-        const fechaFormateada = fecha.toLocaleString('es-MX', {
-          dateStyle: 'medium',
-          timeStyle: 'short'
-        });
-
-        ranksLabel.innerHTML = `
-          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-calendar-check-fill text-success"></i>
-            <span><strong>Ranks actualizados (${source}):</strong> ${fechaFormateada}</span>
-          </div>
-        `;
-      }
-			const adpLabel = document.getElementById('adp-updated-label');
-			if (adpLabel && res?.params?.ADPdate) {
-			  const adpDate = new Date(res.params.ADPdate);
-				const formattedADPDate = adpDate.toLocaleDateString('es-MX', {
-				  dateStyle: 'medium'
-				});
-
-			  adpLabel.innerHTML = `
-			    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
-			         style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-			      <i class="bi bi-clock-history text-warning"></i>
-			      <span><strong>ADP actualizado:</strong> ${formattedADPDate}</span>
-			    </div>
-			  `;
-			}
-
       draftData = res.data;
       updateTable(draftData);
+
+      // Fechas
+      const ranksLabel = document.getElementById('ranks-updated-label');
+      if (ranksLabel && res?.params?.ranks_published) {
+        const fecha = new Date(res.params.ranks_published);
+        ranksLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+          <i class="bi bi-calendar-check-fill text-success"></i> Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+        </div>`;
+      }
+
+      const adpLabel = document.getElementById('adp-updated-label');
+      if (adpLabel && res?.params?.ADPdate) {
+        const adpDate = new Date(res.params.ADPdate);
+        adpLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+          <i class="bi bi-clock-history text-warning"></i> ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+        </div>`;
+      }
 
       Swal.close();
     } catch (err) {
@@ -295,8 +244,5 @@ export default async function renderDraftView() {
     }
   }
 
-
-  if (savedLeague && savedPosition && savedExpert) {
-    loadDraftData();
-  }
+  if (savedLeague && savedPosition && savedExpert) loadDraftData();
 }
