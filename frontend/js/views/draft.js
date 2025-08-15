@@ -73,6 +73,7 @@ export default async function renderDraftView() {
             <label for="input-bye" class="form-label">Bye condición</label>
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
+
           <!-- NUEVO: Checkbox Solo jugadores libres -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
@@ -82,6 +83,17 @@ export default async function renderDraftView() {
               </label>
             </div>
           </div>
+
+          <!-- NUEVO: Checkbox Sleeper ADP -->
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
+              <label class="form-check-label" for="chk-sleeperADP">
+                Sleeper ADP
+              </label>
+            </div>
+          </div>
+
         </form>
 
         <div class="d-flex flex-wrap gap-3 mb-3">
@@ -130,24 +142,28 @@ export default async function renderDraftView() {
     </div>
   `;
 
+  // DOM refs
   const statusSelect = document.getElementById('select-status');
   const leagueSelect = document.getElementById('select-league');
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
   const onlyFreeCheckbox = document.getElementById('checkbox-only-free');
+  const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
 
+  // Restaurar valores guardados
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedExpert = localStorage.getItem('draftExpert');
   const savedPosition = localStorage.getItem('draftPosition');
+  const savedSleeperADP = localStorage.getItem('draftSleeperADP');
 
   if (savedStatus) statusSelect.value = savedStatus;
   if (savedLeague) leagueSelect.value = savedLeague;
   if (savedExpert) expertSelect.value = savedExpert;
   if (savedPosition) positionSelect.value = savedPosition;
-
   onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
+  if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
   await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
   await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
@@ -165,6 +181,13 @@ export default async function renderDraftView() {
     onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
     localStorage.setItem('draftStatusFilter', statusSelect.value);
     if (draftData.length) refreshUI(draftData);
+  });
+
+  // cuando cambia sleeperADP guardamos y recargamos datos del servidor
+  sleeperADPCheckbox.addEventListener('change', () => {
+    localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked);
+    // recargamos los datos porque este flag afecta la consulta al backend
+    loadDraftData();
   });
 
   positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
@@ -364,6 +387,7 @@ export default async function renderDraftView() {
       const byeCondition = byeInput.value || 0;
       const selectedOption = expertSelect.selectedOptions[0];
       const idExpert = selectedOption?.dataset.id || '';
+      const sleeperADP = sleeperADPCheckbox.checked;
 
       if (!leagueId || !idExpert) {
         return showError('Selecciona una liga y un experto');
@@ -371,7 +395,8 @@ export default async function renderDraftView() {
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
 
-      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert);
+      // PASAMOS sleeperADP al fetchDraftData (bool)
+      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
 
       if (!players.length) {
         Swal.close();
