@@ -21,7 +21,6 @@ const toId = id => (id == null ? null : String(id));
 function normalizeADPRecords(adpArray = [], source = 'unknown') {
   if (!Array.isArray(adpArray)) return [];
   return adpArray.map(r => {
-    // varios posibles campos donde puede venir la referencia al sleeper id
     const sleeper_player_id =
       r?.sleeper_player_id ??
       r?.player_id ??
@@ -29,11 +28,8 @@ function normalizeADPRecords(adpArray = [], source = 'unknown') {
       r?.id ??
       r?.sleeperPlayerId ??
       null;
-
     const date = r?.date ?? r?.adp_date ?? r?.date_pulled ?? null;
-
     const adp_rank = r?.adp_rank ?? r?.adp ?? r?.rank ?? r?.adp_value ?? null;
-
     return {
       raw: r,
       sleeper_player_id: sleeper_player_id ? String(sleeper_player_id) : null,
@@ -46,7 +42,6 @@ function normalizeADPRecords(adpArray = [], source = 'unknown') {
 
 function getLatestDateFromADP(normalizedAdp) {
   if (!normalizedAdp || normalizedAdp.length === 0) return null;
-  // buscar la fecha más reciente (suponiendo ISO strings o yyyy-mm-dd)
   const dates = normalizedAdp.map(a => (a.date ? new Date(a.date) : null)).filter(Boolean);
   if (dates.length === 0) return null;
   const latest = new Date(Math.max(...dates.map(d => d.getTime())));
@@ -58,7 +53,7 @@ export async function getDraftData(
   { position = 'TODAS', byeCondition = 0, idExpert = 3701 } = {}
 ) {
   try {
-    // 1. Datos base (paralelo)
+    // 1. Datos base
     const [
       leagueData,
       season,
@@ -83,13 +78,12 @@ export async function getDraftData(
         ? 'HALF'
         : 'STANDARD';
 
-    // allow position param in several formats for SUPER FLEX
     let finalPosition = position;
     if (superFlex && (position === true || position === 'SUPER' || position === 'SUPER_FLEX' || position === 'SUPER FLEX')) {
       finalPosition = 'SUPER FLEX';
     }
 
-    // 2. Rankings + proyecciones (paralelizar lo posible)
+    // 2. Rankings + proyecciones
     const expertData = await getExpertData(idExpert);
     const rankingsPromise = getRankings({
       season,
@@ -98,10 +92,7 @@ export async function getDraftData(
       expertData,
       position: finalPosition
     });
-
-    // getAllPlayersProjectedTotals es costoso; lanzarlo YA en paralelo
     const projectionsPromise = getAllPlayersProjectedTotals(leagueId);
-
     const draftedPromise = leagueData.draft_id ? getDraftPicks(leagueData.draft_id) : Promise.resolve([]);
 
     const rankingsResponse = await rankingsPromise;
@@ -109,10 +100,9 @@ export async function getDraftData(
     const ranks_published = rankingsResponse?.published ?? null;
     const source = rankingsResponse?.source ?? null;
 
-    // 3. dst & kicker (si aplica)
+    // 3. DST & Kicker
     let dstRankings = [];
     let kickerRankings = [];
-
     if (expertData?.source !== 'flock') {
       if (starterPositions.includes('DEF')) {
         dstRankings = (await getDSTRankings({
@@ -125,7 +115,6 @@ export async function getDraftData(
           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
         })) || [];
       }
-
       if (starterPositions.includes('K')) {
         kickerRankings = (await getKickerRankings({
           season,
@@ -139,42 +128,36 @@ export async function getDraftData(
       }
     }
 
-    // 4. ADP: decide fuente y normaliza
-    const adpType = getADPtype(scoring, dynasty, superFlex); // tu helper
-    const sleeperADP = false; // si lo usas dinámicamente, pásalo como flag
+    // 4. ADP
+    const adpType = getADPtype(scoring, dynasty, superFlex);
+    const sleeperADP = false;
     let rawAdpData = [];
     if (dynasty || superFlex || sleeperADP) {
       rawAdpData = (await getADPData(adpType)) || [];
     } else {
-      const adp_type = scoring === 'PPR'
-        ? 'FP_ppr'
-        : scoring === 'HALF'
-        ? 'FP_half-ppr'
-        : 'FP_ppr';
-
+      const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
       rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
     }
     const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros');
 
     const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean));
 
-    // 5. allPlayerIds: incluir rankings, dst/kicker, adp
-    const allPlayerIds = new Set();
-    for (const id of adpPlayerIds) allPlayerIds.add(id);
+    // 5. allPlayerIds
+    const allPlayerIds = new Set([...adpPlayerIds]);
     for (const p of rankings) if (p?.player_id) allPlayerIds.add(toId(p.player_id));
     for (const p of dstRankings) if (p?.player_id) allPlayerIds.add(toId(p.player_id));
     for (const p of kickerRankings) if (p?.player_id) allPlayerIds.add(toId(p.player_id));
 
-    // 6. fetch playersData (solo ids únicos)
+    // 6. fetch playersData
     const playersData = await getPlayersData(Array.from(allPlayerIds));
 
-    // 7. proyecciones y picks ya lanzadas antes
+    // 7. proyecciones y picks
     const [projections, drafted] = await Promise.all([projectionsPromise, draftedPromise]);
 
     const draftedMap = new Map((drafted || []).map(p => [toId(p.player_id), p]));
     const positionMap = new Map((playersData || []).map(p => [toId(p.player_id), p.position]));
 
-    // 8. enrich projections - filtrar solo jugadores válidos
+    // 8. enrich projections
     const enrichedProjections = (projections || []).map(p => {
       const pid = toId(p.player_id);
       const pos = positionMap.get(pid) || null;
@@ -182,34 +165,24 @@ export async function getDraftData(
         ...p,
         position: pos,
         status: draftedMap.has(pid) ? 'DRAFTEADO' : 'LIBRE',
-        total_projected: Number(p.total_projected || 0), // aseguro número
-        player_id: pid // asegurar que player_id sea string
+        total_projected: Number(p.total_projected || 0),
+        player_id: pid
       };
     }).filter(p => p.player_id && typeof p.total_projected === 'number');
 
-    const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
-
-    // prevenir error si no hay jugadores válidos
-    if (!projectionsWithStdDev.length) {
-      return {
-        params: { leagueId, position, byeCondition, idExpert, scoring, dynasty, superFlex },
-        data: []
-      };
+    if (!enrichedProjections.length) {
+      return { params: { leagueId, position, byeCondition, idExpert, scoring, dynasty, superFlex }, data: [] };
     }
 
-    const vorList = calculateVORandDropoffPro(
-      projectionsWithStdDev,
-      starterPositions,
-      numTeams
-    );
+    const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
+    // 9. VOR seguro
+    const validProjections = projectionsWithStdDev.filter(p => p.position); // evita posiciones nulas
+    const vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams) || [];
+    const vorMap = new Map(vorList.map(p => [toId(p.player_id), p]));
 
-    // normalizamos vorMap keys a String
-    const vorMap = new Map((vorList || []).map(p => [toId(p.player_id), p]));
-
-    // 10. Construcción final (projections para buildFinalPlayers como Map de Strings)
+    // 10. buildFinalPlayers
     const projectionMap = new Map((projections || []).map(p => [toId(p.player_id), p.total_projected]));
-
     const allRankings = [...rankings, ...dstRankings, ...kickerRankings];
 
     const players = buildFinalPlayers({
@@ -240,7 +213,6 @@ export async function getDraftData(
       data: players
     };
   } catch (err) {
-    // error manejado: devuelve mensaje claro para frontend / logs
     console.error('Error en getDraftData:', err);
     throw new Error(`Error obteniendo datos del draft: ${err.message || err}`);
   }
