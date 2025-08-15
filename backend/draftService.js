@@ -1,4 +1,4 @@
-// draftService.fixed.js
+// draftService.fixed.js (con logging de diagnóstico)
 import {
   getConfigValue,
   getDraftPicks,
@@ -17,7 +17,6 @@ import { getExpertData } from './experts.js';
 
 const toId = id => (id == null ? null : String(id));
 
-// Normaliza registros ADP (intenta sacar sleeper_player_id de distintos shapes)
 function normalizeADPRecords(adpArray = [], source = 'unknown') {
   if (!Array.isArray(adpArray)) return [];
   return adpArray.map(r => {
@@ -85,13 +84,7 @@ export async function getDraftData(
 
     // 2. Rankings + proyecciones
     const expertData = await getExpertData(idExpert);
-    const rankingsPromise = getRankings({
-      season,
-      dynasty,
-      scoring,
-      expertData,
-      position: finalPosition
-    });
+    const rankingsPromise = getRankings({ season, dynasty, scoring, expertData, position: finalPosition });
     const projectionsPromise = getAllPlayersProjectedTotals(leagueId);
     const draftedPromise = leagueData.draft_id ? getDraftPicks(leagueData.draft_id) : Promise.resolve([]);
 
@@ -105,23 +98,13 @@ export async function getDraftData(
     let kickerRankings = [];
     if (expertData?.source !== 'flock') {
       if (starterPositions.includes('DEF')) {
-        dstRankings = (await getDSTRankings({
-          season,
-          dynasty,
-          expertData,
-          weekStatic: null
-        }))?.players?.map(p => ({
+        dstRankings = (await getDSTRankings({ season, dynasty, expertData, weekStatic: null }))?.players?.map(p => ({
           ...p,
           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
         })) || [];
       }
       if (starterPositions.includes('K')) {
-        kickerRankings = (await getKickerRankings({
-          season,
-          dynasty,
-          expertData,
-          weekStatic: null
-        }))?.players?.map(p => ({
+        kickerRankings = (await getKickerRankings({ season, dynasty, expertData, weekStatic: null }))?.players?.map(p => ({
           ...p,
           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
         })) || [];
@@ -139,7 +122,6 @@ export async function getDraftData(
       rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
     }
     const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros');
-
     const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean));
 
     // 5. allPlayerIds
@@ -157,27 +139,38 @@ export async function getDraftData(
     const draftedMap = new Map((drafted || []).map(p => [toId(p.player_id), p]));
     const positionMap = new Map((playersData || []).map(p => [toId(p.player_id), p.position]));
 
-    // 8. enrich projections
+    // 8. enrich projections + logging diagnóstico
     const enrichedProjections = (projections || []).map(p => {
       const pid = toId(p.player_id);
       const pos = positionMap.get(pid) || null;
+      const total_projected = Number(p.total_projected || 0);
+
+      if (isNaN(total_projected)) {
+        console.warn(`⚠️ total_projected inválido para player_id=${pid} name=${p.full_name || p.name}`);
+      }
+
       return {
         ...p,
         position: pos,
         status: draftedMap.has(pid) ? 'DRAFTEADO' : 'LIBRE',
-        total_projected: Number(p.total_projected || 0),
+        total_projected,
         player_id: pid
       };
     }).filter(p => p.player_id && typeof p.total_projected === 'number');
 
     if (!enrichedProjections.length) {
+      console.warn('⚠️ No hay jugadores válidos después de enrichProjections');
       return { params: { leagueId, position, byeCondition, idExpert, scoring, dynasty, superFlex }, data: [] };
     }
 
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
-    // 9. VOR seguro
-    const validProjections = projectionsWithStdDev.filter(p => p.position); // evita posiciones nulas
+    // 9. VOR seguro + logging
+    const validProjections = projectionsWithStdDev.filter(p => p.position);
+    if (!validProjections.length) {
+      console.warn('⚠️ No hay jugadores con posición válida para VOR');
+    }
+
     const vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams) || [];
     const vorMap = new Map(vorList.map(p => [toId(p.player_id), p]));
 
