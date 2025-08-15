@@ -135,16 +135,20 @@ router.delete('/manual/:id', async (req, res) => {
 router.get('/manual/pending', async (req, res) => {
   try {
     const expertId = req.query.expert_id;
-    const positions = (req.query.positions || 'WR,RB,TE,QB').split(',');
-    const search = req.query.search?.value || '';
+    const positions = (req.query.positions || 'WR,RB,TE,QB')
+      .split(',')
+      .map(s => s.trim().toUpperCase());
+    const search = (req.query.search?.value || '').trim();
 
     const start = parseInt(req.query.start) || 0;
     const length = parseInt(req.query.length) || 50;
     const draw = parseInt(req.query.draw) || 1;
 
-    if (!expertId) return res.status(400).json({ error: 'Debe indicar expert_id' });
+    if (!expertId) {
+      return res.status(400).json({ error: 'Debe indicar expert_id' });
+    }
 
-    // 1️⃣ Obtener player_ids ya rankeados por este experto
+    // 1) Traer todos los player_ids ya rankeados por este experto
     const { data: ranked, error: errRanked } = await supabase
       .from('manual_rankings')
       .select('sleeper_player_id')
@@ -152,32 +156,38 @@ router.get('/manual/pending', async (req, res) => {
 
     if (errRanked) throw errRanked;
 
-    const rankedIds = ranked.map(r => r.sleeper_player_id);
+    // Limpia, deduplica y evita valores vacíos
+    const rankedIds = Array.from(
+      new Set((ranked || []).map(r => (r.sleeper_player_id || '').trim()).filter(Boolean))
+    );
 
-    // 2️⃣ Consulta a players filtrando posiciones, no rankeados y búsqueda
-    let query = supabase.from('players')
+    // 2) Armar query base a players
+    let query = supabase
+      .from('players')
       .select('*', { count: 'exact' })
       .in('position', positions);
 
-    if (rankedIds.length) {
-      query = query.not('player_id', 'in', `(${rankedIds.map(id => `'${id}'`).join(',')})`);
+    // 3) Excluir los ya rankeados con not-in SIN comillas
+    //    Ej: not.in.(id1,id2,id3)
+    if (rankedIds.length > 0) {
+      query = query.not('player_id', 'in', `(${rankedIds.join(',')})`);
     }
 
+    // 4) Búsqueda (nombre/posición/equipo)
     if (search) {
       query = query.or(
         `full_name.ilike.%${search}%,position.ilike.%${search}%,team.ilike.%${search}%`
       );
     }
 
-    query = query.order('full_name', { ascending: true })
-                 .range(start, start + length - 1);
+    // 5) Orden y paginación
+    query = query.order('full_name', { ascending: true }).range(start, start + length - 1);
 
     const { data, count, error } = await query;
     if (error) throw error;
 
-    const processed = data.map(p => ({
+    const processed = (data || []).map(p => ({
       player_id: p.player_id,
-      sleeper_player_id: p.sleeper_player_id,
       full_name: p.full_name,
       position: p.position,
       team: p.team,
@@ -187,11 +197,10 @@ router.get('/manual/pending', async (req, res) => {
 
     res.json({
       draw,
-      recordsTotal: count,
-      recordsFiltered: count,
+      recordsTotal: count ?? 0,
+      recordsFiltered: count ?? 0,
       players: processed
     });
-
   } catch (err) {
     console.error('❌ Error en /manual/pending:', err.message);
     res.status(500).json({ error: err.message });
