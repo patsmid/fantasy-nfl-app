@@ -1,8 +1,8 @@
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
-import { assignTiersHybrid } from '../utils/tiering.js';
+import { assignTiers, useClustering } from '../utils/tiering.js';
 
-const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff
+const useHybridTiers = true; // true = híbrido adjustedVOR + dropoff, false = clásico
 
 export function buildFinalPlayers({
   adpData,
@@ -31,7 +31,7 @@ export function buildFinalPlayers({
       if (playerInfo.team) myTeams.push(playerInfo.team);
     }
   }
-  const myByeWeeksSet = new Set(myByeWeeks);
+  const myByeWeeksSet = new Set(myByeWeeks.map(Number));
 
   const players = [];
 
@@ -48,13 +48,14 @@ export function buildFinalPlayers({
     const adpBefore = adp.adp_value_prev || 500;
     const status = draftedMap.has(playerId) ? '' : 'LIBRE';
 
-    // Ranking: exacto o fuzzy
-    let playerRankMatch = rankings.some(r => String(r.player_id) === playerId)
-      ? rankings.filter(r => String(r.player_id) === playerId)
-      : fuzzySearch(fullName, rankings);
+    // Ranking: exacto por player_id, fallback a fuzzy search
+    let playerRank = rankings.find(r => String(r.player_id) === playerId);
+    if (!playerRank) {
+      const fuzzyMatches = fuzzySearch(fullName, rankings);
+      playerRank = fuzzyMatches.length ? fuzzyMatches[0] : {};
+    }
 
-    const playerRank = playerRankMatch[0] || {};
-    const rank = !playerRankMatch.length
+    const rank = !playerRank.rank
       ? 9999
       : ['DST', 'K'].includes(playerRank.player_eligibility)
         ? playerRank.rank + 1000
@@ -71,7 +72,7 @@ export function buildFinalPlayers({
 
     // Stats de proyección / VOR
     const projection = projectionMap.get(playerId) || 0;
-    const vorData = vorMap.get(playerId) || {};
+    const vorData = vorMap.get(String(playerId)) || {};
     const rawVor = vorData.vor || 0;
     const adjustedVor = vorData.adjustedVOR || 0;
     const dropoff = vorData.dropoff || 0;
@@ -108,28 +109,27 @@ export function buildFinalPlayers({
   // ===============================
   // ASIGNACIÓN DE TIERS
   // ===============================
-
-  // Tier global híbrido
-  const playersGlobal = [...players];
-  assignTiersHybrid(playersGlobal, false);
-  const maxGlobalTier = Math.max(...playersGlobal.map(p => p.tier || 1));
-  for (const p of players) {
-    const pg = playersGlobal.find(pl => pl.player_id === p.player_id);
-    p.tier_global = pg?.tier || maxGlobalTier;
-    p.tier_global_label = getTierLabel(p.tier_global, maxGlobalTier, 'global');
+  // Global
+  if (useHybridTiers && useClustering) {
+    assignTiers(players, false); // híbrido con clustering
+  } else {
+    assignTiers(players, false); // clásico dropoff
   }
 
-  // Tier por posición
-  const playersPos = [...players];
-  assignTiersHybrid(playersPos, true);
-  const maxTierPos = Math.max(...playersPos.map(p => p.tier || 1));
+  const maxGlobalTier = Math.max(...players.map(p => p.tier));
   for (const p of players) {
-    const pp = playersPos.find(pl => pl.player_id === p.player_id);
-    p.tier_pos = pp?.tier || maxTierPos;
-    p.tier_pos_label = getTierLabel(p.tier_pos, maxTierPos, 'pos');
+    p.tier_global = p.tier;
+    p.tier_global_label = getTierLabel(p.tier, maxGlobalTier, 'global');
   }
 
-  // Orden final por ranking
+  // Por posición
+  assignTiers(players, true);
+  const maxTierPos = Math.max(...players.map(p => p.tier));
+  for (const p of players) {
+    p.tier_pos = p.tier;
+    p.tier_pos_label = getTierLabel(p.tier, maxTierPos, 'pos');
+  }
+
   return players.sort((a, b) => a.rank - b.rank);
 }
 
@@ -160,6 +160,7 @@ function getTierLabel(tier, totalTiers = 5, type = 'global') {
   ];
 
   const labels = type === 'global' ? labelsGlobal : labelsPos;
+
   const available = labels.slice(0, totalTiers).concat(
     Array(Math.max(0, totalTiers - labels.length)).fill(labels[labels.length - 1])
   );
