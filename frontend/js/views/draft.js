@@ -8,32 +8,47 @@ export default async function renderDraftView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <style>
-      /* Añade esto a tu CSS global si prefieres no inyectarlo aquí */
-      #draftTable td,
-      #draftTable th {
-        white-space: normal; /* permitir saltos de línea */
-        word-break: break-word; /* cortar texto largo */
+      /* Layout estable y sin scroll horizontal */
+      #draftTable { table-layout: fixed; width: 100%; }
+
+      /* No saltos de línea en celdas visibles */
+      #draftTable td, #draftTable th {
+        white-space: nowrap;
         vertical-align: middle;
       }
-      /* Columnas que conviene mantener sin quiebre (ej: Priority, ADP, Ronda) */
-      #draftTable td.priority-col,
-      #draftTable th.priority-col,
-      #draftTable td.adp-col,
-      #draftTable th.adp-col,
-      #draftTable td.round-col,
-      #draftTable th.round-col {
-        white-space: nowrap;
-      }
-      /* Progreso: que quepa en su celda */
-      #draftTable .progress {
-        min-width: 80px;
-        max-width: 200px;
-      }
 
-      /* Badges dentro de celdas pequeñas */
-      #draftTable .badge {
-        white-space: nowrap;
+      /* Elipsis sólo donde puede haber texto largo */
+      .cell-ellipsis {
+        display: inline-block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
       }
+      /* Anchos sugeridos para contenido largo */
+      .col-player .cell-ellipsis { max-width: 220px; }
+      .col-tags .cell-ellipsis { max-width: 200px; }
+
+      /* Anchos orientativos para columnas compactas */
+      th.priority-col, td.priority-col { width: 90px; text-align: center; }
+      th.adp-col, td.adp-col { width: 70px; text-align: center; }
+      th.round-col, td.round-col { width: 70px; text-align: center; }
+      th.pos-col, td.pos-col { width: 80px; text-align: center; }
+      th.team-col, td.team-col { width: 80px; text-align: center; }
+      th.bye-col, td.bye-col { width: 60px; text-align: center; }
+      th.rank-col, td.rank-col { width: 80px; text-align: center; }
+      th.status-col, td.status-col { width: 90px; text-align: center; }
+      th.proj-col, td.proj-col { width: 130px; }
+      th.vor-col, td.vor-col,
+      th.avor-col, td.avor-col { width: 100px; text-align:center; }
+
+      /* Barra de progreso con tamaño fijo para evitar saltos */
+      #draftTable .progress { height: 12px; width: 120px; margin: 0 auto; }
+
+      /* Badges compactas */
+      #draftTable .badge { white-space: nowrap; }
+
+      /* Columna de control (Responsive) */
+      th.control, td.control { width: 28px; text-align: center; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -82,27 +97,29 @@ export default async function renderDraftView() {
 
         <div class="mb-3" id="draft-summary"></div>
 
+        <!-- OJO: dejamos el wrapper responsive de Bootstrap, no debería activar scroll si DataTables oculta columnas -->
         <div class="table-responsive">
           <table id="draftTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark">
               <tr>
+                <th class="control"></th> <!-- Columna de control para Responsive -->
                 <th class="priority-col">Priority</th>
                 <th class="adp-col">ADP</th>
-                <th>Jugador</th>
-                <th>Posición</th>
-                <th>Equipo</th>
-                <th>Bye</th>
-                <th>Ranking</th>
-                <th>Status</th>
+                <th class="col-player">Jugador</th>
+                <th class="pos-col">Posición</th>
+                <th class="team-col">Equipo</th>
+                <th class="bye-col">Bye</th>
+                <th class="rank-col">Ranking</th>
+                <th class="status-col">Status</th>
                 <th class="round-col">Ronda</th>
-                <th>Proyección</th>
-                <th>VOR</th>
-                <th>VOR Ajustado</th>
+                <th class="proj-col">Proyección</th>
+                <th class="vor-col">VOR</th>
+                <th class="avor-col">VOR Ajustado</th>
                 <th>Dropoff</th>
                 <th>Value/ADP</th>
                 <th>Steal Score</th>
-                <th>Risk Tags</th>
-                <th>Value Tags</th>
+                <th class="col-tags">Risk Tags</th>
+                <th class="col-tags">Value Tags</th>
                 <th>Tier Global</th>
                 <th>Tier Posición</th>
               </tr>
@@ -182,13 +199,11 @@ export default async function renderDraftView() {
     if (!filtered.length) {
       if ($.fn.dataTable.isDataTable('#draftTable')) {
         const table = $('#draftTable').DataTable();
-        table.clear();
-        table.draw();
+        table.clear(); table.draw();
       }
       return;
     }
 
-    // Valores guardando seguridad contra undefined
     const priorityVals = filtered.map(p => Number(p.priorityScore) || 0);
     const minPriority = Math.min(...priorityVals);
     const maxPriority = Math.max(...priorityVals);
@@ -198,50 +213,58 @@ export default async function renderDraftView() {
     const maxVOR = Math.max(...vorVals);
 
     const projVals = filtered.map(p => Number(p.projection) || 0);
-    const maxProj = Math.max(...projVals) || 1; // evitar division por 0
+    const maxProj = Math.max(...projVals) || 1;
 
-    const dataSet = filtered.map(p => [
-      // 0 Priority (añadimos clase para control CSS)
-      `<span class="priority-col" style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
-      // 1 ADP
-      p.adpValue ?? '',
-      // 2 Nombre
-      p.nombre ?? '',
-      // 3 Pos
-      p.position ?? '',
-      // 4 Team
-      p.team ?? '',
-      // 5 Bye
-      p.bye ?? '',
-      // 6 Rank
-      p.rank ?? '',
-      // 7 Status
-      p.status ?? '',
-      // 8 ADP Round
-      p.adpRound ?? '',
-      // 9 Projection (progress)
-      `<div class="progress" style="height:12px;">
-        <div class="progress-bar bg-info" role="progressbar" style="width:${Math.min(100,(Number(p.projection || 0)/maxProj)*100)}%"></div>
-      </div>`,
-      // 10 VOR
-      `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.vor)}</span>`,
-      // 11 Adjusted VOR
-      `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
-      // 12 Dropoff
-      p.dropoff ?? '',
-      // 13 Value/ADP
-      safeNum(p.valueOverADP),
-      // 14 Steal Score
-      safeNum(p.stealScore),
-      // 15 Risk Tags
-      (p.riskTags || []).join(', '),
-      // 16 Value Tags
-      p.valueTag ?? '',
-      // 17 Tier Global
-      `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
-      // 18 Tier Pos
-      `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
-    ]);
+    const dataSet = filtered.map(p => {
+      const playerName = p.nombre ?? '';
+      const riskTxt = (p.riskTags || []).join(', ');
+      const valueTxt = p.valueTag ?? '';
+
+      return [
+        // 0: control column (vacío, DataTables pone el icono)
+        '',
+        // 1: Priority
+        `<span class="priority-col" style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
+        // 2: ADP
+        p.adpValue ?? '',
+        // 3: Jugador (elipsis + title)
+        `<span class="cell-ellipsis" title="${playerName}">${playerName}</span>`,
+        // 4: Pos
+        p.position ?? '',
+        // 5: Team
+        p.team ?? '',
+        // 6: Bye
+        p.bye ?? '',
+        // 7: Rank
+        p.rank ?? '',
+        // 8: Status
+        p.status ?? '',
+        // 9: Ronda
+        p.adpRound ?? '',
+        // 10: Proyección (barra fija)
+        `<div class="progress">
+           <div class="progress-bar bg-info" role="progressbar" style="width:${Math.min(100,(Number(p.projection || 0)/maxProj)*100)}%"></div>
+         </div>`,
+        // 11: VOR
+        `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.vor)}</span>`,
+        // 12: VOR Ajustado
+        `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
+        // 13: Dropoff
+        p.dropoff ?? '',
+        // 14: Value/ADP
+        safeNum(p.valueOverADP),
+        // 15: Steal Score
+        safeNum(p.stealScore),
+        // 16: Risk Tags (elipsis + title)
+        `<span class="cell-ellipsis" title="${riskTxt}">${riskTxt}</span>`,
+        // 17: Value Tags (elipsis + title)
+        `<span class="cell-ellipsis" title="${valueTxt}">${valueTxt}</span>`,
+        // 18: Tier Global
+        `<span class="badge bg-danger text-light" title="${(p.tier_global ?? '') + ' ' + (p.tier_global_label ?? '')}">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
+        // 19: Tier Pos
+        `<span class="badge bg-primary text-light" title="${(p.tier_pos ?? '') + ' ' + (p.tier_pos_label ?? '')}">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`
+      ];
+    });
 
     renderSummary(filtered);
 
@@ -249,43 +272,50 @@ export default async function renderDraftView() {
       const table = $('#draftTable').DataTable();
       table.clear();
       table.rows.add(dataSet);
-      table.draw();
+      table.draw(false);
     } else {
       $('#draftTable').DataTable({
         data: dataSet,
         responsive: {
           details: {
-            type: 'inline' // muestra columnas ocultas dentro de la misma fila (no hace falta control column)
+            type: 'column',
+            target: 0 // la primera columna muestra el botón +/-
           }
         },
         autoWidth: false,
         destroy: true,
         pageLength: 25,
-        order: [[0, 'desc']],
+        order: [[1, 'desc']], // ordenar por Priority (columna 1)
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
         columnDefs: [
-          // anchuras y prioridades de colapso (1 = más importante, números grandes = menos prioridad)
-          { targets: 0, responsivePriority: 1, width: '90px', className: 'priority-col text-center' }, // Priority
-          { targets: 2, responsivePriority: 2 }, // Jugador
-          { targets: 3, responsivePriority: 3 }, // Posición
-          { targets: 4, responsivePriority: 4 }, // Equipo
-          { targets: 9, responsivePriority: 5, orderable: false, className: 'text-center' }, // Proyección
-          { targets: [10, 11], responsivePriority: 6, className: 'text-center' }, // VORs
-          { targets: [13, 14], responsivePriority: 7, className: 'text-center' }, // Value/ADP, Steal
-          { targets: [1, 5, 6, 7, 8], responsivePriority: 8 }, // ADP, Bye, Rank, Status, Round
-          { targets: [15, 16, 17, 18, 12], responsivePriority: 100, orderable: false, className: 'text-center' } // menos importantes: Risk/Value tags, Tiers, Dropoff
+          // Columna de control
+          { targets: 0, className: 'control', orderable: false, responsivePriority: 1 },
+
+          // Columnas clave que deben verse primero
+          { targets: 1, className: 'priority-col', responsivePriority: 2 },         // Priority
+          { targets: 3, className: 'col-player', responsivePriority: 3 },           // Jugador
+          { targets: 4, className: 'pos-col text-center', responsivePriority: 4 },  // Pos
+          { targets: 5, className: 'team-col text-center', responsivePriority: 5 }, // Equipo
+          { targets: 10, className: 'proj-col text-center', orderable: false, responsivePriority: 6 }, // Proyección
+
+          // Importantes pero prescindibles en pantallas chicas
+          { targets: [11,12], className: 'text-center', responsivePriority: 7 }, // VORs
+          { targets: [14,15], className: 'text-center', responsivePriority: 8 }, // Value/ADP, Steal
+
+          // Secundarias: se ocultan antes
+          { targets: [2,6,7,8,9], className: 'text-center', responsivePriority: 50 }, // ADP, Bye, Rank, Status, Ronda
+          { targets: [13,16,17,18,19], orderable: false, responsivePriority: 100 }   // Dropoff, Tags, Tiers
         ],
         rowCallback: function (row, data) {
-          // data[] contiene el HTML de las celdas - extraemos texto con jQuery
-          const tierText = $('<div>').html(data[17] || '').text().toLowerCase();
+          const tierText = $('<div>').html(data[18] || '').text().toLowerCase();
           $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
 
           if (tierText.includes('elite')) $(row).addClass('tier-elite');
           else if (tierText.includes('starter')) $(row).addClass('tier-starter');
           else if (tierText.includes('bench')) $(row).addClass('tier-bench');
 
-          const valueTagText = (data[16]) ? $('<div>').html(data[16]).text() : '';
+          const valueTagText = (data[17]) ? $('<div>').html(data[17]).text() : '';
           if (valueTagText.includes('💎 Steal')) $(row).addClass('tier-steal');
         }
       });
