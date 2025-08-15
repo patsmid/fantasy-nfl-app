@@ -71,36 +71,69 @@ export default async function renderRankingsView() {
 
   document.getElementById('rankingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const expert = document.getElementById('ranking-expert').value;
+
+    const expertId = document.getElementById('ranking-expert').value;
     const dynasty = document.getElementById('ranking-dynasty').value === 'true';
     const superflex = document.getElementById('ranking-superflex').value === 'true';
 
     try {
       showLoadingBar('Consultando rankings...');
-      const res = await fetch(`https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expert}`);
+
+      // Identificar el experto seleccionado
+      const selectedExpert = experts.find(e =>
+        (e.source === 'flock' ? e.experto : e.id_experto) == expertId
+      );
+      const source = selectedExpert?.source || 'flock';
+
+      // Construir URL según source
+      let queryUrl;
+      switch (source) {
+        case 'flock':
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}&expert=${expertId}`;
+          break;
+        case 'fantasypros':
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/fantasypros?season=2025&scoring=PPR&idExpert=${expertId}`;
+          break;
+        case 'manual':
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/manual?expert_id=${expertId}`;
+          break;
+        default:
+          queryUrl = `https://fantasy-nfl-backend.onrender.com/rankings/flock?dynasty=${dynasty}&superflex=${superflex}`;
+      }
+
+      const res = await fetch(queryUrl);
       const result = await res.json();
-      const data = result.data;
       Swal.close();
 
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+      // Obtener lista de jugadores según formato de respuesta
+      let players = [];
+      if (result.players) {
+        players = result.players;
+      } else if (Array.isArray(result.data)) {
+        players = result.data;
+      } else {
+        throw new Error('Formato de respuesta inesperado');
+      }
 
+      // Limpiar tabla
       const tbody = document.querySelector('#rankingsTable tbody');
       tbody.innerHTML = '';
 
-      data.forEach(p => {
-        const rankValue = expert ? p.rank : p.average_rank;
-
+      // Llenar tabla
+      players.forEach(p => {
+        const rankValue = p.rank ?? p.average_rank ?? '-';
         tbody.innerHTML += `
           <tr>
             <td>${rankValue}</td>
-            <td>${p.player_name}</td>
+            <td>${p.full_name || p.player_name}</td>
             <td>${p.position}</td>
             <td>${p.team}</td>
-            <td>${p.average_rank}</td>
+            <td>${p.average_rank ?? '-'}</td>
           </tr>
         `;
       });
 
+      // Inicializar DataTable
       if ($.fn.DataTable.isDataTable('#rankingsTable')) {
         $('#rankingsTable').DataTable().clear().destroy();
       }
@@ -112,7 +145,6 @@ export default async function renderRankingsView() {
         language: {
           url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
         },
-        // dom: 'tip'
       });
 
     } catch (err) {
