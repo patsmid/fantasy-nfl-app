@@ -29,10 +29,6 @@ export default async function renderDraftView() {
               ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
             </select>
           </div>
-          <div class="col-md-2">
-            <label for="input-bye" class="form-label">Bye condición</label>
-            <input type="number" class="form-control" id="input-bye" placeholder="0">
-          </div>
           <div class="col-md-3">
             <label for="select-expert" class="form-label">Experto</label>
             <select id="select-expert" class="form-select"></select>
@@ -43,6 +39,10 @@ export default async function renderDraftView() {
               <option value="LIBRE">LIBRE</option>
               <option value="TODOS">TODOS</option>
             </select>
+          </div>
+          <div class="col-md-2">
+            <label for="input-bye" class="form-label">Bye condición</label>
+            <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
         </form>
 
@@ -219,35 +219,55 @@ export default async function renderDraftView() {
       const byeCondition = byeInput.value || 0;
       const selectedOption = expertSelect.selectedOptions[0];
       const idExpert = selectedOption?.dataset.id || '';
-      if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
+
+      if (!leagueId || !idExpert) {
+        return showError('Selecciona una liga y un experto');
+      }
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert);
 
-      // CORRECCIÓN: acceder correctamente a players
-      draftData = res.data?.data?.players || [];
+      const { players, params } = await fetchDraftData(
+        leagueId,
+        position,
+        byeCondition,
+        idExpert
+      );
+
+      if (!players.length) {
+        Swal.close();
+        return showError('No se encontraron jugadores.');
+      }
+
+      draftData = players;
       updateTable(draftData);
 
-      // Fechas
+      // Fechas de actualización
       const ranksLabel = document.getElementById('ranks-updated-label');
-      if (ranksLabel && res?.data?.params?.ranks_published) {
-        const fecha = new Date(res.data.params.ranks_published);
-        ranksLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-          <i class="bi bi-calendar-check-fill text-success"></i> Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
-        </div>`;
+      if (ranksLabel && params?.ranks_published) {
+        const fecha = new Date(params.ranks_published);
+        ranksLabel.innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-calendar-check-fill text-success"></i>
+            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>`;
       }
 
       const adpLabel = document.getElementById('adp-updated-label');
-      if (adpLabel && res?.data?.params?.ADPdate) {
-        const adpDate = new Date(res.data.params.ADPdate);
-        adpLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-          <i class="bi bi-clock-history text-warning"></i> ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
-        </div>`;
+      if (adpLabel && params?.ADPdate) {
+        const adpDate = new Date(params.ADPdate);
+        adpLabel.innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-clock-history text-warning"></i>
+            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+          </div>`;
       }
 
       Swal.close();
     } catch (err) {
       Swal.close();
+      console.error('Error en loadDraftData:', err);
       showError('Error al actualizar draft: ' + err.message);
     }
   }
