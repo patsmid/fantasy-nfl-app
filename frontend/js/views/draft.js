@@ -73,6 +73,15 @@ export default async function renderDraftView() {
             <label for="input-bye" class="form-label">Bye condición</label>
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
+          <!-- NUEVO: Checkbox Solo jugadores libres -->
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="checkbox-only-free">
+              <label class="form-check-label" for="checkbox-only-free">
+                Solo jugadores libres
+              </label>
+            </div>
+          </div>
         </form>
 
         <div class="d-flex flex-wrap gap-3 mb-3">
@@ -126,6 +135,7 @@ export default async function renderDraftView() {
   const positionSelect = document.getElementById('select-position');
   const expertSelect = document.getElementById('select-expert');
   const byeInput = document.getElementById('input-bye');
+  const onlyFreeCheckbox = document.getElementById('checkbox-only-free');
 
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
@@ -137,10 +147,26 @@ export default async function renderDraftView() {
   if (savedExpert) expertSelect.value = savedExpert;
   if (savedPosition) positionSelect.value = savedPosition;
 
+  onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
+
   await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
   await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
 
-  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); if (draftData.length) refreshUI(draftData); });
+  // =============================
+  // EVENTOS DE FILTROS
+  // =============================
+  onlyFreeCheckbox.addEventListener('change', () => {
+    statusSelect.value = onlyFreeCheckbox.checked ? 'LIBRE' : 'TODOS';
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length) refreshUI(draftData);
+  });
+
+  statusSelect.addEventListener('change', () => {
+    onlyFreeCheckbox.checked = statusSelect.value === 'LIBRE';
+    localStorage.setItem('draftStatusFilter', statusSelect.value);
+    if (draftData.length) refreshUI(draftData);
+  });
+
   positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
   expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
   leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
@@ -229,7 +255,6 @@ export default async function renderDraftView() {
     } else {
       $('#draftTable').DataTable({
         data: dataSet,
-        // SIN responsive de DataTables
         scrollX: true,
         autoWidth: false,
         destroy: true,

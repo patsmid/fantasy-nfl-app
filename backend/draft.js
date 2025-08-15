@@ -7,9 +7,12 @@ const router = express.Router();
 router.get('/:leagueId', async (req, res) => {
   try {
     const { leagueId } = req.params;
-    let { position = 'TODAS', byeCondition = 0, idExpert = '3701' } = req.query;
+    let { position = 'TODAS', byeCondition = 0, idExpert = '3701', sleeperADP = 'false' } = req.query;
 
-    // Permitir booleano 'true' como string
+    // Convertir sleeperADP a boolean
+    const sleeperADPFlag = sleeperADP === 'true';
+
+    // Permitir booleano 'true' como string en position
     if (position === 'true') position = true;
 
     // Validar solo si es un string no válido y no es 'SUPER FLEX'
@@ -23,7 +26,8 @@ router.get('/:leagueId', async (req, res) => {
     const data = await getDraftData(leagueId, {
       position,
       byeCondition: byeCondParsed,
-      idExpert
+      idExpert,
+      sleeperADP: sleeperADPFlag
     });
 
     res.json(data);
