@@ -109,6 +109,7 @@ async function getManualRankings(expertId) {
     .from('manual_rankings')
     .select(`
       id,
+      sleeper_player_id,
       rank,
       tier,
       updated_at,
@@ -129,7 +130,7 @@ async function getManualRankings(expertId) {
     expert: data.length ? data[0].expert : null,
     players: data.map(r => ({
       id: r.id,
-      player_id: r.players.player_id,
+      player_id: r.sleeper_player_id,
       full_name: r.players.full_name,
       position: r.players.position,
       team: r.players.team,
