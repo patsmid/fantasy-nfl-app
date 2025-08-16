@@ -70,13 +70,6 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
     const rawData = json.data || [];
     const lastUpdatedAll = json.last_updated || {};
 
-    console.log(`🔹 rawData obtenida, total jugadores: ${rawData.length}`);
-    if (rawData.length > 0) {
-      rawData.forEach((p, index) => {
-        console.log(`🔹 [${index + 1}] player_id: ${p.player_id} | name: ${p.name || '???'} | ranks: ${p.ranks ? Object.keys(p.ranks).join(',') : 'none'}`);
-      });
-    }
-
     if (!expert) {
       return {
         data: rawData,
@@ -95,11 +88,6 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
         positional_tier: p.positional_tiers?.[expert] || null
       }))
       .sort((a, b) => a.rank - b.rank);
-
-    console.log(`✅ filteredData obtenida para expert "${expert}", total jugadores: ${filteredData.length}`);
-    filteredData.forEach((p, index) => {
-      console.log(`🔹 [${index + 1}] player_id: ${p.player_id} | rank: ${p.rank} | tier: ${p.tier || 'null'}`);
-    });
 
     return {
       data: filteredData,
@@ -140,7 +128,6 @@ export async function getManualRankings(expertId) {
 
     // 2️⃣ Obtener solo los jugadores correspondientes de la tabla players
     const playerIds = manualData.map(r => r.sleeper_player_id);
-    console.log('🔹 playerIds para consulta de players:', playerIds);
 
     const { data: playersData, error: playersError } = await supabase
       .from('players')
@@ -151,8 +138,6 @@ export async function getManualRankings(expertId) {
       console.error('❌ Error al obtener players:', playersError);
       throw playersError;
     }
-
-    console.log('✅ playersData obtenida, total registros:', playersData.length);
 
     // 3️⃣ Combinar manualData y playersData por player_id
     const combinedPlayers = manualData.map((r, index) => {
@@ -169,13 +154,8 @@ export async function getManualRankings(expertId) {
         tier: r.tier
       };
 
-      // Log detallado de cada jugador
-      console.log(`🔹 [${combined.player_id}] ${combined.full_name || '???'} | ${combined.position || '???'} | ${combined.team || '???'} | rank: ${combined.rank} | tier: ${combined.tier}`);
-
       return combined;
     });
-
-    console.log('✅ combinedPlayers generados, total:', combinedPlayers.length);
 
     return {
       source: 'manual',

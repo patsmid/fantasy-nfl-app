@@ -165,15 +165,77 @@ export async function getDraftData(
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
     // 9. VOR
-    const validProjections = projectionsWithStdDev.filter(p => p.position);
+    // Sanear proyecciones (asegurar numericidad y injuryRisk decimal 0..1)
+    const projectionsWithStdDevMap = (projectionsWithStdDev || []).map(p => {
+      const safeTotal = Number.isFinite(Number(p.total_projected)) ? Number(p.total_projected) : 0;
+      const safeStd = Number.isFinite(Number(p.projStdDev)) ? Number(p.projStdDev) : 0;
+      let safeInjury = Number.isFinite(Number(p.injuryRisk)) ? Number(p.injuryRisk) : 0;
+      // addEstimatedStdDev ya devuelve injuryRisk decimal 0..1, pero soportamos % por seguridad:
+      if (safeInjury > 1) safeInjury = Math.min(1, safeInjury / 100);
+      return {
+        ...p,
+        total_projected: safeTotal,
+        projStdDev: safeStd,
+        injuryRisk: safeInjury,
+        player_id: String(p.player_id)
+      };
+    });
+
+    const validProjections = projectionsWithStdDevMap.filter(p => p.position && Number.isFinite(p.total_projected));
+    // debug guard
     if (!validProjections.length) {
-      console.warn('⚠️ No hay jugadores con posición válida para VOR');
+      console.warn('⚠️ No hay proyecciones válidas para calcular VOR. Revisa addEstimatedStdDev y playersData.');
     }
-    const vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams) || [];
-    const vorMap = new Map(vorList.map(p => [toId(p.player_id), p]));
+
+    // Prepare vorOptions (igual que ya tenías, pero con small hardening)
+    const vorOptionsBase = {
+      replacementOffset: { RB: 2 },
+      replacementWindow: 2,
+      dropoffWindow: 2,
+      scarcityWeights: { RB: 2.4, WR: 1.3, QB: 1.2, TE: 1.0, K: 1.0, DST: 1.0 },
+      playoffWeeks: leagueData.settings?.playoff_weeks || [14,15,16],
+      playoffWeightFactor: leagueData.settings?.playoff_weight_factor ?? 0.22,
+      minScarcityMultiplier: 0.85,
+      maxScarcityMultiplier: 1.5,
+      maxRiskPenalty: 0.30,
+      riskAlpha: 2.5,
+      debug: false
+    };
+
+    const vorOptions = { ...vorOptionsBase };
+
+    // superFlex / dynasty adjustments (igual a tu lógica)
+    if (superFlex) {
+      vorOptions.scarcityWeights = { ...vorOptions.scarcityWeights, QB: (vorOptions.scarcityWeights.QB || 1.2) * 1.35 };
+      vorOptions.scarcityWeights.RB = (vorOptions.scarcityWeights.RB || 2.4) * 0.95;
+    }
+    if (dynasty) {
+      vorOptions.injuryFactor = Math.max(0.5, vorOptions.injuryFactor ?? 0.5);
+      vorOptions.maxRiskPenalty = Math.min(0.5, (vorOptions.maxRiskPenalty ?? 0.30) + 0.05);
+      vorOptions.riskAlpha = (vorOptions.riskAlpha ?? 2.5) * 1.1;
+      vorOptions.minScarcityMultiplier = Math.min(0.9, vorOptions.minScarcityMultiplier ?? 0.85);
+    }
+
+    // CALL VOR con guard y logging
+    let vorList = [];
+    try {
+      vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams, vorOptions) || [];
+    } catch (err) {
+      console.error('Error en calculateVORandDropoffPro:', err, {
+        players: validProjections.length,
+        samplePlayer: validProjections[0] || null,
+        vorOptions
+      });
+      // no throw: preferimos devolver resultados parciales si es posible
+      vorList = [];
+    }
+
+    // MAP PARA USO POSTERIOR
+    const vorMap = new Map((vorList || []).map(v => [String(v.player_id), v]));
 
     // 10. buildFinalPlayers
-    const projectionMap = new Map((projections || []).map(p => [toId(p.player_id), p.total_projected]));
+    //const projectionMap = new Map((projections || []).map(p => [toId(p.player_id), p.total_projected]));
+    const projectionMap = new Map((projectionsWithStdDevMap || []).map(p => [String(p.player_id), Number(p.total_projected || 0)]));
     const allRankings = [...rankings, ...dstRankings, ...kickerRankings];
 
     const players = buildFinalPlayers({
