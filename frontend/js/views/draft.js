@@ -325,6 +325,11 @@ export default async function renderDraftView() {
   const safeNum = (v, decimals = 2) =>
     (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : '';
 
+  const getRankNum = (p) => {
+    const n = Number(p?.rank);
+    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+  };
+
   function renderSummary(players) {
     const summary = { tiers: {}, steals: 0, risks: 0 };
     players.forEach(p => {
@@ -382,12 +387,17 @@ export default async function renderDraftView() {
 
     const minPriority = Math.min(...filtered.map(p => Number(p.priorityScore) || 0));
     const maxPriority = Math.max(...filtered.map(p => Number(p.priorityScore) || 0));
-    const minVOR = Math.min(...filtered.map(p => Number(p.adjustedVOR) || 0));
-    const maxVOR = Math.max(...filtered.map(p => Number(p.adjustedVOR) || 0));
+
+    // FIX: Rango correcto para VOR vs VOR Ajustado
+    const minVorRaw = Math.min(...filtered.map(p => Number(p.vor) || 0));
+    const maxVorRaw = Math.max(...filtered.map(p => Number(p.vor) || 0));
+    const minAdjVor = Math.min(...filtered.map(p => Number(p.adjustedVOR) || 0));
+    const maxAdjVor = Math.max(...filtered.map(p => Number(p.adjustedVOR) || 0));
+
     const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0)) || 1;
 
     const dataSet = filtered.map((p, idx) => [
-      `<span style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
+      `<span data-order="${Number(p.priorityScore) || 0}" style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
       p.adpValue ?? '', // ADP VISIBLE
       p.nombre ?? '',
       // posición renderizada como badge para mantener colores
@@ -397,12 +407,12 @@ export default async function renderDraftView() {
       p.rank ?? '',
       p.status ?? '',
       p.adpRound ?? '',
-      `<div class="progress"><div class="progress-bar" role="progressbar" style="width:${Math.min(100,(Number(p.projection||0)/maxProj)*100)}%"></div></div>`,
-      `<span style="background-color:${getHeatColor(p.vor, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.vor)}</span>`,
-      `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
+      `<div class="progress" data-order="${Number(p.projection) || 0}"><div class="progress-bar" role="progressbar" style="width:${Math.min(100,(Number(p.projection||0)/maxProj)*100)}%"></div></div>`,
+      `<span data-order="${Number(p.vor) || 0}" style="background-color:${getHeatColor(p.vor, minVorRaw, maxVorRaw)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.vor)}</span>`,
+      `<span data-order="${Number(p.adjustedVOR) || 0}" style="background-color:${getHeatColor(p.adjustedVOR, minAdjVor, maxAdjVor)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
       p.dropoff ?? '',
       safeNum(p.valueOverADP),
-      safeNum(p.stealScore), // aún lo calculamos pero lo ocultamos en DT (colDefs)
+      safeNum(p.stealScore), // oculto en DT (colDefs)
       (p.riskTags || []).join(', '),
       p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
@@ -422,6 +432,7 @@ export default async function renderDraftView() {
         autoWidth: false,
         destroy: true,
         pageLength: 25,
+        deferRender: true, // ⚡ mejora rendimiento con muchos registros
         // Orden inicial por rank (columna 6)
         order: [[6, 'asc']],
         dom: 'lfrtip',
@@ -430,6 +441,8 @@ export default async function renderDraftView() {
           // columnas no ordenables (proyección, risk/value/tier cols)
           { targets: [9, 16, 17, 18], orderable: false },
           { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
+          // asegurar tratamiento numérico en columnas clave
+          { targets: [1, 5, 6, 8, 10, 11, 12, 13, 14], type: 'num' },
           // ocultar SOLO la columna índice final (índice 19)
           { targets: [19], visible: false, searchable: false },
           // ocultar Steal Score (índice 14)
@@ -470,7 +483,7 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // CARDS (Móvil + Desktop) — AHORA INCLUYE ADP (y remueve Steal de la vista)
+  // CARDS (Móvil + Desktop)
   // ================================
   function updateCards(players) {
     const cont = cardsContainer;
@@ -501,7 +514,7 @@ export default async function renderDraftView() {
                   <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
                   <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
                   <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
-                  <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span> <!-- ADP agregado -->
+                  <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span>
                 </div>
                 <div class="mb-2">
                   <div class="small mb-1">Proyección</div>
@@ -512,7 +525,6 @@ export default async function renderDraftView() {
                   <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
                   <span class="kv"><strong>Drop:</strong> ${p.dropoff ?? ''}</span>
                   <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
-                  <!-- Steal oculto en cards por request -->
                 </div>
                 <div class="mt-2 d-flex flex-wrap gap-2">
                   ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
@@ -549,14 +561,17 @@ export default async function renderDraftView() {
     const statusFilter = statusSelect.value;
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
 
+    // ✅ Orden unificado por RANK para móvil y desktop (fuente de verdad)
+    const sortedByRank = filtered.slice().sort((a, b) => getRankNum(a) - getRankNum(b));
+
     if (isDesktop()) {
-      updateTable(filtered); // DT controla búsqueda/orden/página
+      updateTable(sortedByRank); // DT controla búsqueda/orden/página
       if (desktopView === 'table') {
-        renderSummary(filtered);
+        renderSummary(sortedByRank);
       }
     } else {
-      renderSummary(filtered);
-      updateCards(filtered);
+      renderSummary(sortedByRank);
+      updateCards(sortedByRank);
     }
   }
 
