@@ -30,11 +30,16 @@ export default async function renderDraftView() {
       #draftTable td, #draftTable th { vertical-align: middle; }
       #draftTable .badge { white-space: nowrap; }
       #draftTable .progress { height:12px; min-width:120px; }
+
+      /* Contenedores de controles de DataTables reubicados */
+      #dt-controls-top .dataTables_length label,
+      #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
+      #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
+      #dt-pagination-bottom .dataTables_info { padding-top: .5rem; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
-
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h4 class="m-0 d-flex align-items-center gap-2">
             <i class="bi bi-clipboard-data text-info"></i> Draft Inteligente
@@ -62,19 +67,16 @@ export default async function renderDraftView() {
             <label for="select-league" class="form-label">Liga</label>
             <select id="select-league" class="form-select"></select>
           </div>
-
           <div class="col-md-2">
             <label for="select-position" class="form-label">Posición</label>
             <select id="select-position" class="form-select">
               ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
             </select>
           </div>
-
           <div class="col-md-3">
             <label for="select-expert" class="form-label">Experto</label>
             <select id="select-expert" class="form-select"></select>
           </div>
-
           <div class="col-md-2">
             <label for="select-status" class="form-label">Status</label>
             <select id="select-status" class="form-select">
@@ -82,12 +84,10 @@ export default async function renderDraftView() {
               <option value="TODOS">TODOS</option>
             </select>
           </div>
-
           <div class="col-md-2">
             <label for="input-bye" class="form-label">Bye condición</label>
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
-
           <!-- Checkbox Sleeper ADP -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
@@ -106,10 +106,16 @@ export default async function renderDraftView() {
 
         <div class="mb-3" id="draft-summary"></div>
 
-        <!-- Cards: visibles siempre (móvil y desktop). En desktop se ocultan al pasar a vista Tabla con el toggle -->
-        <div id="draft-cards" class="mb-3"></div>
+        <!-- Controles de DT reubicados: arriba de las cards (solo desktop) -->
+        <div id="dt-controls-top" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"></div>
 
-        <!-- Tabla: sólo se muestra en desktop; en modo Cards se oculta el <table> pero se mantienen controles de DataTables -->
+        <!-- Cards visibles en móvil y desktop (se ocultan sólo si se elige tabla en desktop) -->
+        <div id="draft-cards" class="mb-2"></div>
+
+        <!-- Contenedor para info + paginación reubicados (abajo de las cards, solo desktop) -->
+        <div id="dt-pagination-bottom" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mt-2"></div>
+
+        <!-- Tabla (solo desktop); en vista Cards se oculta SOLO el <table>, dejando controles arriba/abajo -->
         <div class="d-none d-md-block">
           <div class="table-responsive">
             <table id="draftTable" class="table table-dark table-hover align-middle w-100">
@@ -134,7 +140,7 @@ export default async function renderDraftView() {
                   <th>Value Tags</th>
                   <th>Tier Global</th>
                   <th>Tier Posición</th>
-                  <!-- Columna oculta con índice para mapear a cards -->
+                  <!-- índice oculto para mapear a cards -->
                   <th data-hidden-idx>_idx</th>
                 </tr>
               </thead>
@@ -159,9 +165,13 @@ export default async function renderDraftView() {
   const cardsContainer = document.getElementById('draft-cards');
   const btnViewCards = document.getElementById('btn-view-cards');
   const btnViewTable = document.getElementById('btn-view-table');
+  const dtControlsTop = document.getElementById('dt-controls-top');
+  const dtPagBottom = document.getElementById('dt-pagination-bottom');
 
   // Estado de vista (desktop)
   let desktopView = 'cards'; // 'cards' | 'table'
+  let draftData = [];
+  let lastFiltered = []; // arreglo de jugadores que alimenta la tabla
 
   // =============================
   // Restaurar valores guardados
@@ -203,10 +213,6 @@ export default async function renderDraftView() {
   btnViewCards?.addEventListener('click', () => setDesktopView('cards'));
   btnViewTable?.addEventListener('click', () => setDesktopView('table'));
 
-  let draftData = [];
-  let lastFiltered = []; // arreglo de jugadores que alimenta la tabla
-  let dtInitialized = false;
-
   // ================================
   // UTILIDADES
   // ================================
@@ -243,8 +249,25 @@ export default async function renderDraftView() {
   // ================================
   // TABLA (ESCRITORIO)
   // ================================
+  function mountDtControls() {
+    const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
+    if (!$wrapper.length) return;
+
+    const $length = $wrapper.find('div.dataTables_length');
+    const $filter = $wrapper.find('div.dataTables_filter');
+    const $info = $wrapper.find('div.dataTables_info');
+    const $paginate = $wrapper.find('div.dataTables_paginate');
+
+    if ($length.length) $(dtControlsTop).append($length);
+    if ($filter.length) $(dtControlsTop).append($filter);
+    if ($info.length) $(dtPagBottom).append($info);
+    if ($paginate.length) $(dtPagBottom).append($paginate);
+
+    dtControlsTop.classList.remove('d-none');
+    dtPagBottom.classList.remove('d-none');
+  }
+
   function updateTable(filtered) {
-    // Guardamos referencia para mapear a cards
     lastFiltered = filtered.slice();
 
     if (!filtered.length) {
@@ -252,7 +275,6 @@ export default async function renderDraftView() {
         const t = $('#draftTable').DataTable();
         t.clear().draw();
       }
-      // también limpiar cards
       updateCards([]);
       return;
     }
@@ -263,10 +285,9 @@ export default async function renderDraftView() {
     const maxVOR = Math.max(...filtered.map(p => Number(p.adjustedVOR) || 0));
     const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0)) || 1;
 
-    // Armamos dataset y último col es el índice dentro de 'filtered'
     const dataSet = filtered.map((p, idx) => [
       `<span style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
-      p.adpValue ?? '',
+      p.adpValue ?? '', // ADP VISIBLE
       p.nombre ?? '',
       p.position ?? '',
       p.team ?? '',
@@ -284,7 +305,7 @@ export default async function renderDraftView() {
       p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
       `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`,
-      String(idx) // <- índice oculto para mapear a cards
+      String(idx) // índice oculto para mapear a cards
     ]);
 
     if ($.fn.dataTable.isDataTable('#draftTable')) {
@@ -299,14 +320,17 @@ export default async function renderDraftView() {
         autoWidth: false,
         destroy: true,
         pageLength: 25,
-        // 🔢 Orden inicial por rank (col 6)
+        // Orden inicial por rank (columna 6)
         order: [[6, 'asc']],
+        // Creamos length, filter, info y paginación para luego moverlos a nuestros contenedores
+        dom: 'lfrtip',
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
-        dom: '<"row mb-2"<"col-sm-6"l><"col-sm-6"f>>tip',
         columnDefs: [
+          // columnas no ordenables
           { targets: [9, 16, 17, 18], orderable: false },
+          // estilos
           { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
-          // ocultar columna índice
+          // ocultar SOLO la columna índice final
           { targets: [19], visible: false, searchable: false }
         ],
         rowCallback: function (row, data) {
@@ -316,14 +340,22 @@ export default async function renderDraftView() {
           else if (tier.includes('starter')) $(row).addClass('tier-starter');
           else if (tier.includes('bench')) $(row).addClass('tier-bench');
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
+        },
+        initComplete: function () {
+          // Mover controles a los contenedores personalizados
+          mountDtControls();
+
+          // Si estamos en vista cards al iniciar, ocultamos el <table> y pintamos cards de la página actual
+          if (isDesktop() && desktopView === 'cards') {
+            document.getElementById('draftTable').classList.add('d-none');
+            renderCardsFromDataTable();
+          }
         }
       });
 
-      dtInitialized = true;
-
       // Cuando DataTables cambie búsqueda/orden/página, refrescamos las cards si la vista activa es "cards"
       $('#draftTable').on('draw.dt', () => {
-        if (desktopView === 'cards') {
+        if (isDesktop() && desktopView === 'cards') {
           renderCardsFromDataTable();
         }
       });
@@ -415,14 +447,11 @@ export default async function renderDraftView() {
     const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
 
     if (isDesktop()) {
-      // En desktop, la paginación/búsqueda/orden las controla DataTables
-      updateTable(filtered);
+      updateTable(filtered); // DT controla búsqueda/orden/página
       if (desktopView === 'table') {
-        // summary de todo el set filtrado
         renderSummary(filtered);
       }
     } else {
-      // En móvil, solo cards (sin DT)
       renderSummary(filtered);
       updateCards(filtered);
     }
@@ -460,8 +489,6 @@ export default async function renderDraftView() {
       }
 
       draftData = players;
-
-      // Pinta según vista / dispositivo
       refreshUI(draftData);
 
       // Fechas
@@ -514,21 +541,27 @@ export default async function renderDraftView() {
     const tableEl = document.getElementById('draftTable');
 
     if (view === 'cards') {
-      // mostrar cards, ocultar solo el <table> pero mantener controles de DataTables
+      // mostrar cards, ocultar solo el <table>
       cardsContainer.classList.remove('d-none');
       if (tableEl) tableEl.classList.add('d-none');
-      // si hay DT, regenerar cards desde su estado (página/búsqueda/orden)
+
+      // re-pintar cards desde el estado actual de DT
       if ($.fn.dataTable.isDataTable('#draftTable')) {
         renderCardsFromDataTable();
       }
     } else {
-      // mostrar tabla completa, ocultar cards
+      // mostrar tabla, ocultar cards
       cardsContainer.classList.add('d-none');
       if (tableEl) {
         tableEl.classList.remove('d-none');
+        // ⚙️ Asegurar encabezados y tamaños correctos al volver a mostrar la tabla
         if ($.fn.dataTable.isDataTable('#draftTable')) {
-          // ajustar columnas por si estuvo oculta
-          $('#draftTable').DataTable().columns().adjust().draw(false);
+          const t = $('#draftTable').DataTable();
+          // En algunos casos ayuda forzar el display del thead y luego ajustar columnas
+          $(t.table().header()).css('display', '');
+          setTimeout(() => {
+            t.columns.adjust().draw(false);
+          }, 0);
         }
       }
       // summary con todo el set filtrado actual
@@ -546,11 +579,11 @@ export default async function renderDraftView() {
 
   // Reaccionar a cambios de tamaño (si cambia entre móvil/desktop)
   window.addEventListener('resize', () => {
-    // Si pasa a móvil: asegurar cards visibles
     if (!isDesktop()) {
+      // móvil: controles de DT ocultos por CSS; mostrar cards siempre
       cardsContainer.classList.remove('d-none');
     } else {
-      // Volver a aplicar el modo actual
+      // desktop: aplicar el modo actual
       setDesktopView(desktopView);
     }
   });
