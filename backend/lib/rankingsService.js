@@ -3,64 +3,56 @@ import { positions } from '../utils/constants.js';
 import { getExpertData } from '../experts.js';
 import { supabase } from '../supabaseClient.js';
 
-export async function getRankings({ source, season, dynasty, scoring, expertData, position, weekStatic = null, expertId = null }) {
+export async function getRankings({ season, dynasty, scoring, expertData, position, weekStatic = null }) {
   const nflState = await getNflState();
 
-  switch (source) {
-    case 'flock': {
-      const superflex = position === 'SUPER FLEX';
-      const { data, last_updated } = await getFlockRankings({
-        dynasty,
-        superflex,
-        expert: expertData.experto
-      });
-
-      return {
-        source: 'flock',
-        published: last_updated,
-        players: data
-      };
-    }
-
-    case 'fantasypros': {
-      let week = nflState.season_type === 'pre' ? 0 : nflState.week;
-      if (weekStatic !== null && weekStatic !== '') {
-        week = parseInt(weekStatic);
-      }
-
-      let pos = position;
-      if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
-        pos = 'TODAS_PRE';
-      }
-
-      const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
-      const posValue = posObj.valor || pos;
-
-      let type = 'PRESEASON';
-      if (week > 0) type = 'WEEKLY';
-      if (dynasty) type = 'DK';
-
-      const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
-
-      const res = await fetch(url);
-      const json = await res.json();
-
-      return {
-        source: 'fantasypros',
-        published: json.published,
-        players: json.players || []
-      };
-    }
-
-    case 'manual': {
-      if (!expertId && expertData?.id_experto) expertId = expertData.id_experto;
-      if (!expertId) throw new Error('Debe indicar expertId para rankings manuales');
-      return await getManualRankings({ expertId });
-    }
-
-    default:
-      throw new Error(`Ranking source "${source}" no soportado`);
+  if (expertData.source === 'manual') {
+    return await getManualRankings(expertData.id_experto);
   }
+
+  if (expertData.source === 'flock') {
+    const superflex = position === 'SUPER FLEX';
+    const { data, last_updated } = await getFlockRankings({
+      dynasty,
+      superflex,
+      expert: expertData.experto
+    });
+
+    return {
+      source: expertData.source,
+      published: last_updated,
+      players: data
+    };
+  }
+
+  let week = nflState.season_type === 'pre' ? 0 : nflState.week;
+  if (weekStatic !== null && weekStatic !== '') {
+    week = parseInt(weekStatic);
+  }
+
+  let pos = position;
+  if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
+    pos = 'TODAS_PRE';
+  }
+
+  const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
+  const posValue = posObj.valor || pos;
+
+  let type = 'PRESEASON';
+  if (week > 0) type = 'WEEKLY';
+  if (dynasty) type = 'DK';
+
+  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
+  //console.log('📊 URL FantasyPros Rankings:', url);
+
+  const res = await fetch(url);
+  const json = await res.json();
+
+  return {
+    source: 'fantasypros',
+    published: json.published,
+    players: json.players || []
+  };
 }
 
 export async function getFlockRankings({ dynasty, superflex, expert = null }) {
@@ -110,8 +102,8 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   }
 }
 
-export async function getManualRankings({ expertId }) {
-  if (!expertId) throw new Error('Debe indicar expertId');
+async function getManualRankings(expertId) {
+  if (!expertId) throw new Error('Debe indicar expertId para rankings manuales');
 
   const { data, error } = await supabase
     .from('manual_rankings')
@@ -128,11 +120,7 @@ export async function getManualRankings({ expertId }) {
 
   if (error) {
     console.error('❌ Error en getManualRankings:', error.message);
-    return {
-      source: 'manual',
-      published: null,
-      players: []
-    };
+    return { source: 'manual', published: null, expert: null, players: [] };
   }
 
   return {
