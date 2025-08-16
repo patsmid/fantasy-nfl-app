@@ -31,11 +31,15 @@ export default async function renderDraftView() {
       #draftTable .badge { white-space: nowrap; }
       #draftTable .progress { height:12px; min-width:120px; }
 
-      /* Contenedores de controles de DataTables reubicados */
-      #dt-controls-top .dataTables_length label,
-      #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
+      /* Controles DataTables reubicados */
+      #dt-controls-top { gap:.5rem; }
+      #dt-controls-top .dataTables_length,
+      #dt-controls-top .dataTables_filter { margin: .25rem 0; }
       #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
       #dt-pagination-bottom .dataTables_info { padding-top: .5rem; }
+
+      /* Evitar “saltos” al ocultar/mostrar wrapper */
+      .dt-wrapper-hidden { display: none !important; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -107,15 +111,15 @@ export default async function renderDraftView() {
         <div class="mb-3" id="draft-summary"></div>
 
         <!-- Controles de DT reubicados: arriba de las cards (solo desktop) -->
-        <div id="dt-controls-top" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"></div>
+        <div id="dt-controls-top" class="d-none d-md-flex justify-content-between align-items-center flex-wrap mb-2"></div>
 
-        <!-- Cards visibles en móvil y desktop (se ocultan sólo si se elige tabla en desktop) -->
+        <!-- Cards visibles en móvil y desktop (se ocultan si se elige tabla en desktop) -->
         <div id="draft-cards" class="mb-2"></div>
 
-        <!-- Contenedor para info + paginación reubicados (abajo de las cards, solo desktop) -->
-        <div id="dt-pagination-bottom" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mt-2"></div>
+        <!-- Info + paginación reubicados (abajo de las cards, solo desktop) -->
+        <div id="dt-pagination-bottom" class="d-none d-md-flex justify-content-between align-items-center flex-wrap mt-2"></div>
 
-        <!-- Tabla (solo desktop); en vista Cards se oculta SOLO el <table>, dejando controles arriba/abajo -->
+        <!-- Tabla (solo desktop); el wrapper se oculta/mostrar para evitar deformaciones -->
         <div class="d-none d-md-block">
           <div class="table-responsive">
             <table id="draftTable" class="table table-dark table-hover align-middle w-100">
@@ -140,7 +144,7 @@ export default async function renderDraftView() {
                   <th>Value Tags</th>
                   <th>Tier Global</th>
                   <th>Tier Posición</th>
-                  <!-- índice oculto para mapear a cards -->
+                  <!-- Índice oculto para mapear a cards -->
                   <th data-hidden-idx>_idx</th>
                 </tr>
               </thead>
@@ -168,10 +172,11 @@ export default async function renderDraftView() {
   const dtControlsTop = document.getElementById('dt-controls-top');
   const dtPagBottom = document.getElementById('dt-pagination-bottom');
 
-  // Estado de vista (desktop)
   let desktopView = 'cards'; // 'cards' | 'table'
   let draftData = [];
-  let lastFiltered = []; // arreglo de jugadores que alimenta la tabla
+  let lastFiltered = [];
+  let dtWrapper = null;      // wrapper de DataTables (div.dataTables_wrapper)
+  let dtInstance = null;     // instancia de DataTables
 
   // =============================
   // Restaurar valores guardados
@@ -188,8 +193,21 @@ export default async function renderDraftView() {
   if (savedPosition) positionSelect.value = savedPosition;
   if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
-  await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
-  await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
+  // TomSelect: cerrar al seleccionar
+  await renderExpertSelect('#select-expert', {
+    plugins: ['dropdown_input'],
+    dropdownInput: false,
+    create: false,
+    persist: false,
+    onChange() { this.blur(); }
+  });
+  await renderLeagueSelect('#select-league', {
+    plugins: ['dropdown_input'],
+    dropdownInput: false,
+    create: false,
+    persist: false,
+    onChange() { this.blur(); }
+  });
 
   // =============================
   // EVENTOS DE FILTROS
@@ -227,6 +245,13 @@ export default async function renderDraftView() {
   const safeNum = (v, decimals = 2) =>
     (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : '';
 
+  const sortByRank = (arr) =>
+    arr.slice().sort((a, b) => {
+      const ra = (a.rank ?? Number.POSITIVE_INFINITY);
+      const rb = (b.rank ?? Number.POSITIVE_INFINITY);
+      return ra - rb;
+    });
+
   function renderSummary(players) {
     const summary = { tiers: {}, steals: 0, risks: 0 };
     players.forEach(p => {
@@ -249,7 +274,7 @@ export default async function renderDraftView() {
   // ================================
   // TABLA (ESCRITORIO)
   // ================================
-  function mountDtControls() {
+  function mountDtControlsOnce() {
     const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
     if (!$wrapper.length) return;
 
@@ -258,13 +283,16 @@ export default async function renderDraftView() {
     const $info = $wrapper.find('div.dataTables_info');
     const $paginate = $wrapper.find('div.dataTables_paginate');
 
-    if ($length.length) $(dtControlsTop).append($length);
-    if ($filter.length) $(dtControlsTop).append($filter);
-    if ($info.length) $(dtPagBottom).append($info);
-    if ($paginate.length) $(dtPagBottom).append($paginate);
+    // Mover sólo si aún no están dentro de nuestros contenedores
+    if ($length.length && !dtControlsTop.contains($length[0])) $(dtControlsTop).append($length);
+    if ($filter.length && !dtControlsTop.contains($filter[0])) $(dtControlsTop).append($filter);
+    if ($info.length && !dtPagBottom.contains($info[0])) $(dtPagBottom).append($info);
+    if ($paginate.length && !dtPagBottom.contains($paginate[0])) $(dtPagBottom).append($paginate);
 
     dtControlsTop.classList.remove('d-none');
     dtPagBottom.classList.remove('d-none');
+
+    dtWrapper = $wrapper.get(0);
   }
 
   function updateTable(filtered) {
@@ -276,6 +304,7 @@ export default async function renderDraftView() {
         t.clear().draw();
       }
       updateCards([]);
+      renderSummary([]);
       return;
     }
 
@@ -308,30 +337,32 @@ export default async function renderDraftView() {
       String(idx) // índice oculto para mapear a cards
     ]);
 
+    const idxHiddenCol = $('#draftTable thead th').length - 1; // última columna
+    const notOrderable = [9, 16, 17, 18]; // barras/badges
+    const notOrderableClamped = notOrderable
+      .map(i => i >= 0 && i < idxHiddenCol ? i : null)
+      .filter(i => i !== null);
+
     if ($.fn.dataTable.isDataTable('#draftTable')) {
-      const table = $('#draftTable').DataTable();
-      table.clear();
-      table.rows.add(dataSet);
-      table.draw(false);
+      dtInstance = $('#draftTable').DataTable();
+      dtInstance.clear();
+      dtInstance.rows.add(dataSet);
+      dtInstance.draw(false);
     } else {
-      const table = $('#draftTable').DataTable({
+      dtInstance = $('#draftTable').DataTable({
         data: dataSet,
         scrollX: true,
         autoWidth: false,
         destroy: true,
         pageLength: 25,
-        // Orden inicial por rank (columna 6)
+        // Orden inicial por RANK (columna 6)
         order: [[6, 'asc']],
-        // Creamos length, filter, info y paginación para luego moverlos a nuestros contenedores
         dom: 'lfrtip',
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         columnDefs: [
-          // columnas no ordenables
-          { targets: [9, 16, 17, 18], orderable: false },
-          // estilos
-          { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
-          // ocultar SOLO la columna índice final
-          { targets: [19], visible: false, searchable: false }
+          { targets: notOrderableClamped, orderable: false },
+          { targets: notOrderableClamped, className: 'text-nowrap text-center' },
+          { targets: [idxHiddenCol], visible: false, searchable: false } // oculta solo índice
         ],
         rowCallback: function (row, data) {
           const tier = $(data[17]).text().toLowerCase();
@@ -342,18 +373,16 @@ export default async function renderDraftView() {
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         },
         initComplete: function () {
-          // Mover controles a los contenedores personalizados
-          mountDtControls();
-
-          // Si estamos en vista cards al iniciar, ocultamos el <table> y pintamos cards de la página actual
-          if (isDesktop() && desktopView === 'cards') {
-            document.getElementById('draftTable').classList.add('d-none');
+          mountDtControlsOnce();
+          // Si iniciamos en Cards (desktop), ocultamos wrapper y pintamos cards con el estado actual
+          if (isDesktop() && desktopView === 'cards' && dtWrapper) {
+            dtWrapper.classList.add('dt-wrapper-hidden');
             renderCardsFromDataTable();
           }
         }
       });
 
-      // Cuando DataTables cambie búsqueda/orden/página, refrescamos las cards si la vista activa es "cards"
+      // Redibujar cards cuando cambie búsqueda/orden/página
       $('#draftTable').on('draw.dt', () => {
         if (isDesktop() && desktopView === 'cards') {
           renderCardsFromDataTable();
@@ -429,10 +458,10 @@ export default async function renderDraftView() {
   function renderCardsFromDataTable() {
     if (!$.fn.dataTable.isDataTable('#draftTable')) return;
     const t = $('#draftTable').DataTable();
+    const idxHiddenCol = $('#draftTable thead th').length - 1;
     const rows = t.rows({ page: 'current', search: 'applied', order: 'applied' }).data().toArray();
-    const idxCol = 19; // última columna es el índice oculto
     const pagePlayers = rows
-      .map(r => lastFiltered[Number(r[idxCol])])
+      .map(r => lastFiltered[Number(r[idxHiddenCol])])
       .filter(Boolean);
 
     updateCards(pagePlayers);
@@ -452,8 +481,9 @@ export default async function renderDraftView() {
         renderSummary(filtered);
       }
     } else {
-      renderSummary(filtered);
-      updateCards(filtered);
+      const sorted = sortByRank(filtered);
+      renderSummary(sorted);
+      updateCards(sorted);
     }
   }
 
@@ -538,33 +568,34 @@ export default async function renderDraftView() {
       btnViewTable.classList.toggle('active', view === 'table');
     }
 
-    const tableEl = document.getElementById('draftTable');
-
-    if (view === 'cards') {
-      // mostrar cards, ocultar solo el <table>
-      cardsContainer.classList.remove('d-none');
-      if (tableEl) tableEl.classList.add('d-none');
-
-      // re-pintar cards desde el estado actual de DT
-      if ($.fn.dataTable.isDataTable('#draftTable')) {
-        renderCardsFromDataTable();
-      }
-    } else {
-      // mostrar tabla, ocultar cards
-      cardsContainer.classList.add('d-none');
-      if (tableEl) {
-        tableEl.classList.remove('d-none');
-        // ⚙️ Asegurar encabezados y tamaños correctos al volver a mostrar la tabla
+    // Mostrar/ocultar wrapper de DataTables (no sólo <table>) para evitar deformaciones
+    if (dtWrapper) {
+      if (view === 'cards') {
+        dtWrapper.classList.add('dt-wrapper-hidden');
+      } else {
+        dtWrapper.classList.remove('dt-wrapper-hidden');
+        // Asegurar encabezados y tamaños correctos al volver a tabla
         if ($.fn.dataTable.isDataTable('#draftTable')) {
           const t = $('#draftTable').DataTable();
-          // En algunos casos ayuda forzar el display del thead y luego ajustar columnas
-          $(t.table().header()).css('display', '');
-          setTimeout(() => {
-            t.columns.adjust().draw(false);
-          }, 0);
+          // Ajuste en dos RAF para que el DOM ya esté visible
+          requestAnimationFrame(() => {
+            t.columns.adjust();
+            requestAnimationFrame(() => t.draw(false));
+          });
         }
       }
-      // summary con todo el set filtrado actual
+    }
+
+    if (view === 'cards') {
+      cardsContainer.classList.remove('d-none');
+      // re-pintar cards con el estado actual de DT
+      if ($.fn.dataTable.isDataTable('#draftTable')) {
+        renderCardsFromDataTable();
+      } else if (lastFiltered.length) {
+        updateCards(sortByRank(lastFiltered));
+      }
+    } else {
+      cardsContainer.classList.add('d-none');
       if (lastFiltered.length) renderSummary(lastFiltered);
     }
   }
@@ -574,17 +605,23 @@ export default async function renderDraftView() {
   // ================================
   if (savedLeague && savedPosition && savedExpert) loadDraftData();
 
-  // Al cargar, forzamos vista cards en desktop por defecto
+  // Forzar vista cards por defecto en desktop tras montar
   setTimeout(() => setDesktopView('cards'), 0);
 
   // Reaccionar a cambios de tamaño (si cambia entre móvil/desktop)
   window.addEventListener('resize', () => {
     if (!isDesktop()) {
-      // móvil: controles de DT ocultos por CSS; mostrar cards siempre
+      // móvil: siempre cards
       cardsContainer.classList.remove('d-none');
     } else {
       // desktop: aplicar el modo actual
       setDesktopView(desktopView);
+      if ($.fn.dataTable.isDataTable('#draftTable')) {
+        const t = $('#draftTable').DataTable();
+        requestAnimationFrame(() => {
+          t.columns.adjust();
+        });
+      }
     }
   });
 }
