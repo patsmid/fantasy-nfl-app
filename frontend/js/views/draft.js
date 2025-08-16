@@ -32,6 +32,7 @@ export default async function renderDraftView() {
       #draftTable .progress { height:12px; min-width:120px; }
 
       /* Contenedores de controles de DataTables reubicados */
+      #dt-controls-top { margin-bottom: .5rem; }
       #dt-controls-top .dataTables_length label,
       #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
       #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
@@ -39,6 +40,12 @@ export default async function renderDraftView() {
 
       /* Clase para ocultar wrapper de DataTables sin romper layout */
       .dt-wrapper-hidden { display: none !important; }
+
+      /* Ensure controls area doesn't get pushed below cards due to flex wrapping */
+      @media(min-width:768px) {
+        #dt-controls-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+        #dt-pagination-bottom { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+      }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -364,10 +371,24 @@ export default async function renderDraftView() {
     const $info = $wrapper.find('div.dataTables_info');
     const $paginate = $wrapper.find('div.dataTables_paginate');
 
+    // mover (no clonar) los controles al área superior / inferior personalizada
     if ($length.length) $(dtControlsTop).append($length);
     if ($filter.length) $(dtControlsTop).append($filter);
     if ($info.length) $(dtPagBottom).append($info);
     if ($paginate.length) $(dtPagBottom).append($paginate);
+
+    // Force placement: asegurarnos que los contenedores personalizados estén justo encima/debajo de las cards
+    try {
+      if (cardsContainer && dtControlsTop && cardsContainer.parentNode) {
+        cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer);
+      }
+      if (cardsContainer && dtPagBottom && cardsContainer.parentNode) {
+        cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling);
+      }
+    } catch (e) {
+      // no bloquear si falla la re-inserción
+      console.warn('No fue posible reordenar contenedores DT:', e);
+    }
 
     dtControlsTop.classList.remove('d-none');
     dtPagBottom.classList.remove('d-none');
@@ -463,6 +484,8 @@ export default async function renderDraftView() {
           // Si estamos en vista cards al iniciar, ocultamos la envoltura de DataTables y pintamos cards
           if (isDesktop() && desktopView === 'cards') {
             if (dtWrapperEl) dtWrapperEl.classList.add('dt-wrapper-hidden');
+            // asegurar que los controles estén realmente encima de las cards
+            try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
             renderCardsFromDataTable();
           }
         }
@@ -494,18 +517,24 @@ export default async function renderDraftView() {
 
     const maxProj = Math.max(...players.map(p => Number(p.projection) || 0)) || 1;
 
+    // Para badges de priority dinámicos
+    const minPriority = Math.min(...players.map(p => Number(p.priorityScore) || 0));
+    const maxPriority = Math.max(...players.map(p => Number(p.priorityScore) || 0));
+
     cont.innerHTML = `
       <div class="row g-2">
         ${players.map(p => {
           const risk = (p.riskTags || []).join(', ');
           const prio = (p.priorityScore ?? '') + '';
           const projPct = Math.min(100, (Number(p.projection||0)/maxProj)*100);
+          // badge de prioridad inline para asegurar que el color venga del heatmap
+          const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
           return `
             <div class="col-12 col-md-4 col-lg-3">
               <div class="draft-card">
                 <div class="title-row">
                   <div class="player">${p.nombre ?? ''}</div>
-                  <span class="badge bg-info text-dark">Prio: ${prio}</span>
+                  <span class="badge" style="${prioStyle}">Prio: ${prio}</span>
                 </div>
                 <div class="meta mb-2">
                   <span class="kv">${getPositionBadge(p.position)}</span>
@@ -660,17 +689,30 @@ export default async function renderDraftView() {
     if (dtWrapperEl) {
       if (view === 'cards') {
         dtWrapperEl.classList.add('dt-wrapper-hidden');
+        // asegurar controles arriba
+        try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
         // renderizar cards desde DT
         renderCardsFromDataTable();
+
+        // mostrar controles superiores (por si estaban ocultos)
+        dtControlsTop.classList.remove('d-none');
+        dtPagBottom.classList.remove('d-none');
       } else {
         dtWrapperEl.classList.remove('dt-wrapper-hidden');
-        // forzar re-ajuste de columnas para que los encabezados aparezcan correctamente
+        // asegurar display del wrapper/table/header
+        dtWrapperEl.style.display = '';
         if ($.fn.dataTable.isDataTable('#draftTable')) {
           const t = $('#draftTable').DataTable();
-          // forzar display del header y ajustar columnas
-          $(t.table().header()).css('display', '');
+          try {
+            $(t.table().container()).css('display', '');
+            $(t.table().header()).css('display', 'table-header-group');
+          } catch (e) {}
           requestAnimationFrame(() => { t.columns.adjust(); requestAnimationFrame(() => t.draw(false)); });
         }
+        // Asegurar controles posicionados correctamente alrededor de las cards
+        try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
+        try { if (cardsContainer && dtPagBottom && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling); } catch (e) {}
+
         // summary con todo el set filtrado actual
         if (lastFiltered.length) renderSummary(lastFiltered);
       }
@@ -681,13 +723,15 @@ export default async function renderDraftView() {
         cardsContainer.classList.remove('d-none');
         if (tableEl) tableEl.classList.add('d-none');
         if ($.fn.dataTable.isDataTable('#draftTable')) renderCardsFromDataTable();
+        dtControlsTop.classList.remove('d-none');
+        dtPagBottom.classList.remove('d-none');
       } else {
         cardsContainer.classList.add('d-none');
         if (tableEl) {
           tableEl.classList.remove('d-none');
           if ($.fn.dataTable.isDataTable('#draftTable')) {
             const t = $('#draftTable').DataTable();
-            $(t.table().header()).css('display', '');
+            $(t.table().header()).css('display', 'table-header-group');
             setTimeout(() => t.columns.adjust().draw(false), 0);
           }
         }
