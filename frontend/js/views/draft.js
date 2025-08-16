@@ -50,6 +50,14 @@ export default async function renderDraftView() {
       /* Small tweak so our injected controls mimic DataTables spacing */
       #dt-controls-top .dt-left-group, #dt-controls-top .dt-right-group { display:flex; align-items:center; gap:.5rem; }
       #dt-controls-top .form-select-sm { height: calc(1.5rem + 0.6rem); padding: .2rem .55rem; }
+
+      /* FORCE: asegurar que thead (incl. clones de DataTables con scrollX) siempre esté visible */
+      #draftTable thead,
+      .dataTables_scrollHead thead {
+        display: table-header-group !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -555,6 +563,7 @@ export default async function renderDraftView() {
             container.find('.dataTables_scrollHeadInner').css('display', '');
             container.find('.dataTables_scrollBody').css('display', '');
             $(this.table().header()).css('display', 'table-header-group');
+            container.find('.dataTables_scrollHead thead').css({ 'display': 'table-header-group', 'visibility': 'visible', 'opacity': 1 });
             this.columns.adjust();
           } catch (e) {
             // no bloquear si falla
@@ -793,6 +802,7 @@ export default async function renderDraftView() {
             // forzar que el header clone y th sean visibles
             $(t.table().header()).css('display', 'table-header-group');
             container.find('thead').css('display', 'table-header-group');
+            container.find('.dataTables_scrollHead thead').css({ 'display': 'table-header-group', 'visibility': 'visible', 'opacity': 1 });
           } catch (e) {
             // no bloquear
           }
@@ -821,6 +831,7 @@ export default async function renderDraftView() {
           if ($.fn.dataTable.isDataTable('#draftTable')) {
             const t = $('#draftTable').DataTable();
             $(t.table().header()).css('display', 'table-header-group');
+            $(t.table().header()).css({'visibility':'visible','opacity':1});
             setTimeout(() => t.columns.adjust().draw(false), 0);
           }
         }
