@@ -143,10 +143,11 @@ export async function getManualRankings(expertId) {
     console.log('✅ playersData obtenida, total registros:', playersData.length);
 
     // 3️⃣ Combinar manualData y playersData por player_id
-    const combinedPlayers = manualData.map(r => {
+    const combinedPlayers = manualData.map((r, index) => {
       const player = playersData.find(p => p.player_id === r.sleeper_player_id);
       if (!player) console.warn('⚠️ No se encontró jugador para sleeper_player_id:', r.sleeper_player_id);
-      return {
+
+      const combined = {
         id: r.sleeper_player_id,
         player_id: r.sleeper_player_id,
         full_name: player?.full_name || null,
@@ -155,6 +156,11 @@ export async function getManualRankings(expertId) {
         rank: r.rank,
         tier: r.tier
       };
+
+      // Log detallado de cada jugador
+      console.log(`🔹 [${index + 1}] ${combined.full_name || '???'} | ${combined.position || '???'} | ${combined.team || '???'} | rank: ${combined.rank} | tier: ${combined.tier}`);
+
+      return combined;
     });
 
     console.log('✅ combinedPlayers generados, total:', combinedPlayers.length);
@@ -170,6 +176,7 @@ export async function getManualRankings(expertId) {
     return { source: 'manual', published: null, expert: null, players: [] };
   }
 }
+
 
 export async function getFantasyProsRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
   return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });

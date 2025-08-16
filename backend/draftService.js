@@ -91,7 +91,7 @@ export async function getDraftData(
     // 3. DST & Kicker
     let dstRankings = [];
     let kickerRankings = [];
-    if (expertData?.source !== 'flock') {
+    if (expertData?.source === 'fantasypros') {
       if (starterPositions.includes('DEF')) {
         dstRankings = (await getDSTRankings({ season, dynasty, expertData, weekStatic: null }))?.players?.map(p => ({
           ...p,
@@ -108,29 +108,21 @@ export async function getDraftData(
 
     // 4. ADP
     const adpType = getADPtype(scoring, dynasty, superFlex);
-    console.log('📊 ADP Flow:', { scoring, dynasty, superFlex, sleeperADP, adpType });
 
     let rawAdpData = [];
     if (dynasty || superFlex || sleeperADP) {
       rawAdpData = (await getADPData(adpType)) || [];
-      console.log('📌 getADPData returned:', rawAdpData.length, 'records');
     } else {
       const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
       rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
-      console.log('📌 getFantasyProsADPDataSimple returned:', rawAdpData.length, 'records');
     }
 
     // Normalización y conversión a número
     const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros')
       .map(a => ({ ...a, adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null }));
 
-    console.log('🔹 normalizedAdp sample:', normalizedAdp.slice(0, 5));
-
     const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean));
-    console.log('🆔 ADP Player IDs count:', adpPlayerIds.size);
-
     const adpDate = getLatestDateFromADP(normalizedAdp);
-    console.log('📅 Latest ADP date:', adpDate);
 
     // 5. allPlayerIds
     const allPlayerIds = new Set([...adpPlayerIds]);
