@@ -114,6 +114,82 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
   }
 }
 
+export async function getManualRankings(expertId) {
+  console.log('🔹 getManualRankings iniciado para expertId:', expertId);
+
+  if (!expertId) throw new Error('Debe indicar expertId para rankings manuales');
+
+  try {
+    // 1️⃣ Obtener manual_rankings del experto
+    const { data: manualData, error: manualError } = await supabase
+      .from('manual_rankings')
+      .select('sleeper_player_id, rank, tier, updated_at, expert:experts(experto, source)')
+      .eq('expert_id', expertId)
+      .order('rank', { ascending: true });
+
+    if (manualError) {
+      console.error('❌ Error al obtener manual_rankings:', manualError);
+      throw manualError;
+    }
+
+    console.log('✅ manualData obtenida, total registros:', manualData.length);
+    if (!manualData || manualData.length === 0) {
+      console.warn('⚠️ No se encontraron manual_rankings para este experto');
+      return { source: 'manual', published: null, expert: null, players: [] };
+    }
+
+    // 2️⃣ Obtener solo los jugadores correspondientes de la tabla players
+    const playerIds = manualData.map(r => r.sleeper_player_id);
+    console.log('🔹 playerIds para consulta de players:', playerIds);
+
+    const { data: playersData, error: playersError } = await supabase
+      .from('players')
+      .select('player_id, full_name, position, team')
+      .in('player_id', playerIds);
+
+    if (playersError) {
+      console.error('❌ Error al obtener players:', playersError);
+      throw playersError;
+    }
+
+    console.log('✅ playersData obtenida, total registros:', playersData.length);
+
+    // 3️⃣ Combinar manualData y playersData por player_id
+    const combinedPlayers = manualData.map((r, index) => {
+      const player = playersData.find(p => p.player_id === r.sleeper_player_id);
+      if (!player) console.warn('⚠️ No se encontró jugador para sleeper_player_id:', r.sleeper_player_id);
+
+      const combined = {
+        id: r.sleeper_player_id,
+        player_id: r.sleeper_player_id,
+        full_name: player?.full_name || null,
+        position: player?.position || null,
+        team: player?.team || null,
+        rank: r.rank,
+        tier: r.tier
+      };
+
+      // Log detallado de cada jugador
+      console.log(`🔹 [${combined.player_id}] ${combined.full_name || '???'} | ${combined.position || '???'} | ${combined.team || '???'} | rank: ${combined.rank} | tier: ${combined.tier}`);
+
+      return combined;
+    });
+
+    console.log('✅ combinedPlayers generados, total:', combinedPlayers.length);
+
+    return {
+      source: 'manual',
+      published: manualData[0].updated_at || new Date().toISOString(),
+      expert: manualData[0].expert || null,
+      players: combinedPlayers
+    };
+  } catch (err) {
+    console.error('❌ Error en getManualRankings:', err.message);
+    return { source: 'manual', published: null, expert: null, players: [] };
+  }
+}
+
+
 export async function getFantasyProsRankings({ season, dynasty, scoring, idExpert, position, weekStatic = null }) {
   return await getRankings({ season, dynasty, scoring, idExpert, position, weekStatic });
 }
