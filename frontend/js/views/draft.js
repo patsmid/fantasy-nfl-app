@@ -32,7 +32,7 @@ export default async function renderDraftView() {
       #draftTable .progress { height:12px; min-width:120px; }
 
       /* Contenedores de controles de DataTables reubicados */
-      #dt-controls-top { margin-bottom: .5rem; }
+      #dt-controls-top { margin-bottom: .75rem; }
       #dt-controls-top .dataTables_length label,
       #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
       #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
@@ -43,9 +43,13 @@ export default async function renderDraftView() {
 
       /* Ensure controls area doesn't get pushed below cards due to flex wrapping */
       @media(min-width:768px) {
-        #dt-controls-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
-        #dt-pagination-bottom { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+        #dt-controls-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:.5rem; }
+        #dt-pagination-bottom { display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:.5rem; }
       }
+
+      /* Small tweak so our injected controls mimic DataTables spacing */
+      #dt-controls-top .dt-left-group, #dt-controls-top .dt-right-group { display:flex; align-items:center; gap:.5rem; }
+      #dt-controls-top .form-select-sm { height: calc(1.5rem + 0.6rem); padding: .2rem .55rem; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -185,6 +189,7 @@ export default async function renderDraftView() {
 
   // DataTables wrapper element (lo usaremos para ocultar/mostrar sin romper encabezados)
   let dtWrapperEl = null;
+  let currentTable = null; // referencia a DataTable instance
 
   // =============================
   // Restaurar valores guardados
@@ -337,6 +342,15 @@ export default async function renderDraftView() {
     return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
   };
 
+  // Debounce util para input de búsqueda
+  function debounce(fn, wait) {
+    let t;
+    return function (...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+
   function renderSummary(players) {
     const summary = { tiers: {}, steals: 0, risks: 0 };
     players.forEach(p => {
@@ -359,25 +373,20 @@ export default async function renderDraftView() {
   // ================================
   // TABLA (ESCRITORIO)
   // ================================
-  function mountDtControls() {
-    const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
-    if (!$wrapper.length) return;
+  function mountDtControls($wrapper) {
+    if (!$wrapper || !$wrapper.length) return;
 
     // guardar wrapper para poder ocultarlo sin romper encabezados
     dtWrapperEl = $wrapper.get(0);
 
-    const $length = $wrapper.find('div.dataTables_length');
-    const $filter = $wrapper.find('div.dataTables_filter');
     const $info = $wrapper.find('div.dataTables_info');
     const $paginate = $wrapper.find('div.dataTables_paginate');
 
-    // mover (no clonar) los controles al área superior / inferior personalizada
-    if ($length.length) $(dtControlsTop).append($length);
-    if ($filter.length) $(dtControlsTop).append($filter);
+    // mover (no clonar) los controles de info/paginación al área inferior personalizada
     if ($info.length) $(dtPagBottom).append($info);
     if ($paginate.length) $(dtPagBottom).append($paginate);
 
-    // Force placement: asegurarnos que los contenedores personalizados estén justo encima/debajo de las cards
+    // Asegurar que los contenedores personalizados estén justo encima/debajo de las cards
     try {
       if (cardsContainer && dtControlsTop && cardsContainer.parentNode) {
         cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer);
@@ -386,12 +395,50 @@ export default async function renderDraftView() {
         cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling);
       }
     } catch (e) {
-      // no bloquear si falla la re-inserción
       console.warn('No fue posible reordenar contenedores DT:', e);
     }
 
     dtControlsTop.classList.remove('d-none');
     dtPagBottom.classList.remove('d-none');
+  }
+
+  function setupCustomTopControls(table) {
+    // Construir controles manualmente (search + length) dentro de dtControlsTop para evitar problemas de posicionamiento
+    if (!dtControlsTop) return;
+
+    // Build HTML only once
+    dtControlsTop.innerHTML = `
+      <div class="dt-left-group">
+        <label class="m-0">Mostrar
+          <select id="dt-page-length" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        registros</label>
+      </div>
+      <div class="dt-right-group ms-auto">
+        <input id="dt-search" class="form-control form-control-sm" placeholder="Buscar...">
+      </div>
+    `;
+
+    // Length select
+    const lengthSel = document.getElementById('dt-page-length');
+    lengthSel.value = table.page.len();
+    lengthSel.addEventListener('change', (e) => {
+      const val = Number(e.target.value);
+      table.page.len(val).draw(false);
+    });
+
+    // Search input with debounce
+    const searchInput = document.getElementById('dt-search');
+    searchInput.value = table.search() || '';
+    searchInput.addEventListener('input', debounce(function (e) {
+      table.search(this.value).draw();
+    }, 250));
+
+    dtControlsTop.classList.remove('d-none');
   }
 
   function updateTable(filtered) {
@@ -446,27 +493,33 @@ export default async function renderDraftView() {
       table.clear();
       table.rows.add(dataSet);
       table.draw(false);
+      currentTable = table;
+      // Re-setup custom controls values
+      try {
+        const sel = document.getElementById('dt-page-length');
+        if (sel) sel.value = table.page.len();
+        const searchInput = document.getElementById('dt-search');
+        if (searchInput) searchInput.value = table.search();
+      } catch (e) {}
     } else {
+      // NOTE: removemos 'l' y 'f' del dom para evitar que DataTables cree sus propios controles y los coloque incorrectamente.
       const table = $('#draftTable').DataTable({
         data: dataSet,
         scrollX: true,
         autoWidth: false,
         destroy: true,
         pageLength: 25,
-        deferRender: true, // ⚡ mejora rendimiento con muchos registros
+        deferRender: true,
         // Orden inicial por rank (columna 6)
         order: [[6, 'asc']],
-        dom: 'lfrtip',
+        // dom: sólo tabla + info/paginate (los controles top los hacemos nosotros)
+        dom: 't<"dt-bottom"ip>',
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         columnDefs: [
-          // columnas no ordenables (proyección, risk/value/tier cols)
           { targets: [9, 16, 17, 18], orderable: false },
           { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
-          // asegurar tratamiento numérico en columnas clave
           { targets: [1, 5, 6, 8, 10, 11, 12, 13, 14], type: 'num' },
-          // ocultar SOLO la columna índice final (índice 19)
           { targets: [19], visible: false, searchable: false },
-          // ocultar Steal Score (índice 14)
           { targets: [14], visible: false, searchable: false }
         ],
         rowCallback: function (row, data) {
@@ -478,25 +531,50 @@ export default async function renderDraftView() {
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         },
         initComplete: function () {
-          // Mover controles a los contenedores personalizados y guardar wrapper
-          mountDtControls();
+          // cuando DataTables termina, mover info/paginación y guardar wrapper
+          const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
+          mountDtControls($wrapper);
+
+          // crear controles top custom en nuestro contenedor
+          setupCustomTopControls(this.api());
+
+          // guardar referencia
+          currentTable = this.api();
 
           // Si estamos en vista cards al iniciar, ocultamos la envoltura de DataTables y pintamos cards
           if (isDesktop() && desktopView === 'cards') {
             if (dtWrapperEl) dtWrapperEl.classList.add('dt-wrapper-hidden');
-            // asegurar que los controles estén realmente encima de las cards
             try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
             renderCardsFromDataTable();
+          }
+
+          // Asegurar que el header de scrollX esté visible (caso en que DataTables use scroll wrapper)
+          try {
+            const container = $(this.table().container());
+            container.find('.dataTables_scrollHead').css('display', '');
+            container.find('.dataTables_scrollHeadInner').css('display', '');
+            container.find('.dataTables_scrollBody').css('display', '');
+            $(this.table().header()).css('display', 'table-header-group');
+            this.columns.adjust();
+          } catch (e) {
+            // no bloquear si falla
           }
         }
       });
 
       // Cuando DataTables cambie búsqueda/orden/página, refrescamos las cards si la vista activa es "cards"
-      $('#draftTable').on('draw.dt', () => {
+      $('#draftTable').off('draw.dt').on('draw.dt', () => {
         if (isDesktop() && desktopView === 'cards') {
           renderCardsFromDataTable();
         }
+        // mover paginación cada redraw por si DataTables la re-crea
+        try {
+          const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
+          mountDtControls($wrapper);
+        } catch (e) {}
       });
+
+      currentTable = table;
     }
 
     // Si estamos en desktop + cards, renderizar cards con el estado de DT
@@ -685,39 +763,50 @@ export default async function renderDraftView() {
       btnViewTable.classList.toggle('active', view === 'table');
     }
 
-    // Usamos dtWrapperEl para ocultar toda la envoltura del DataTable sin romper encabezados
+    // Mostrar / ocultar wrapper
     if (dtWrapperEl) {
+      const $wrapper = $(dtWrapperEl);
       if (view === 'cards') {
-        dtWrapperEl.classList.add('dt-wrapper-hidden');
+        // ocultar wrapper pero dejar controles visibles
+        $wrapper.addClass('dt-wrapper-hidden');
+
         // asegurar controles arriba
         try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
-        // renderizar cards desde DT
+
         renderCardsFromDataTable();
 
-        // mostrar controles superiores (por si estaban ocultos)
         dtControlsTop.classList.remove('d-none');
         dtPagBottom.classList.remove('d-none');
       } else {
-        dtWrapperEl.classList.remove('dt-wrapper-hidden');
-        // asegurar display del wrapper/table/header
-        dtWrapperEl.style.display = '';
+        // mostrar wrapper y forzar recalculo de header/columnas
+        $wrapper.removeClass('dt-wrapper-hidden');
+        try { $wrapper.show(); } catch (e) {}
+
         if ($.fn.dataTable.isDataTable('#draftTable')) {
           const t = $('#draftTable').DataTable();
           try {
-            $(t.table().container()).css('display', '');
+            const container = $(t.table().container());
+            // mostrar elementos de scroll head (si existen)
+            container.find('.dataTables_scrollHead').css('display', '');
+            container.find('.dataTables_scrollHeadInner').css('display', '');
+            container.find('.dataTables_scrollBody').css('display', '');
+            // forzar que el header clone y th sean visibles
             $(t.table().header()).css('display', 'table-header-group');
-          } catch (e) {}
+            container.find('thead').css('display', 'table-header-group');
+          } catch (e) {
+            // no bloquear
+          }
+
           requestAnimationFrame(() => { t.columns.adjust(); requestAnimationFrame(() => t.draw(false)); });
         }
-        // Asegurar controles posicionados correctamente alrededor de las cards
+
         try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
         try { if (cardsContainer && dtPagBottom && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling); } catch (e) {}
 
-        // summary con todo el set filtrado actual
         if (lastFiltered.length) renderSummary(lastFiltered);
       }
     } else {
-      // Fallback si wrapper no está disponible: toggle directamente el <table>
+      // fallback
       const tableEl = document.getElementById('draftTable');
       if (view === 'cards') {
         cardsContainer.classList.remove('d-none');
