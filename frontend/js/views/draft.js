@@ -36,6 +36,9 @@ export default async function renderDraftView() {
       #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
       #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
       #dt-pagination-bottom .dataTables_info { padding-top: .5rem; }
+
+      /* Clase para ocultar wrapper de DataTables sin romper layout */
+      .dt-wrapper-hidden { display: none !important; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -115,7 +118,7 @@ export default async function renderDraftView() {
         <!-- Contenedor para info + paginación reubicados (abajo de las cards, solo desktop) -->
         <div id="dt-pagination-bottom" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mt-2"></div>
 
-        <!-- Tabla (solo desktop); en vista Cards se oculta SOLO el <table>, dejando controles arriba/abajo -->
+        <!-- Tabla (solo desktop); en vista Cards se oculta la envoltura de DT para preservar encabezados -->
         <div class="d-none d-md-block">
           <div class="table-responsive">
             <table id="draftTable" class="table table-dark table-hover align-middle w-100">
@@ -173,6 +176,9 @@ export default async function renderDraftView() {
   let draftData = [];
   let lastFiltered = []; // arreglo de jugadores que alimenta la tabla
 
+  // DataTables wrapper element (lo usaremos para ocultar/mostrar sin romper encabezados)
+  let dtWrapperEl = null;
+
   // =============================
   // Restaurar valores guardados
   // =============================
@@ -183,13 +189,82 @@ export default async function renderDraftView() {
   const savedSleeperADP = localStorage.getItem('draftSleeperADP');
 
   if (savedStatus) statusSelect.value = savedStatus;
-  if (savedLeague) leagueSelect.value = savedLeague;
-  if (savedExpert) expertSelect.value = savedExpert;
   if (savedPosition) positionSelect.value = savedPosition;
   if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
-  await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
-  await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false });
+  // =============================
+  // Inicializar selects con TomSelect (intentamos obtener la instancia devuelta)
+  // =============================
+  // Opciones solicitadas: persist:false y onChange -> blur()
+  let expertTS = null;
+  let leagueTS = null;
+  try {
+    expertTS = await renderExpertSelect('#select-expert', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange(value) {
+        try { localStorage.setItem('draftExpert', value || (this && this.getValue ? this.getValue() : '')); } catch(e) {}
+        if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos (si ya hay liga seleccionada)
+        if (leagueSelect.value) loadDraftData();
+      }
+    });
+  } catch (e) {
+    // fallback: renderExpertSelect no devolvió instancia
+    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
+
+  try {
+    leagueTS = await renderLeagueSelect('#select-league', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange(value) {
+        try { localStorage.setItem('draftLeague', value || (this && this.getValue ? this.getValue() : '')); } catch(e) {}
+        if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos si ya hay experto seleccionado
+        if (expertSelect.value) loadDraftData();
+      }
+    });
+  } catch (e) {
+    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
+
+  // Aplicar valores guardados (fallback robusto)
+  function applySavedValue(selectEl, tsInstance, savedValue) {
+    if (!savedValue) return;
+    try {
+      if (tsInstance && typeof tsInstance.setValue === 'function') {
+        tsInstance.setValue(savedValue);
+        if (typeof tsInstance.blur === 'function') tsInstance.blur();
+      } else if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    } catch (err) {
+      if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  }
+
+  applySavedValue(expertSelect, expertTS, savedExpert);
+  applySavedValue(leagueSelect, leagueTS, savedLeague);
+
+  // Además, escuchar cambios nativos y guardar en localStorage (fallback)
+  expertSelect.addEventListener('change', () => {
+    try { localStorage.setItem('draftExpert', expertSelect.value); } catch (e) {}
+    // recargar datos
+    loadDraftData();
+  });
+  leagueSelect.addEventListener('change', () => {
+    try { localStorage.setItem('draftLeague', leagueSelect.value); } catch (e) {}
+    loadDraftData();
+  });
 
   // =============================
   // EVENTOS DE FILTROS
@@ -205,8 +280,6 @@ export default async function renderDraftView() {
   });
 
   positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
-  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
-  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
   document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
   // Toggle de vista (solo desktop)
@@ -252,6 +325,9 @@ export default async function renderDraftView() {
   function mountDtControls() {
     const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
     if (!$wrapper.length) return;
+
+    // guardar wrapper para poder ocultarlo sin romper encabezados
+    dtWrapperEl = $wrapper.get(0);
 
     const $length = $wrapper.find('div.dataTables_length');
     const $filter = $wrapper.find('div.dataTables_filter');
@@ -322,15 +398,13 @@ export default async function renderDraftView() {
         pageLength: 25,
         // Orden inicial por rank (columna 6)
         order: [[6, 'asc']],
-        // Creamos length, filter, info y paginación para luego moverlos a nuestros contenedores
         dom: 'lfrtip',
         language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
         columnDefs: [
-          // columnas no ordenables
+          // columnas no ordenables (proyección, risk/value/tier cols)
           { targets: [9, 16, 17, 18], orderable: false },
-          // estilos
           { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
-          // ocultar SOLO la columna índice final
+          // ocultar SOLO la columna índice final (índice 19)
           { targets: [19], visible: false, searchable: false }
         ],
         rowCallback: function (row, data) {
@@ -342,12 +416,12 @@ export default async function renderDraftView() {
           if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
         },
         initComplete: function () {
-          // Mover controles a los contenedores personalizados
+          // Mover controles a los contenedores personalizados y guardar wrapper
           mountDtControls();
 
-          // Si estamos en vista cards al iniciar, ocultamos el <table> y pintamos cards de la página actual
+          // Si estamos en vista cards al iniciar, ocultamos la envoltura de DataTables y pintamos cards
           if (isDesktop() && desktopView === 'cards') {
-            document.getElementById('draftTable').classList.add('d-none');
+            if (dtWrapperEl) dtWrapperEl.classList.add('dt-wrapper-hidden');
             renderCardsFromDataTable();
           }
         }
@@ -368,7 +442,7 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // CARDS (Móvil + Desktop)
+  // CARDS (Móvil + Desktop) — AHORA INCLUYE ADP
   // ================================
   function updateCards(players) {
     const cont = cardsContainer;
@@ -399,6 +473,7 @@ export default async function renderDraftView() {
                   <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
                   <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
                   <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
+                  <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span> <!-- ADP agregado -->
                 </div>
                 <div class="mb-2">
                   <div class="small mb-1">Proyección</div>
@@ -466,7 +541,7 @@ export default async function renderDraftView() {
       const position = positionSelect.value;
       const byeCondition = byeInput.value || 0;
       const selectedOption = expertSelect.selectedOptions[0];
-      const idExpert = selectedOption?.dataset.id || '';
+      const idExpert = selectedOption?.dataset.id || selectedOption?.value || '';
       const sleeperADP = sleeperADPCheckbox.checked;
 
       if (!leagueId || !idExpert) {
@@ -538,41 +613,50 @@ export default async function renderDraftView() {
       btnViewTable.classList.toggle('active', view === 'table');
     }
 
-    const tableEl = document.getElementById('draftTable');
-
-    if (view === 'cards') {
-      // mostrar cards, ocultar solo el <table>
-      cardsContainer.classList.remove('d-none');
-      if (tableEl) tableEl.classList.add('d-none');
-
-      // re-pintar cards desde el estado actual de DT
-      if ($.fn.dataTable.isDataTable('#draftTable')) {
+    // Usamos dtWrapperEl para ocultar toda la envoltura del DataTable sin romper encabezados
+    if (dtWrapperEl) {
+      if (view === 'cards') {
+        dtWrapperEl.classList.add('dt-wrapper-hidden');
+        // renderizar cards desde DT
         renderCardsFromDataTable();
-      }
-    } else {
-      // mostrar tabla, ocultar cards
-      cardsContainer.classList.add('d-none');
-      if (tableEl) {
-        tableEl.classList.remove('d-none');
-        // ⚙️ Asegurar encabezados y tamaños correctos al volver a mostrar la tabla
+      } else {
+        dtWrapperEl.classList.remove('dt-wrapper-hidden');
+        // forzar re-ajuste de columnas para que los encabezados aparezcan correctamente
         if ($.fn.dataTable.isDataTable('#draftTable')) {
           const t = $('#draftTable').DataTable();
-          // En algunos casos ayuda forzar el display del thead y luego ajustar columnas
+          // forzar display del header y ajustar columnas
           $(t.table().header()).css('display', '');
-          setTimeout(() => {
-            t.columns.adjust().draw(false);
-          }, 0);
+          requestAnimationFrame(() => { t.columns.adjust(); requestAnimationFrame(() => t.draw(false)); });
+        }
+        // summary con todo el set filtrado actual
+        if (lastFiltered.length) renderSummary(lastFiltered);
+      }
+    } else {
+      // Fallback si wrapper no está disponible: toggle directamente el <table>
+      const tableEl = document.getElementById('draftTable');
+      if (view === 'cards') {
+        cardsContainer.classList.remove('d-none');
+        if (tableEl) tableEl.classList.add('d-none');
+        if ($.fn.dataTable.isDataTable('#draftTable')) renderCardsFromDataTable();
+      } else {
+        cardsContainer.classList.add('d-none');
+        if (tableEl) {
+          tableEl.classList.remove('d-none');
+          if ($.fn.dataTable.isDataTable('#draftTable')) {
+            const t = $('#draftTable').DataTable();
+            $(t.table().header()).css('display', '');
+            setTimeout(() => t.columns.adjust().draw(false), 0);
+          }
         }
       }
-      // summary con todo el set filtrado actual
-      if (lastFiltered.length) renderSummary(lastFiltered);
     }
   }
 
   // ================================
   // Bootstrap inicial
   // ================================
-  if (savedLeague && savedPosition && savedExpert) loadDraftData();
+  // Si hay liga y experto guardados, cargamos automáticamente
+  if (savedLeague && savedExpert) loadDraftData();
 
   // Al cargar, forzamos vista cards en desktop por defecto
   setTimeout(() => setDesktopView('cards'), 0);
@@ -580,8 +664,9 @@ export default async function renderDraftView() {
   // Reaccionar a cambios de tamaño (si cambia entre móvil/desktop)
   window.addEventListener('resize', () => {
     if (!isDesktop()) {
-      // móvil: controles de DT ocultos por CSS; mostrar cards siempre
+      // móvil: mostrar cards siempre
       cardsContainer.classList.remove('d-none');
+      if (dtWrapperEl) dtWrapperEl.classList.remove('dt-wrapper-hidden'); // evitar wrapper escondido al volver a móvil
     } else {
       // desktop: aplicar el modo actual
       setDesktopView(desktopView);
