@@ -165,12 +165,10 @@ export async function getDraftData(
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections);
 
     // 9. VOR
-    // Sanear proyecciones (asegurar numericidad y injuryRisk decimal 0..1)
     const projectionsWithStdDevMap = (projectionsWithStdDev || []).map(p => {
       const safeTotal = Number.isFinite(Number(p.total_projected)) ? Number(p.total_projected) : 0;
       const safeStd = Number.isFinite(Number(p.projStdDev)) ? Number(p.projStdDev) : 0;
       let safeInjury = Number.isFinite(Number(p.injuryRisk)) ? Number(p.injuryRisk) : 0;
-      // addEstimatedStdDev ya devuelve injuryRisk decimal 0..1, pero soportamos % por seguridad:
       if (safeInjury > 1) safeInjury = Math.min(1, safeInjury / 100);
       return {
         ...p,
@@ -182,7 +180,6 @@ export async function getDraftData(
     });
 
     const validProjections = projectionsWithStdDevMap.filter(p => p.position && Number.isFinite(p.total_projected));
-    // debug guard
     if (!validProjections.length) {
       console.warn('⚠️ No hay proyecciones válidas para calcular VOR. Revisa addEstimatedStdDev y playersData.');
     }
@@ -204,7 +201,6 @@ export async function getDraftData(
 
     const vorOptions = { ...vorOptionsBase };
 
-    // superFlex / dynasty adjustments (igual a tu lógica)
     if (superFlex) {
       vorOptions.scarcityWeights = { ...vorOptions.scarcityWeights, QB: (vorOptions.scarcityWeights.QB || 1.2) * 1.35 };
       vorOptions.scarcityWeights.RB = (vorOptions.scarcityWeights.RB || 2.4) * 0.95;
@@ -216,7 +212,6 @@ export async function getDraftData(
       vorOptions.minScarcityMultiplier = Math.min(0.9, vorOptions.minScarcityMultiplier ?? 0.85);
     }
 
-    // CALL VOR con guard y logging
     let vorList = [];
     try {
       vorList = calculateVORandDropoffPro(validProjections, starterPositions, numTeams, vorOptions) || [];
@@ -226,11 +221,9 @@ export async function getDraftData(
         samplePlayer: validProjections[0] || null,
         vorOptions
       });
-      // no throw: preferimos devolver resultados parciales si es posible
       vorList = [];
     }
 
-    // MAP PARA USO POSTERIOR
     const vorMap = new Map((vorList || []).map(v => [String(v.player_id), v]));
 
     // 10. buildFinalPlayers

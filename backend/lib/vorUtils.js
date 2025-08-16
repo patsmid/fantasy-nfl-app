@@ -1,4 +1,3 @@
-// lib/vorUtils.js  (versión mejorada, drop-in)
 export function calculateVORandDropoffPro(projections = [], starterPositions = [], numTeams = 10, options = {}) {
   const opts = {
     replacementDefaults: { QB: 18, RB: 45, WR: 45, TE: 18, K: 12, DST: 12 },
@@ -110,8 +109,6 @@ export function calculateVORandDropoffPro(projections = [], starterPositions = [
   return result;
 }
 
-
-// === addEstimatedStdDev (mejorada: injuryRisk decimal 0..1) ===
 export function addEstimatedStdDev(projections = []) {
   const positionVariancePct = { QB:0.06, RB:0.12, WR:0.10, TE:0.15, K:0.25, DST:0.25 };
   const positionInjuryRiskPct = { QB:0.07, RB:0.28, WR:0.20, TE:0.25, K:0.05, DST:0.05 };
@@ -132,7 +129,6 @@ export function addEstimatedStdDev(projections = []) {
     };
   });
 }
-
 
 /* ------------------ UTILIDADES ------------------ */
 
