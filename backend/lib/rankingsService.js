@@ -103,6 +103,8 @@ export async function getFlockRankings({ dynasty, superflex, expert = null }) {
 }
 
 export async function getManualRankings(expertId) {
+  console.log('🔹 getManualRankings iniciado para expertId:', expertId);
+
   if (!expertId) throw new Error('Debe indicar expertId para rankings manuales');
 
   try {
@@ -113,24 +115,37 @@ export async function getManualRankings(expertId) {
       .eq('expert_id', expertId)
       .order('rank', { ascending: true });
 
-    if (manualError) throw manualError;
+    if (manualError) {
+      console.error('❌ Error al obtener manual_rankings:', manualError);
+      throw manualError;
+    }
+
+    console.log('✅ manualData obtenida, total registros:', manualData.length);
     if (!manualData || manualData.length === 0) {
+      console.warn('⚠️ No se encontraron manual_rankings para este experto');
       return { source: 'manual', published: null, expert: null, players: [] };
     }
 
     // 2️⃣ Obtener solo los jugadores correspondientes de la tabla players
     const playerIds = manualData.map(r => r.sleeper_player_id);
+    console.log('🔹 playerIds para consulta de players:', playerIds);
 
     const { data: playersData, error: playersError } = await supabase
       .from('players')
       .select('player_id, full_name, position, team')
       .in('player_id', playerIds);
 
-    if (playersError) throw playersError;
+    if (playersError) {
+      console.error('❌ Error al obtener players:', playersError);
+      throw playersError;
+    }
+
+    console.log('✅ playersData obtenida, total registros:', playersData.length);
 
     // 3️⃣ Combinar manualData y playersData por player_id
     const combinedPlayers = manualData.map(r => {
       const player = playersData.find(p => p.player_id === r.sleeper_player_id);
+      if (!player) console.warn('⚠️ No se encontró jugador para sleeper_player_id:', r.sleeper_player_id);
       return {
         id: r.sleeper_player_id,
         player_id: r.sleeper_player_id,
@@ -141,6 +156,8 @@ export async function getManualRankings(expertId) {
         tier: r.tier
       };
     });
+
+    console.log('✅ combinedPlayers generados, total:', combinedPlayers.length);
 
     return {
       source: 'manual',
