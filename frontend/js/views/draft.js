@@ -193,6 +193,23 @@ export default async function renderDraftView() {
   if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
   // =============================
+  // Helper: colores de posición (Bootstrap classes)
+  // =============================
+  function getPositionColor(position) {
+    switch ((position || '').toUpperCase()) {
+      case 'RB': return 'bg-success text-white';
+      case 'WR': return 'bg-primary text-white';
+      case 'TE': return 'bg-warning text-dark';
+      case 'QB': return 'bg-danger text-white';
+      default: return 'bg-secondary text-white';
+    }
+  }
+
+  function getPositionBadge(position) {
+    return `<span class="badge ${getPositionColor(position)}">${position ?? ''}</span>`;
+  }
+
+  // =============================
   // Inicializar selects con TomSelect (intentamos obtener la instancia devuelta)
   // =============================
   // Opciones solicitadas: persist:false y onChange -> blur()
@@ -233,6 +250,10 @@ export default async function renderDraftView() {
     await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
   }
 
+  // si render... no devolvió instancia directa, intentar obtener via DOM tomselect
+  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
+  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
+
   // Aplicar valores guardados (fallback robusto)
   function applySavedValue(selectEl, tsInstance, savedValue) {
     if (!savedValue) return;
@@ -240,9 +261,13 @@ export default async function renderDraftView() {
       if (tsInstance && typeof tsInstance.setValue === 'function') {
         tsInstance.setValue(savedValue);
         if (typeof tsInstance.blur === 'function') tsInstance.blur();
+      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
+        selectEl.tomselect.setValue(savedValue);
+        if (typeof selectEl.tomselect.blur === 'function') selectEl.tomselect.blur();
       } else if (selectEl) {
         selectEl.value = savedValue;
         selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        try { selectEl.blur(); } catch (e) {}
       }
     } catch (err) {
       if (selectEl) {
@@ -365,7 +390,8 @@ export default async function renderDraftView() {
       `<span style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
       p.adpValue ?? '', // ADP VISIBLE
       p.nombre ?? '',
-      p.position ?? '',
+      // posición renderizada como badge para mantener colores
+      `<span class="badge ${getPositionColor(p.position)}">${p.position ?? ''}</span>`,
       p.team ?? '',
       p.bye ?? '',
       p.rank ?? '',
@@ -376,7 +402,7 @@ export default async function renderDraftView() {
       `<span style="background-color:${getHeatColor(p.adjustedVOR, minVOR, maxVOR)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
       p.dropoff ?? '',
       safeNum(p.valueOverADP),
-      safeNum(p.stealScore),
+      safeNum(p.stealScore), // aún lo calculamos pero lo ocultamos en DT (colDefs)
       (p.riskTags || []).join(', '),
       p.valueTag ?? '',
       `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
@@ -405,7 +431,9 @@ export default async function renderDraftView() {
           { targets: [9, 16, 17, 18], orderable: false },
           { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
           // ocultar SOLO la columna índice final (índice 19)
-          { targets: [19], visible: false, searchable: false }
+          { targets: [19], visible: false, searchable: false },
+          // ocultar Steal Score (índice 14)
+          { targets: [14], visible: false, searchable: false }
         ],
         rowCallback: function (row, data) {
           const tier = $(data[17]).text().toLowerCase();
@@ -442,7 +470,7 @@ export default async function renderDraftView() {
   }
 
   // ================================
-  // CARDS (Móvil + Desktop) — AHORA INCLUYE ADP
+  // CARDS (Móvil + Desktop) — AHORA INCLUYE ADP (y remueve Steal de la vista)
   // ================================
   function updateCards(players) {
     const cont = cardsContainer;
@@ -467,7 +495,7 @@ export default async function renderDraftView() {
                   <span class="badge bg-info text-dark">Prio: ${prio}</span>
                 </div>
                 <div class="meta mb-2">
-                  <span class="kv"><span class="badge bg-primary">${p.position ?? ''}</span></span>
+                  <span class="kv">${getPositionBadge(p.position)}</span>
                   <span class="kv"><i class="bi bi-shield"></i> ${p.team ?? ''}</span>
                   <span class="kv"><i class="bi bi-calendar2-x"></i> Bye ${p.bye ?? ''}</span>
                   <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
@@ -484,7 +512,7 @@ export default async function renderDraftView() {
                   <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
                   <span class="kv"><strong>Drop:</strong> ${p.dropoff ?? ''}</span>
                   <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
-                  <span class="kv"><strong>Steal:</strong> ${safeNum(p.stealScore)}</span>
+                  <!-- Steal oculto en cards por request -->
                 </div>
                 <div class="mt-2 d-flex flex-wrap gap-2">
                   ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
