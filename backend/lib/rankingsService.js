@@ -7,7 +7,7 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   const nflState = await getNflState();
 
   if (expertData.source === 'manual') {
-    return await getManualRankings(expertData.id_experto);
+    return await getManualRankings(expertData.id);
   }
 
   if (expertData.source === 'flock') {

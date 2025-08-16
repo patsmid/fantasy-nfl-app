@@ -122,7 +122,7 @@ export async function getExpertData(idExpert) {
   //console.log(queryField);
   const { data, error } = await supabase
     .from('experts')
-    .select('id_experto, experto, source')
+    .select('id, id_experto, experto, source')
     .eq('id', idExpert)
     .maybeSingle();
 
