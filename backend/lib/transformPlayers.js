@@ -67,16 +67,19 @@ function computeBoomBustConsistencyFast(player = {}) {
 // Estimador de floor/ceil GTO (sin datos semanales)
 // ===============================
 // Objetivo: entregar un piso/techo razonables usando la información disponible
-// (posición, VOR, dropoff, ADP diff, rookie, calidad ofensiva, tier) sin romper la lógica.
+// (posición, VOR, dropoff, rookie, calidad ofensiva, tier, rank, calidad de datos)
 function estimateFloorCeil({
   position = 'UNK',
   projection = 0,
   adjustedVor = 0,
+  rawVor = 0,
   dropoff = 0,
-  adpDiff = 0,
   isRookie = false,
   isGoodOffense = false,
-  tier = 4
+  tier = 4,
+  rank = 200,
+  hasProjection = false,
+  hasAdjustedVor = false
 }) {
   const proj = Math.max(0, safeNum(projection));
 
@@ -96,11 +99,20 @@ function estimateFloorCeil({
   const tierAdj = tier <= 2 ? -0.06 : tier === 3 ? -0.02 : tier >= 6 ? 0.05 : 0.02; // tiers altos = menor varianza
   const vorAdj = clamp(adjustedVor / 100, -0.05, 0.05); // VOR alto sugiere menor volatilidad relativa
   const dropAdj = clamp(dropoff / 50, 0, 0.12); // grandes caídas adelante -> más varianza
-  const adpAdj = clamp(Math.abs(adpDiff) / 40, 0, 0.1); // ADP moviéndose = más varianza
+  const rankAdj = clamp((safeNum(rank) - 24) / 300, 0, 0.12); // picks tardíos = más varianza
+
+  // Calidad de datos: sin proyección => más varianza; sin VOR ajustado => leve +var
+  const dataAdj = (!hasProjection ? 0.08 : 0) + (hasProjection && !hasAdjustedVor ? 0.03 : 0);
+
+  // Si el VOR ajustado penaliza mucho vs VOR bruto, refleja riesgo (lesión/rol) => +var
+  const riskGap = (safeNum(rawVor) > 0)
+    ? clamp((safeNum(rawVor) - safeNum(adjustedVor)) / Math.max(10, Math.abs(safeNum(rawVor))), 0, 0.10)
+    : 0;
+
   const rookieAdj = isRookie ? 0.06 : 0;
   const offenseAdj = isGoodOffense ? -0.03 : 0;
 
-  let vol = baseVol + tierAdj - vorAdj + dropAdj + adpAdj + rookieAdj + offenseAdj;
+  let vol = baseVol + tierAdj - vorAdj + dropAdj + rankAdj + dataAdj + riskGap + rookieAdj + offenseAdj;
   vol = clamp(vol, 0.12, 0.5); // mantén razonable
 
   // 3) Asimetría: techo crece más que cae el piso (upside premium tipo GTO)
@@ -298,11 +310,14 @@ export function buildFinalPlayers({
         position: playerInfo?.position ?? 'UNK',
         projection,
         adjustedVor,
+        rawVor,
         dropoff,
-        adpDiff: safeNum(adpBefore - safeAdp),
         isRookie,
         isGoodOffense,
-        tier: prelimTier
+        tier: prelimTier,
+        rank,
+        hasProjection: projection > 0,
+        hasAdjustedVor: adjustedVor > 0
       });
 
       const { boomRate, bustRate, consistency } = computeBoomBustConsistencyFast({
