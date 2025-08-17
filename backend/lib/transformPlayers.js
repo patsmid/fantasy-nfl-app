@@ -6,6 +6,16 @@ import { assignTiers } from '../utils/tiering.js';
 const useHybridTiers = true; // (reservado)
 
 // ===============================
+// CONFIG — umbrales ajustables
+// ===============================
+const CONSISTENCY_STABLE = 78; // umbral para ⚖️ Estable
+const BOOM_RATE_MIN = 34;      // mínimo % boom para considerar 🔥 Boom
+const BOOM_MARGIN_MIN = 12;    // diferencia mínima boom-bust para 🔥 Boom
+const BUST_RATE_MIN = 25;      // mínimo % bust para ❄️ Bust
+const BUST_MARGIN_MIN = 8;     // diferencia mínima (positiva) para ❄️ Bust
+const VOLATILITY_STABLE = 0.20; // si volatilidad < 0.20, marcar como ⚖️ Estable
+
+// ===============================
 // Helpers locales
 // ===============================
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -66,8 +76,6 @@ function computeBoomBustConsistencyFast(player = {}) {
 // ===============================
 // Estimador de floor/ceil GTO (sin datos semanales)
 // ===============================
-// Objetivo: entregar un piso/techo razonables usando la información disponible
-// (posición, VOR, dropoff, rookie, calidad ofensiva, tier, rank, calidad de datos)
 function estimateFloorCeil({
   position = 'UNK',
   projection = 0,
@@ -130,29 +138,47 @@ function estimateFloorCeil({
 }
 
 // ===============================
-// Risk Tags (single-tag policy)
+// Risk Tags (single-tag policy, con razones)
 // ===============================
 function pickSingleRiskTag({ boomRate = 0, bustRate = 0, consistency = 50, volatility = 0.25 }) {
-  boomRate = safeNum(boomRate); bustRate = safeNum(bustRate); consistency = safeNum(consistency); volatility = safeNum(volatility);
+  boomRate = safeNum(boomRate);
+  bustRate = safeNum(bustRate);
+  consistency = safeNum(consistency);
+  volatility = safeNum(volatility);
 
-  // 1) Estable si la señal de estabilidad es muy alta y los extremos están contenidos
-  const isStable = (consistency >= 75 && bustRate <= 18 && boomRate <= 32);
-  if (isStable) return '⚖️ Estable';
-
-  // 2) Diferencial de señal
   const margin = boomRate - bustRate;
-  if (margin >= 10 && boomRate >= 28) return '🔥 Boom';
-  if (margin <= -6 && bustRate >= 24) return '❄️ Bust';
 
-  // 3) Desempate por volatilidad
-  if (volatility <= 0.18) return '⚖️ Estable';
+  // 1) Consistencia fuerte + baja volatilidad -> Estable
+  if (consistency >= CONSISTENCY_STABLE && volatility <= VOLATILITY_STABLE) {
+    return { tag: '⚖️ Estable', reason: `consistency>=${CONSISTENCY_STABLE} & volatility<=${VOLATILITY_STABLE}` };
+  }
 
-  // 4) Fallback determinista
-  return (boomRate >= bustRate) ? '🔥 Boom' : '❄️ Bust';
+  // 2) Boom claro
+  if (margin >= BOOM_MARGIN_MIN && boomRate >= BOOM_RATE_MIN) {
+    return { tag: '🔥 Boom', reason: `boom>=${BOOM_RATE_MIN} & margin>=${BOOM_MARGIN_MIN}` };
+  }
+
+  // 3) Bust claro
+  if (margin <= -BUST_MARGIN_MIN && bustRate >= BUST_RATE_MIN) {
+    return { tag: '❄️ Bust', reason: `bust>=${BUST_RATE_MIN} & margin<=-${BUST_MARGIN_MIN}` };
+  }
+
+  // 4) Si la consistencia por sí sola es alta, marcar Estable (fallback)
+  if (consistency >= CONSISTENCY_STABLE) {
+    return { tag: '⚖️ Estable', reason: 'consistency fallback' };
+  }
+
+  // 5) Fallback basado en dominio claro (más estricto): requiere margen >= 8 y tasa >= 32
+  if (Math.abs(margin) >= 8 && Math.max(boomRate, bustRate) >= 32) {
+    if (boomRate >= bustRate) return { tag: '🔥 Boom', reason: 'dominant fallback (margin>=8 & rate>=32)' };
+    return { tag: '❄️ Bust', reason: 'dominant fallback (margin>=8 & rate>=32)' };
+  }
+
+  // 6) Último recurso: marcar como Estable en vez de inundar con Boom/Bust
+  return { tag: '⚖️ Estable', reason: 'final fallback - balanced' };
 }
 
 function getRiskTags(player = {}) {
-  // aceptar múltiples nombres de campos
   let boomRate = safeNum(player.boom_rate ?? player.boomRate ?? player.boom ?? 0);
   let bustRate = safeNum(player.bust_rate ?? player.bustRate ?? player.bust ?? 0);
   let consistency = safeNum(player.consistency_score ?? player.consistency ?? 0);
@@ -165,8 +191,8 @@ function getRiskTags(player = {}) {
     consistency = computed.consistency;
   }
 
-  const single = pickSingleRiskTag({ boomRate, bustRate, consistency, volatility });
-  return single ? [single] : [];
+  const { tag, reason } = pickSingleRiskTag({ boomRate, bustRate, consistency, volatility });
+  return { tags: tag ? [tag] : [], reason: reason || '' };
 }
 
 // ===============================
@@ -317,10 +343,8 @@ export function buildFinalPlayers({
       const valueTag = getValueTag(adjustedVor, safeAdp);
 
       // ===============================
-      // NUEVO: estimar floor/ceil y boombust/consistency de forma determinista
+      // estimar floor/ceil y boombust/consistency de forma determinista
       // ===============================
-      // Primero necesitamos un tier preliminar para el estimador (usa rank como proxy si aún no hay tier)
-      // Asignaremos tiers reales más abajo, pero para el estimador usamos una aproximación
       const prelimTier = rank <= 48 ? 2 : rank <= 96 ? 3 : rank <= 160 ? 4 : 5;
 
       const { floor, ceil, volatility } = estimateFloorCeil({
@@ -343,7 +367,7 @@ export function buildFinalPlayers({
         ceil
       });
 
-      const riskTags = getRiskTags({
+      const riskInfo = getRiskTags({
         boomRate,
         bustRate,
         consistency,
@@ -379,8 +403,9 @@ export function buildFinalPlayers({
         dropoff: toFixedSafe(dropoff, 2),
         tierBonus,
         valueTag,
-        riskTags,
-        // NUEVO: exponer métricas para front/depuración
+        riskTags: riskInfo.tags,
+        riskTagReason: riskInfo.reason,
+        // métricas para front/depuración
         floor: toFixedSafe(floor, 2),
         ceil: toFixedSafe(ceil, 2),
         volatility: toFixedSafe(volatility, 3),
