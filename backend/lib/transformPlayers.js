@@ -1,19 +1,23 @@
-// transformPlayers.fixed.v2.js
+// transformPlayers.fixed.v3.js
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
 
 const useHybridTiers = true;
 
+// ===============================
 // Helpers locales
+// ===============================
 const safeNum = v => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+
 const toFixedSafe = (v, d = 2) => {
   const n = safeNum(v);
   return Number(n.toFixed(d));
 };
+
 const pickAdpValue = adp => {
   const candidates = [adp?.adp_rank, adp?.adp_value, adp?.adp, adp?.adpValue, adp?.rank];
   for (const c of candidates) {
@@ -22,22 +26,23 @@ const pickAdpValue = adp => {
   }
   return 0;
 };
+
 const pickPreviousAdp = adp => {
   const candidates = [adp?.adp_value_prev, adp?.prev_adp, adp?.adp_prev];
   for (const c of candidates) {
     const n = Number(c);
     if (Number.isFinite(n)) return n;
   }
-  return 500; // legacy fallback
+  return 500;
 };
 
-// ====================================================
-// Cálculo de Boom / Bust / Consistency si no vienen
-// ====================================================
+// ===============================
+// Cálculo de Boom / Bust / Consistency
+// ===============================
 function computeBoomBustConsistencyFast(player = {}) {
-  const proj = safeNum(player.projected ?? player.projection ?? 0);
-  const floor = safeNum(player.floor ?? 0);
-  const ceil = safeNum(player.ceil ?? 0);
+  const proj = safeNum(player.projection ?? player.projected ?? 0);
+  const floor = safeNum(player.floor ?? proj * 0.8);
+  const ceil = safeNum(player.ceil ?? proj * 1.2);
 
   let boomRate = 0;
   let bustRate = 0;
@@ -52,15 +57,15 @@ function computeBoomBustConsistencyFast(player = {}) {
   return { boomRate, bustRate, consistency };
 }
 
-// ====================================================
-// RISK TAGS
-// ====================================================
+// ===============================
+// Risk Tags
+// ===============================
 function getRiskTags(player = {}) {
   let boomRate = safeNum(player.boom_rate ?? player.boom ?? 0);
   let bustRate = safeNum(player.bust_rate ?? player.bust ?? 0);
   let consistency = safeNum(player.consistency_score ?? 0);
 
-  // si no existen valores, generamos
+  // si no existen valores, generamos usando proyección / VOR / ADP
   if (!boomRate && !bustRate && !consistency) {
     const computed = computeBoomBustConsistencyFast(player);
     boomRate = computed.boomRate;
@@ -75,9 +80,9 @@ function getRiskTags(player = {}) {
   return tags;
 }
 
-// ====================================================
-// VALUE TAG
-// ====================================================
+// ===============================
+// Value Tag
+// ===============================
 function getValueTag(vorParam = 0, adpParam = 0) {
   const vor = safeNum(vorParam);
   const adp = safeNum(adpParam);
@@ -89,9 +94,9 @@ function getValueTag(vorParam = 0, adpParam = 0) {
   return null;
 }
 
-// ====================================================
-// GENERAR TIER SUMMARY
-// ====================================================
+// ===============================
+// Tier Summary & Heatmap
+// ===============================
 function generateTierSummary(players, tierField) {
   const summary = {};
   for (const p of players) {
@@ -115,9 +120,6 @@ function generateTierSummary(players, tierField) {
   return summary;
 }
 
-// ====================================================
-// GENERAR TIER HEATMAP
-// ====================================================
 function generateTierHeatmap(players, tierField) {
   const heatmap = {};
   for (const p of players) {
@@ -137,7 +139,7 @@ function generateTierHeatmap(players, tierField) {
       team: p.team,
       adjustedVOR: safeNum(p.adjustedVOR),
       adpValue: safeNum(p.adpValue),
-      valueOverADP: Number(safeNum(valueOverADP).toFixed(2)),
+      valueOverADP: Number(valueOverADP.toFixed(2)),
       priorityScore: Number(safeNum(p.priorityScore).toFixed(3)),
       color
     });
@@ -145,9 +147,9 @@ function generateTierHeatmap(players, tierField) {
   return heatmap;
 }
 
-// ====================================================
-// BUILD FINAL PLAYERS
-// ====================================================
+// ===============================
+// Build Final Players
+// ===============================
 export function buildFinalPlayers({
   adpData = [],
   playersData = [],
@@ -222,7 +224,13 @@ export function buildFinalPlayers({
       const finalVOR = safeNum(vorDataRaw?.playoffAdjustedVOR ?? vorDataRaw?.riskAdjustedVOR ?? adjustedVor ?? rawVor);
 
       const valueTag = getValueTag(adjustedVor, safeAdp);
-      const riskTags = getRiskTags(playerRank);
+      // === PASAR DATOS REALES DEL JUGADOR A RISK TAGS ===
+      const riskTags = getRiskTags({
+        projection,
+        adjustedVOR,
+        adpValue: safeAdp,
+        dropoff
+      });
 
       let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
       if (adjustedVor === 0) nombre += ' 🕳';
