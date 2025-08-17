@@ -1,4 +1,4 @@
-// transformPlayers.fixed.v3.js
+// transformPlayers.fixed.v4.js
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
@@ -37,7 +37,7 @@ const pickPreviousAdp = adp => {
 };
 
 // ===============================
-// Cálculo de Boom / Bust / Consistency
+// Boom / Bust / Consistency
 // ===============================
 function computeBoomBustConsistencyFast(player = {}) {
   const proj = safeNum(player.projection ?? player.projected ?? 0);
@@ -65,7 +65,6 @@ function getRiskTags(player = {}) {
   let bustRate = safeNum(player.bust_rate ?? player.bust ?? 0);
   let consistency = safeNum(player.consistency_score ?? 0);
 
-  // si no existen valores, generamos usando proyección / VOR / ADP
   if (!boomRate && !bustRate && !consistency) {
     const computed = computeBoomBustConsistencyFast(player);
     boomRate = computed.boomRate;
@@ -224,10 +223,12 @@ export function buildFinalPlayers({
       const finalVOR = safeNum(vorDataRaw?.playoffAdjustedVOR ?? vorDataRaw?.riskAdjustedVOR ?? adjustedVor ?? rawVor);
 
       const valueTag = getValueTag(adjustedVor, safeAdp);
-      // === PASAR DATOS REALES DEL JUGADOR A RISK TAGS ===
       const riskTags = getRiskTags({
         projection,
-        adjustedVOR,
+        boom_rate: vorDataRaw?.boomRate,
+        bust_rate: vorDataRaw?.bustRate,
+        consistency_score: vorDataRaw?.consistency,
+        adjustedVOR: adjustedVor,
         adpValue: safeAdp,
         dropoff
       });
