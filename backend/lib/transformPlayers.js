@@ -1,13 +1,15 @@
-// transformPlayers.fixed.v4.js
+// transformPlayers.fixed.v5.js
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
 
-const useHybridTiers = true;
+const useHybridTiers = true; // (reservado)
 
 // ===============================
 // Helpers locales
 // ===============================
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
 const safeNum = v => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -37,7 +39,7 @@ const pickPreviousAdp = adp => {
 };
 
 // ===============================
-// Boom / Bust / Consistency
+// Boom / Bust / Consistency (rápido)
 // ===============================
 function computeBoomBustConsistencyFast(player = {}) {
   const proj = safeNum(player.projection ?? player.projected ?? 0);
@@ -49,21 +51,80 @@ function computeBoomBustConsistencyFast(player = {}) {
   let consistency = 50;
 
   if (proj > 0) {
-    boomRate = Math.max(0, Math.min(100, Math.round(((ceil - proj) / Math.max(1, proj)) * 100)));
-    bustRate = Math.max(0, Math.min(100, Math.round(((proj - floor) / Math.max(1, proj)) * 100)));
-    consistency = Math.max(0, Math.min(100, 100 - Math.abs(boomRate - bustRate)));
+    // relativizamos por proyección
+    boomRate = clamp(Math.round(((ceil - proj) / Math.max(1, proj)) * 100), 0, 100);
+    bustRate = clamp(Math.round(((proj - floor) / Math.max(1, proj)) * 100), 0, 100);
+    // consistencia alta cuando boom ~ bust y ambos bajos
+    const spread = Math.abs(boomRate - bustRate);
+    const vol = (boomRate + bustRate) / 2;
+    consistency = clamp(Math.round(100 - (spread * 0.7 + vol * 0.3)), 0, 100);
   }
 
   return { boomRate, bustRate, consistency };
 }
 
 // ===============================
+// Estimador de floor/ceil GTO (sin datos semanales)
+// ===============================
+// Objetivo: entregar un piso/techo razonables usando la información disponible
+// (posición, VOR, dropoff, ADP diff, rookie, calidad ofensiva, tier) sin romper la lógica.
+function estimateFloorCeil({
+  position = 'UNK',
+  projection = 0,
+  adjustedVor = 0,
+  dropoff = 0,
+  adpDiff = 0,
+  isRookie = false,
+  isGoodOffense = false,
+  tier = 4
+}) {
+  const proj = Math.max(0, safeNum(projection));
+
+  // 1) Volatilidad base por posición (rango típico semana a semana)
+  const baseVolMap = {
+    QB: 0.18,
+    RB: 0.30,
+    WR: 0.28,
+    TE: 0.24,
+    DST: 0.40,
+    K: 0.35,
+    UNK: 0.28
+  };
+  const baseVol = baseVolMap[position] ?? baseVolMap.UNK;
+
+  // 2) Factores contextuales
+  const tierAdj = tier <= 2 ? -0.06 : tier === 3 ? -0.02 : tier >= 6 ? 0.05 : 0.02; // tiers altos = menor varianza
+  const vorAdj = clamp(adjustedVor / 100, -0.05, 0.05); // VOR alto sugiere menor volatilidad relativa
+  const dropAdj = clamp(dropoff / 50, 0, 0.12); // grandes caídas adelante -> más varianza
+  const adpAdj = clamp(Math.abs(adpDiff) / 40, 0, 0.1); // ADP moviéndose = más varianza
+  const rookieAdj = isRookie ? 0.06 : 0;
+  const offenseAdj = isGoodOffense ? -0.03 : 0;
+
+  let vol = baseVol + tierAdj - vorAdj + dropAdj + adpAdj + rookieAdj + offenseAdj;
+  vol = clamp(vol, 0.12, 0.5); // mantén razonable
+
+  // 3) Asimetría: techo crece más que cae el piso (upside premium tipo GTO)
+  const upMult = 1.4; // sube 40% de la volatilidad
+  const downMult = 1.0; // baja 100% de la volatilidad
+
+  const floor = proj * (1 - vol * downMult);
+  const ceil = proj * (1 + vol * upMult);
+
+  return {
+    floor: Math.max(0, floor),
+    ceil: Math.max(proj, ceil),
+    volatility: vol
+  };
+}
+
+// ===============================
 // Risk Tags
 // ===============================
 function getRiskTags(player = {}) {
-  let boomRate = safeNum(player.boom_rate ?? player.boom ?? 0);
-  let bustRate = safeNum(player.bust_rate ?? player.bust ?? 0);
-  let consistency = safeNum(player.consistency_score ?? 0);
+  // aceptar múltiples nombres de campos
+  let boomRate = safeNum(player.boom_rate ?? player.boomRate ?? player.boom ?? 0);
+  let bustRate = safeNum(player.bust_rate ?? player.bustRate ?? player.bust ?? 0);
+  let consistency = safeNum(player.consistency_score ?? player.consistency ?? 0);
 
   if (!boomRate && !bustRate && !consistency) {
     const computed = computeBoomBustConsistencyFast(player);
@@ -73,8 +134,8 @@ function getRiskTags(player = {}) {
   }
 
   const tags = [];
-  if (boomRate > 20) tags.push('🔥 Boom');
-  if (bustRate > 20) tags.push('❄️ Bust');
+  if (boomRate >= 25) tags.push('🔥 Boom');
+  if (bustRate >= 20) tags.push('❄️ Bust');
   if (consistency >= 65 && bustRate < 15) tags.push('⚖️ Estable');
   return tags;
 }
@@ -199,11 +260,13 @@ export function buildFinalPlayers({
       const rankRaw = safeNum(playerRank?.rank ?? 9999);
       const rank = ['DST', 'K'].includes(playerRank?.player_eligibility) ? rankRaw + 1000 : rankRaw;
 
-      const rookie = (playerInfo?.years_exp === 0) ? ' (R)' : '';
+      const isRookie = (playerInfo?.years_exp === 0);
+      const rookie = isRookie ? ' (R)' : '';
       const bye = safeNum(playerInfo?.bye_week ?? playerRank?.bye_week ?? 0);
       const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
       const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
-      const teamGood = goodOffense.includes(playerInfo?.team) ? ' ✔️' : '';
+      const isGoodOffense = goodOffense.includes(playerInfo?.team);
+      const teamGood = isGoodOffense ? ' ✔️' : '';
       const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
 
       const safeAdp = Math.max(0, safeNum(adpValue));
@@ -223,11 +286,36 @@ export function buildFinalPlayers({
       const finalVOR = safeNum(vorDataRaw?.playoffAdjustedVOR ?? vorDataRaw?.riskAdjustedVOR ?? adjustedVor ?? rawVor);
 
       const valueTag = getValueTag(adjustedVor, safeAdp);
-      const riskTags = getRiskTags({
+
+      // ===============================
+      // NUEVO: estimar floor/ceil y boombust/consistency de forma determinista
+      // ===============================
+      // Primero necesitamos un tier preliminar para el estimador (usa rank como proxy si aún no hay tier)
+      // Asignaremos tiers reales más abajo, pero para el estimador usamos una aproximación
+      const prelimTier = rank <= 48 ? 2 : rank <= 96 ? 3 : rank <= 160 ? 4 : 5;
+
+      const { floor, ceil, volatility } = estimateFloorCeil({
+        position: playerInfo?.position ?? 'UNK',
         projection,
-        boom_rate: vorDataRaw?.boomRate,
-        bust_rate: vorDataRaw?.bustRate,
-        consistency_score: vorDataRaw?.consistency,
+        adjustedVor,
+        dropoff,
+        adpDiff: safeNum(adpBefore - safeAdp),
+        isRookie,
+        isGoodOffense,
+        tier: prelimTier
+      });
+
+      const { boomRate, bustRate, consistency } = computeBoomBustConsistencyFast({
+        projection,
+        floor,
+        ceil
+      });
+
+      const riskTags = getRiskTags({
+        boomRate,
+        bustRate,
+        consistency,
+        projection,
         adjustedVOR: adjustedVor,
         adpValue: safeAdp,
         dropoff
@@ -259,6 +347,13 @@ export function buildFinalPlayers({
         tierBonus,
         valueTag,
         riskTags,
+        // NUEVO: exponer métricas para front/depuración
+        floor: toFixedSafe(floor, 2),
+        ceil: toFixedSafe(ceil, 2),
+        volatility: toFixedSafe(volatility, 3),
+        boomRate: toFixedSafe(boomRate, 0),
+        bustRate: toFixedSafe(bustRate, 0),
+        consistency: toFixedSafe(consistency, 0),
         hasProjection: normalizedVor > 0 || projection > 0,
         priorityScore
       });
@@ -269,7 +364,7 @@ export function buildFinalPlayers({
   }, []);
 
   // ===============================
-  // ASIGNACIÓN DE TIERS
+  // ASIGNACIÓN DE TIERS (global y posicional)
   // ===============================
   assignTiers(players, false);
   players.forEach(p => {
