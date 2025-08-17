@@ -130,13 +130,33 @@ function estimateFloorCeil({
 }
 
 // ===============================
-// Risk Tags
+// Risk Tags (single-tag policy)
 // ===============================
+function pickSingleRiskTag({ boomRate = 0, bustRate = 0, consistency = 50, volatility = 0.25 }) {
+  boomRate = safeNum(boomRate); bustRate = safeNum(bustRate); consistency = safeNum(consistency); volatility = safeNum(volatility);
+
+  // 1) Estable si la señal de estabilidad es muy alta y los extremos están contenidos
+  const isStable = (consistency >= 75 && bustRate <= 18 && boomRate <= 32);
+  if (isStable) return '⚖️ Estable';
+
+  // 2) Diferencial de señal
+  const margin = boomRate - bustRate;
+  if (margin >= 10 && boomRate >= 28) return '🔥 Boom';
+  if (margin <= -6 && bustRate >= 24) return '❄️ Bust';
+
+  // 3) Desempate por volatilidad
+  if (volatility <= 0.18) return '⚖️ Estable';
+
+  // 4) Fallback determinista
+  return (boomRate >= bustRate) ? '🔥 Boom' : '❄️ Bust';
+}
+
 function getRiskTags(player = {}) {
   // aceptar múltiples nombres de campos
   let boomRate = safeNum(player.boom_rate ?? player.boomRate ?? player.boom ?? 0);
   let bustRate = safeNum(player.bust_rate ?? player.bustRate ?? player.bust ?? 0);
   let consistency = safeNum(player.consistency_score ?? player.consistency ?? 0);
+  let volatility = safeNum(player.volatility ?? 0);
 
   if (!boomRate && !bustRate && !consistency) {
     const computed = computeBoomBustConsistencyFast(player);
@@ -145,11 +165,8 @@ function getRiskTags(player = {}) {
     consistency = computed.consistency;
   }
 
-  const tags = [];
-  if (boomRate >= 25) tags.push('🔥 Boom');
-  if (bustRate >= 20) tags.push('❄️ Bust');
-  if (consistency >= 65 && bustRate < 15) tags.push('⚖️ Estable');
-  return tags;
+  const single = pickSingleRiskTag({ boomRate, bustRate, consistency, volatility });
+  return single ? [single] : [];
 }
 
 // ===============================
@@ -330,6 +347,7 @@ export function buildFinalPlayers({
         boomRate,
         bustRate,
         consistency,
+        volatility,
         projection,
         adjustedVOR: adjustedVor,
         adpValue: safeAdp,
