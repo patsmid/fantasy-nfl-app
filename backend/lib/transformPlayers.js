@@ -1,23 +1,19 @@
-// transformPlayers.fixed.js
+// transformPlayers.fixed.v2.js
 import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
 
 const useHybridTiers = true;
 
-// ===============================
-// HELPERS LOCALES
-// ===============================
+// Helpers locales
 const safeNum = v => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
-
 const toFixedSafe = (v, d = 2) => {
   const n = safeNum(v);
   return Number(n.toFixed(d));
 };
-
 const pickAdpValue = adp => {
   const candidates = [adp?.adp_rank, adp?.adp_value, adp?.adp, adp?.adpValue, adp?.rank];
   for (const c of candidates) {
@@ -26,38 +22,47 @@ const pickAdpValue = adp => {
   }
   return 0;
 };
-
 const pickPreviousAdp = adp => {
   const candidates = [adp?.adp_value_prev, adp?.prev_adp, adp?.adp_prev];
   for (const c of candidates) {
     const n = Number(c);
     if (Number.isFinite(n)) return n;
   }
-  return 500; // fallback legacy
+  return 500; // legacy fallback
 };
 
-// ===============================
-// RISK TAGS COMPUTE
-// ===============================
-function computeBoomBustConsistency(player = {}) {
-  const projection = safeNum(player.projection ?? player.adjustedVOR ?? 0);
-  const floor = safeNum(player.floor ?? projection * 0.7);
-  const ceil = safeNum(player.ceil ?? projection * 1.3);
+// ====================================================
+// Cálculo de Boom / Bust / Consistency si no vienen
+// ====================================================
+function computeBoomBustConsistencyFast(player = {}) {
+  const proj = safeNum(player.projected ?? player.projection ?? 0);
+  const floor = safeNum(player.floor ?? 0);
+  const ceil = safeNum(player.ceil ?? 0);
 
-  const boomRate = Math.round(Math.max(0, Math.min(100, ((ceil - projection) / Math.max(1, projection)) * 100)));
-  const bustRate = Math.round(Math.max(0, Math.min(100, ((projection - floor) / Math.max(1, projection)) * 100)));
-  const consistency = Math.round(Math.max(0, Math.min(100, 100 - Math.abs(boomRate - bustRate))));
+  let boomRate = 0;
+  let bustRate = 0;
+  let consistency = 50;
+
+  if (proj > 0) {
+    boomRate = Math.max(0, Math.min(100, Math.round(((ceil - proj) / Math.max(1, proj)) * 100)));
+    bustRate = Math.max(0, Math.min(100, Math.round(((proj - floor) / Math.max(1, proj)) * 100)));
+    consistency = Math.max(0, Math.min(100, 100 - Math.abs(boomRate - bustRate)));
+  }
 
   return { boomRate, bustRate, consistency };
 }
 
+// ====================================================
+// RISK TAGS
+// ====================================================
 function getRiskTags(player = {}) {
   let boomRate = safeNum(player.boom_rate ?? player.boom ?? 0);
   let bustRate = safeNum(player.bust_rate ?? player.bust ?? 0);
   let consistency = safeNum(player.consistency_score ?? 0);
 
+  // si no existen valores, generamos
   if (!boomRate && !bustRate && !consistency) {
-    const computed = computeBoomBustConsistency(player);
+    const computed = computeBoomBustConsistencyFast(player);
     boomRate = computed.boomRate;
     bustRate = computed.bustRate;
     consistency = computed.consistency;
@@ -67,27 +72,26 @@ function getRiskTags(player = {}) {
   if (boomRate > 20) tags.push('🔥 Boom');
   if (bustRate > 20) tags.push('❄️ Bust');
   if (consistency >= 65 && bustRate < 15) tags.push('⚖️ Estable');
-
   return tags;
 }
 
-// ===============================
-// VALUE TAGS
-// ===============================
-function getValueTag(vor = 0, adp = 0) {
-  const v = safeNum(v);
-  const a = safeNum(adp);
-  if (!v || !a) return null;
-  const ratio = v / a;
+// ====================================================
+// VALUE TAG
+// ====================================================
+function getValueTag(vorParam = 0, adpParam = 0) {
+  const vor = safeNum(vorParam);
+  const adp = safeNum(adpParam);
+  if (!vor || !adp) return null;
+  const ratio = vor / adp;
   if (ratio > 2.5) return '💎 Steal';
   if (ratio > 1.5) return '📈 Valor';
   if (ratio < 0.5) return '⚠️ Sobrevalorado';
   return null;
 }
 
-// ===============================
-// TIER HELPERS
-// ===============================
+// ====================================================
+// GENERAR TIER SUMMARY
+// ====================================================
 function generateTierSummary(players, tierField) {
   const summary = {};
   for (const p of players) {
@@ -111,6 +115,9 @@ function generateTierSummary(players, tierField) {
   return summary;
 }
 
+// ====================================================
+// GENERAR TIER HEATMAP
+// ====================================================
 function generateTierHeatmap(players, tierField) {
   const heatmap = {};
   for (const p of players) {
@@ -138,9 +145,9 @@ function generateTierHeatmap(players, tierField) {
   return heatmap;
 }
 
-// ===============================
-// MAIN FUNCTION
-// ===============================
+// ====================================================
+// BUILD FINAL PLAYERS
+// ====================================================
 export function buildFinalPlayers({
   adpData = [],
   playersData = [],
@@ -207,24 +214,23 @@ export function buildFinalPlayers({
 
       const projection = safeNum(projectionMap.get(playerId) ?? 0);
       const vorDataRaw = vorMap.get(String(playerId)) ?? {};
+
       const rawVor = safeNum(vorDataRaw?.vor ?? 0);
       const adjustedVor = safeNum(vorDataRaw?.adjustedVOR ?? vorDataRaw?.riskAdjustedVOR ?? vorDataRaw?.injuryAdjustedVOR ?? 0);
       const dropoff = safeNum(vorDataRaw?.dropoff ?? 0);
       const tierBonus = !!vorDataRaw?.tierBonus;
       const finalVOR = safeNum(vorDataRaw?.playoffAdjustedVOR ?? vorDataRaw?.riskAdjustedVOR ?? adjustedVor ?? rawVor);
 
-      const riskTags = getRiskTags({
-        ...playerRank,
-        projection,
-        adjustedVOR
-      });
-
       const valueTag = getValueTag(adjustedVor, safeAdp);
+      const riskTags = getRiskTags(playerRank);
 
       let nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
       if (adjustedVor === 0) nombre += ' 🕳';
 
-      const priorityScore = Number(((finalVOR * 0.6 + projection * 0.3) / Math.max(1, safeAdp)).toFixed(3));
+      const normalizedVor = finalVOR;
+      const normalizedProj = projection;
+      const normalizedADP = Math.max(1, safeAdp);
+      const priorityScore = Number(((normalizedVor * 0.6 + normalizedProj * 0.3) / normalizedADP).toFixed(3));
 
       acc.push({
         player_id: playerId,
@@ -244,7 +250,7 @@ export function buildFinalPlayers({
         tierBonus,
         valueTag,
         riskTags,
-        hasProjection: finalVOR > 0 || projection > 0,
+        hasProjection: normalizedVor > 0 || projection > 0,
         priorityScore
       });
     } catch (err) {
@@ -257,9 +263,16 @@ export function buildFinalPlayers({
   // ASIGNACIÓN DE TIERS
   // ===============================
   assignTiers(players, false);
-  players.forEach(p => { p.tier_global = p.tier; p.tier_global_label = p.tier_label; });
+  players.forEach(p => {
+    p.tier_global = p.tier;
+    p.tier_global_label = p.tier_label;
+  });
+
   assignTiers(players, true);
-  players.forEach(p => { p.tier_pos = p.tier; p.tier_pos_label = p.tier_label; });
+  players.forEach(p => {
+    p.tier_pos = p.tier;
+    p.tier_pos_label = p.tier_label;
+  });
 
   // ===============================
   // VALUE OVER ADP
