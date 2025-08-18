@@ -192,16 +192,34 @@ export default async function renderDraftView() {
     return `rgb(${r},${g},0)`;
   }
 
-  function getPositionColor(position) {
-    switch ((position || '').toUpperCase()) {
-      case 'RB': return 'bg-success text-white';
-      case 'WR': return 'bg-primary text-white';
-      case 'TE': return 'bg-warning text-dark';
-      case 'QB': return 'bg-danger text-white';
-      default: return 'bg-secondary text-white';
-    }
-  }
-  const getPositionBadge = (pos) => `<span class="badge ${getPositionColor(pos)}">${pos ?? ''}</span>`;
+	function getPositionColor(position) {
+	  switch ((position || '').toUpperCase()) {
+	    case 'QB': return '#ff2a6d';  // rosa fuerte
+	    case 'RB': return '#00ceb8';  // turquesa
+	    case 'WR': return '#58a7ff';  // azul claro
+	    case 'TE': return '#ffae58';  // naranja claro
+	    default:   return '#6c757d';  // gris neutral (como secondary)
+	  }
+	}
+
+	// Utilidad: calcular color de texto según luminosidad
+	function getContrastTextColor(hex) {
+	  hex = hex.replace('#', '');
+	  if (hex.length === 3) {
+	    hex = hex.split('').map(c => c + c).join('');
+	  }
+	  const r = parseInt(hex.substr(0, 2), 16);
+	  const g = parseInt(hex.substr(2, 2), 16);
+	  const b = parseInt(hex.substr(4, 2), 16);
+	  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	  return luminance > 0.6 ? '#000' : '#fff';
+	}
+
+	function getPositionBadge(pos) {
+	  const bg = getPositionColor(pos);
+	  const textColor = getContrastTextColor(bg);
+	  return `<span class="badge" style="background:${bg};color:${textColor};">${pos ?? ''}</span>`;
+	}
 
   function comparePlayers(a, b) {
     if (sortBy === 'rank') {
