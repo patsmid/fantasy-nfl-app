@@ -180,10 +180,12 @@ export default async function renderDraftView() {
   const safeNum = (v, decimals = 2) =>
     (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
 
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
   function getHeatColor(value, min, max) {
     const v = Number(value);
     if (!Number.isFinite(v) || max === min) return '#888';
-    const ratio = (v - min) / (max - min);
+    const ratio = clamp((v - min) / (max - min), 0, 1);
     const r = Math.floor(255 * (1 - ratio));
     const g = Math.floor(255 * ratio);
     return `rgb(${r},${g},0)`;
@@ -555,7 +557,7 @@ export default async function renderDraftView() {
     searchQuery = e.target.value || '';
     currentPage = 1;
     applyFiltersAndSort();
-  }, 250)));
+  }, 250));
 
   btnUpdate.addEventListener('click', loadDraftData);
 
