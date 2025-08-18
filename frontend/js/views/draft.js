@@ -1,4 +1,3 @@
-// views/draftView.js
 import { fetchDraftData } from '../api.js';
 import { positions } from '../../components/constants.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
@@ -7,10 +6,6 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
-
-  const positionOptions =
-    `<option value="TODAS" selected>TODAS</option>` +
-    positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
 
   content.innerHTML = `
     <style>
@@ -67,7 +62,8 @@ export default async function renderDraftView() {
           <div class="col-md-2">
             <label for="select-position" class="form-label">Posición</label>
             <select id="select-position" class="form-select">
-              ${positionOptions}
+              <option value="TODAS">TODAS</option>
+              ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
             </select>
           </div>
           <div class="col-md-3">
@@ -77,7 +73,7 @@ export default async function renderDraftView() {
           <div class="col-md-2">
             <label for="select-status" class="form-label">Status</label>
             <select id="select-status" class="form-select">
-              <option value="LIBRE" selected>LIBRE</option>
+              <option value="LIBRE">LIBRE</option>
               <option value="TODOS">TODOS</option>
             </select>
           </div>
@@ -117,14 +113,12 @@ export default async function renderDraftView() {
                 <option value="rank">Rank ↑</option>
                 <option value="priorityScore">Priority Score ↓</option>
                 <option value="projection">Proyección ↓</option>
-                <option value="shark">🦈 SharkScore ↓</option>
               </select>
             </label>
           </div>
         </div>
 
         <div class="mb-3" id="draft-summary"></div>
-
         <div id="draft-cards" class="mb-2"></div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -184,11 +178,12 @@ export default async function renderDraftView() {
   }
 
   const safeNum = (v, decimals = 2) =>
-    (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : '';
+    (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
 
   function getHeatColor(value, min, max) {
-    if (value == null || isNaN(value) || !isFinite(min) || !isFinite(max) || max === min) return '#888';
-    const ratio = (value - min) / (max - min);
+    const v = Number(value);
+    if (!Number.isFinite(v) || max === min) return '#888';
+    const ratio = (v - min) / (max - min);
     const r = Math.floor(255 * (1 - ratio));
     const g = Math.floor(255 * ratio);
     return `rgb(${r},${g},0)`;
@@ -205,29 +200,39 @@ export default async function renderDraftView() {
   }
   const getPositionBadge = (pos) => `<span class="badge ${getPositionColor(pos)}">${pos ?? ''}</span>`;
 
-  // 🦈 SharkScore
-  function calculateSharkScore(p = {}) {
-    const steal = Number(p.stealScore) || 0;
-    const adjVor = Number(p.adjustedVOR) || 0;
-    const boom = Number(p.boomRate) || 0;
-    const valOverAdp = Number(p.valueOverADP) || 0;
-    // Ponderaciones agresivas, orientadas a ROI de high-stakes
-    return steal + adjVor * 2 + boom * 5 + valOverAdp * 20;
-  }
-
   function comparePlayers(a, b) {
     if (sortBy === 'rank') {
-      const ra = Number(a.rank) || Number.MAX_SAFE_INTEGER;
-      const rb = Number(b.rank) || Number.MAX_SAFE_INTEGER;
-      return ra - rb; // asc
+      const ra = Number(a.rank);
+      const rb = Number(b.rank);
+      return (Number.isFinite(ra) ? ra : Number.MAX_SAFE_INTEGER) - (Number.isFinite(rb) ? rb : Number.MAX_SAFE_INTEGER);
     } else if (sortBy === 'priorityScore') {
-      return (Number(b.priorityScore) || 0) - (Number(a.priorityScore) || 0); // desc
+      const pa = Number(a.priorityScore);
+      const pb = Number(b.priorityScore);
+      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity); // desc
     } else if (sortBy === 'projection') {
-      return (Number(b.projection) || 0) - (Number(a.projection) || 0); // desc
-    } else if (sortBy === 'shark') {
-      return calculateSharkScore(b) - calculateSharkScore(a); // desc
+      const pa = Number(a.projection);
+      const pb = Number(b.projection);
+      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity); // desc
     }
     return 0;
+  }
+
+  // Normaliza números de los jugadores (para sort/metricas)
+  function normalizePlayers(arr) {
+    const toNum = (v) => (Number.isFinite(+v) ? +v : null);
+    return arr.map(p => ({
+      ...p,
+      rank: toNum(p.rank),
+      projection: toNum(p.projection),
+      vor: toNum(p.vor),
+      adjustedVOR: toNum(p.adjustedVOR),
+      dropoff: toNum(p.dropoff),
+      priorityScore: toNum(p.priorityScore),
+      boomRate: toNum(p.boomRate),
+      bustRate: toNum(p.bustRate),
+      adpValue: toNum(p.adpValue),
+      valueOverADP: toNum(p.valueOverADP),
+    }));
   }
 
   // =============================
@@ -257,9 +262,8 @@ export default async function renderDraftView() {
     const start = (currentPage - 1) * pageSize;
     const pagePlayers = filtered.slice(start, start + pageSize);
 
-    // métricas para barras/badges
-    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0), 1);
-    const prios = filtered.map(p => Number(p.priorityScore)).filter(n => Number.isFinite(n));
+    const prios = filtered.map(p => Number(p.priorityScore)).filter(Number.isFinite);
+    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0), 0) || 1;
     const minPrio = prios.length ? Math.min(...prios) : 0;
     const maxPrio = prios.length ? Math.max(...prios) : 1;
 
@@ -270,18 +274,14 @@ export default async function renderDraftView() {
         <div class="row g-2">
           ${pagePlayers.map(p => {
             const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
-            const prioStyle = `background-color:${getHeatColor(Number(p.priorityScore), minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
+            const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
             const risk = (p.riskTags || []).join(', ');
-            const shark = calculateSharkScore(p);
             return `
               <div class="col-12 col-md-4 col-lg-3">
                 <div class="draft-card">
                   <div class="title-row">
                     <div class="player">${p.nombre ?? ''}</div>
-                    <div class="d-flex align-items-center gap-2">
-                      <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
-                      <span class="badge bg-dark">🦈 ${Math.round(shark)}</span>
-                    </div>
+                    <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
                   </div>
                   <div class="meta mb-2">
                     <span class="kv">${getPositionBadge(p.position)}</span>
@@ -305,8 +305,8 @@ export default async function renderDraftView() {
                   <div class="mt-2 d-flex flex-wrap gap-2">
                     ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
                     ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
-                    ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global} ${p.tier_global_label}</span>` : ''}
-                    ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos} ${p.tier_pos_label}</span>` : ''}
+                    ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global ?? ''} ${p.tier_global_label}</span>` : ''}
+                    ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos ?? ''} ${p.tier_pos_label}</span>` : ''}
                   </div>
                 </div>
               </div>
@@ -318,10 +318,7 @@ export default async function renderDraftView() {
 
     renderSummary(filtered);
     renderPagination();
-    const end = Math.min(start + pageSize, filtered.length);
-    cardsInfo.textContent = filtered.length
-      ? `Mostrando ${start + 1}-${end} de ${filtered.length} jugadores`
-      : `Sin jugadores`;
+    cardsInfo.textContent = `Mostrando ${filtered.length ? (start + 1) : 0}-${Math.min(start + pageSize, filtered.length)} de ${filtered.length} jugadores`;
   }
 
   function renderPagination() {
@@ -349,28 +346,33 @@ export default async function renderDraftView() {
   }
 
   // =============================
-  // Filtrado local (búsqueda + status + posición + bye)
+  // Filtrado local
   // =============================
+  function isFreeStatus(s) {
+    const t = (s ?? '').toString().trim().toLowerCase();
+    if (!t) return true;
+    return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
+  }
+
   function applyFiltersAndSort() {
     const status = statusSelect.value;
-    const posFilter = (positionSelect.value || '').trim();
-    const isAllPos = !posFilter || /^todas$/i.test(posFilter);
+    const posFilter = positionSelect.value;
     const byeCondition = Number(byeInput.value) || 0;
     const q = (searchQuery || '').trim().toLowerCase();
 
     filtered = draftData.filter(p => {
       // status
       if (status !== 'TODOS') {
-        if (((p.status || '').toLowerCase().trim() !== 'libre')) return false;
+        if (!isFreeStatus(p.status)) return false;
       }
       // position
-      if (!isAllPos) {
+      if (posFilter && posFilter !== '' && posFilter !== 'TODAS') {
         if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
       }
       // bye condition (simple >=)
       if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
 
-      // search across name, team, position, valueTag, tier labels
+      // search
       if (q) {
         const haystack = [
           p.nombre, p.team, p.position,
@@ -382,10 +384,8 @@ export default async function renderDraftView() {
       return true;
     });
 
-    // ordenar
     filtered.sort(comparePlayers);
 
-    // reset page si quedó fuera de rango
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     if (currentPage > totalPages) currentPage = 1;
 
@@ -395,117 +395,182 @@ export default async function renderDraftView() {
   // =============================
   // Carga de datos
   // =============================
-	async function loadDraftData() {
-	  try {
-	    // Liga
-	    const leagueId = (
-	      leagueSelect.tomselect?.getValue?.() ||
-	      leagueSelect.value ||
-	      ''
-	    ).toString().trim();
+  async function loadDraftData() {
+    try {
+      // Lee valores con soporte a TomSelect y fallback
+      const leagueId =
+        (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
 
-	    // Posición (el endpoint acepta "TODAS")
-	    const position = (positionSelect.value || 'TODAS').toString().trim();
+      const posRaw = (positionSelect.value || 'TODAS').toString().trim();
+      const position = posRaw === '' ? 'TODAS' : posRaw;
 
-	    // Bye como número
-	    const byeCondition = Number(byeInput.value || 0);
+      const byeCondition = Number(byeInput.value || 0);
 
-	    // Experto (TomSelect puede devolver array o string). Además, si el <option> tiene data-id, lo priorizamos.
-	    const rawExpertVal = expertSelect.tomselect?.getValue?.() ?? expertSelect.value ?? '';
-	    let idExpert = (Array.isArray(rawExpertVal) ? rawExpertVal[0] : rawExpertVal || '').toString().trim();
-	    const selectedOption = expertSelect.selectedOptions?.[0];
-	    if (selectedOption?.dataset?.id) {
-	      idExpert = selectedOption.dataset.id.toString().trim();
-	    }
+      const expertVal = (document.querySelector('#select-expert')?.tomselect?.getValue?.() ?? expertSelect.value ?? '');
+      let idExpert = (Array.isArray(expertVal) ? expertVal[0] : expertVal || '').toString().trim();
+      // dataset id prioritario si existe
+      const selectedOption = expertSelect.selectedOptions?.[0];
+      if (selectedOption?.dataset?.id) {
+        idExpert = selectedOption.dataset.id.toString().trim();
+      }
 
-	    // Sleeper ADP bandera
-	    const sleeperADP = !!sleeperADPCheckbox.checked;
+      const sleeperADP = !!sleeperADPCheckbox.checked;
 
-	    if (!leagueId || !idExpert) {
-	      showError('Selecciona una liga y un experto');
-	      return;
-	    }
+      if (!leagueId || !idExpert) {
+        showError('Selecciona una liga y un experto');
+        return;
+      }
 
-	    showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-	    const apiResp = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
-	    Swal.close();
+      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
+      Swal.close();
 
-	    // Soportar ambos formatos de respuesta
-	    const playersRaw = Array.isArray(apiResp?.players)
-	      ? apiResp.players
-	      : (Array.isArray(apiResp?.data?.players) ? apiResp.data.players : []);
+      if (!players || !players.length) {
+        draftData = [];
+        filtered = [];
+        updateCardsForPage(1);
+        showError('No se encontraron jugadores.');
+        return;
+      }
 
-	    const params = apiResp?.params ?? apiResp?.data?.params ?? null;
+      draftData = normalizePlayers(players);
+      currentPage = 1;
+      applyFiltersAndSort();
 
-	    if (!playersRaw?.length) {
-	      draftData = [];
-	      filtered = [];
-	      updateCardsForPage(1);
-	      showError('No se encontraron jugadores.');
-	      return;
-	    }
+      if (params?.ranks_published) {
+        const fecha = new Date(params.ranks_published);
+        document.getElementById('ranks-updated-label').innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-calendar-check-fill text-success"></i>
+            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>`;
+      } else {
+        document.getElementById('ranks-updated-label').innerHTML = '';
+      }
 
-	    // Normalizamos campos numéricos que usamos para ordenar/mostrar
-	    const toNum = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
-	    draftData = playersRaw.map(p => ({
-	      ...p,
-	      rank: toNum(p.rank),
-	      projection: toNum(p.projection),
-	      vor: toNum(p.vor),
-	      adjustedVOR: toNum(p.adjustedVOR),
-	      dropoff: toNum(p.dropoff),
-	      priorityScore: toNum(p.priorityScore),
-	      boomRate: toNum(p.boomRate),
-	      bustRate: toNum(p.bustRate),
-	      adpValue: toNum(p.adpValue),
-	      valueOverADP: toNum(p.valueOverADP),
-	      // mantenemos adpRound tal cual (puede ser 1.01 string), y status en mayúsculas si viene vacío o mixto
-	      status: (p.status || '').toString().trim(),
-	    }));
+      if (params?.ADPdate) {
+        const adpDate = new Date(params.ADPdate);
+        document.getElementById('adp-updated-label').innerHTML = `
+          <div class="px-3 py-1 small rounded-pill shadow-sm"
+               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+            <i class="bi bi-clock-history text-warning"></i>
+            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+          </div>`;
+      } else {
+        document.getElementById('adp-updated-label').innerHTML = '';
+      }
+    } catch (err) {
+      Swal.close();
+      console.error('Error en loadDraftData:', err);
+      showError('Error al actualizar draft: ' + (err?.message || err));
+    }
+  }
 
-	    // Forzamos filtro por "LIBRE" si no hay preferencia previa
-	    if (!statusSelect.value) {
-	      statusSelect.value = 'LIBRE';
-	      try { localStorage.setItem('draftStatusFilter', 'LIBRE'); } catch (_) {}
-	    }
+  // =============================
+  // Init selects (TomSelect y fallback)
+  // =============================
+  let expertTS = null, leagueTS = null;
+  try {
+    expertTS = await renderExpertSelect('#select-expert', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange() {
+        try { localStorage.setItem('draftExpert', this.getValue?.() || ''); } catch(e) {}
+        loadDraftData();
+        if (this && typeof this.blur === 'function') this.blur();
+      }
+    });
+  } catch (e) {
+    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
 
-	    // Reset paginación + render con filtros
-	    currentPage = 1;
-	    applyFiltersAndSort();
+  try {
+    leagueTS = await renderLeagueSelect('#select-league', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange() {
+        try { localStorage.setItem('draftLeague', this.getValue?.() || ''); } catch(e) {}
+        loadDraftData();
+        if (this && typeof this.blur === 'function') this.blur();
+      }
+    });
+  } catch (e) {
+    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
 
-	    // Etiquetas de actualización (defensivo por si no existen los nodos)
-	    const ranksEl = document.getElementById('ranks-updated-label');
-	    if (ranksEl) {
-	      ranksEl.innerHTML = params?.ranks_published
-	        ? (() => {
-	            const fecha = new Date(params.ranks_published);
-	            return `
-	              <div class="px-3 py-1 small rounded-pill shadow-sm"
-	                   style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-	                <i class="bi bi-calendar-check-fill text-success"></i>
-	                Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
-	              </div>`;
-	          })()
-	        : '';
-	    }
+  // Fallback si tomselect no fue devuelto por la función
+  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
+  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
 
-	    const adpEl = document.getElementById('adp-updated-label');
-	    if (adpEl) {
-	      adpEl.innerHTML = params?.ADPdate
-	        ? (() => {
-	            const adpDate = new Date(params.ADPdate);
-	            return `
-	              <div class="px-3 py-1 small rounded-pill shadow-sm"
-	                   style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-	                <i class="bi bi-clock-history text-warning"></i>
-	                ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
-	              </div>`;
-	          })()
-	        : '';
-	    }
-	  } catch (err) {
-	    Swal.close();
-	    console.error('Error en loadDraftData:', err);
-	    showError('Error al actualizar draft: ' + (err?.message || err));
-	  }
-	}
+  function applySavedValue(selectEl, tsInstance, savedValue) {
+    if (!savedValue) return;
+    try {
+      if (tsInstance && typeof tsInstance.setValue === 'function') {
+        tsInstance.setValue(savedValue);
+        tsInstance.blur?.();
+      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
+        selectEl.tomselect.setValue(savedValue);
+        selectEl.tomselect.blur?.();
+      } else if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        selectEl.blur?.();
+      }
+    } catch {
+      if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  }
+
+  applySavedValue(expertSelect, expertTS, savedExpert);
+  applySavedValue(leagueSelect, leagueTS, savedLeague);
+
+  // =============================
+  // Eventos UI
+  // =============================
+  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); applyFiltersAndSort(); });
+  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); applyFiltersAndSort(); });
+  byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
+  sleeperADPCheckbox.addEventListener('change', () => { localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked); loadDraftData(); });
+
+  pageSizeSel.addEventListener('change', () => {
+    pageSize = Number(pageSizeSel.value) || 12;
+    currentPage = 1;
+    updateCardsForPage(currentPage);
+  });
+
+  sortBySel.addEventListener('change', () => {
+    sortBy = sortBySel.value;
+    applyFiltersAndSort();
+  });
+
+  searchInput.addEventListener('input', debounce((e) => {
+    searchQuery = e.target.value || '';
+    currentPage = 1;
+    applyFiltersAndSort();
+  }, 250)));
+
+  btnUpdate.addEventListener('click', loadDraftData);
+
+  // expert/league fallback native change -> load
+  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
+  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
+
+  // Init: si hay liga y experto guardados, cargar
+  if (savedLeague && savedExpert) loadDraftData();
+
+  // Render inicial vacío
+  filtered = [];
+  updateCardsForPage(1);
+
+  window.addEventListener('resize', () => {
+    // Hook responsive si lo necesitas
+  });
+}
