@@ -105,14 +105,14 @@ export async function updatePlayersByeWeeks() {
 
 // ✅ 6. Actualizar bye_week masivamente (recomendado)
 export async function bulkUpdatePlayersByeWeeks() {
-  const teams = await getNFLTeamsByeWeek();
+  const teams = await getTeamsFromSupabase();
   if (!teams.length) {
-    console.error('❌ No se obtuvieron equipos con bye weeks');
+    console.error('❌ No se obtuvieron equipos de Supabase');
     return { success: false, message: 'Sin datos de equipos' };
   }
 
   const valuesClause = teams
-    .map(team => `('${team.abbr}', ${team.bye})`)
+    .map(team => `('${team.abbr}', ${team.bye ?? 'NULL'})`)
     .join(', ');
 
   const sql = `
@@ -129,6 +129,6 @@ export async function bulkUpdatePlayersByeWeeks() {
     return { success: false, error };
   }
 
-  console.log('✅ Bye weeks actualizados correctamente en tabla players');
+  console.log('✅ Bye weeks actualizados desde getTeamsFromSupabase');
   return { success: true };
 }
