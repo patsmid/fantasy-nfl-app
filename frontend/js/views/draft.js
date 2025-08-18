@@ -356,43 +356,52 @@ export default async function renderDraftView() {
     return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
   }
 
-  function applyFiltersAndSort() {
-    const status = statusSelect.value;
-    const posFilter = positionSelect.value;
-    const byeCondition = Number(byeInput.value) || 0;
-    const q = (searchQuery || '').trim().toLowerCase();
+	function applyFiltersAndSort() {
+	  const statusFilter = statusSelect.value || '';
+	  const posFilter = positionSelect.value;
+	  const byeCondition = Number(byeInput.value) || 0;
+	  const q = (searchQuery || '').trim().toLowerCase();
 
-    filtered = draftData.filter(p => {
-      // status
-      if (status !== 'TODOS') {
-        if (!isFreeStatus(p.status)) return false;
-      }
-      // position
-      if (posFilter && posFilter !== '' && posFilter !== 'TODAS') {
-        if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
-      }
-      // bye condition (simple >=)
-      if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
+	  filtered = draftData.filter(p => {
+	    // === STATUS FILTER ===
+	    if (statusFilter && statusFilter !== 'TODOS') {
+	      if (statusFilter === 'LIBRE') {
+	        if (p.status !== 'LIBRE') return false;
+	      } else {
+	        if ((p.status || '').toUpperCase() !== statusFilter.toUpperCase()) return false;
+	      }
+	    }
 
-      // search
-      if (q) {
-        const haystack = [
-          p.nombre, p.team, p.position,
-          p.valueTag, p.tier_global_label, p.tier_pos_label,
-          ...(p.riskTags || [])
-        ].filter(Boolean).join(' ').toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
+	    // === POSITION FILTER ===
+	    if (posFilter && posFilter !== '' && posFilter !== 'TODAS') {
+	      if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
+	    }
 
-    filtered.sort(comparePlayers);
+	    // === BYE FILTER ===
+	    if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    if (currentPage > totalPages) currentPage = 1;
+	    // === SEARCH FILTER ===
+	    if (q) {
+	      const haystack = [
+	        p.nombre, p.team, p.position,
+	        p.valueTag, p.tier_global_label, p.tier_pos_label,
+	        ...(p.riskTags || [])
+	      ].filter(Boolean).join(' ').toLowerCase();
+	      if (!haystack.includes(q)) return false;
+	    }
 
-    updateCardsForPage(currentPage);
-  }
+	    return true;
+	  });
+
+	  // Ordenamiento (puedes usar comparePlayers o sharkSort según modo)
+	  filtered.sort(comparePlayers);
+
+	  // === PAGINACIÓN ===
+	  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+	  if (currentPage > totalPages) currentPage = 1;
+
+	  updateCardsForPage(currentPage);
+	}
 
   // =============================
   // Carga de datos
@@ -481,8 +490,9 @@ export default async function renderDraftView() {
       persist: false,
       onChange() {
         try { localStorage.setItem('draftExpert', this.getValue?.() || ''); } catch(e) {}
-        loadDraftData();
-        if (this && typeof this.blur === 'function') this.blur();
+				if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos (si ya hay liga seleccionada)
+        if (leagueSelect.value) loadDraftData();
       }
     });
   } catch (e) {
@@ -497,8 +507,9 @@ export default async function renderDraftView() {
       persist: false,
       onChange() {
         try { localStorage.setItem('draftLeague', this.getValue?.() || ''); } catch(e) {}
-        loadDraftData();
-        if (this && typeof this.blur === 'function') this.blur();
+				if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos si ya hay experto seleccionado
+        if (expertSelect.value) loadDraftData();
       }
     });
   } catch (e) {
