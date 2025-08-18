@@ -1,3 +1,4 @@
+// views/draftView.js
 import { fetchDraftData } from '../api.js';
 import { positions } from '../../components/constants.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
@@ -6,6 +7,10 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
+
+  const positionOptions =
+    `<option value="TODAS" selected>TODAS</option>` +
+    positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
 
   content.innerHTML = `
     <style>
@@ -37,7 +42,7 @@ export default async function renderDraftView() {
 
       /* Responsive grid tweaks */
       @media(min-width:1200px) {
-        #draft-cards .col-lg-3 { max-width: 23%; flex: 0 0 23%; } /* a veces prefieres 4 columnas grandes */
+        #draft-cards .col-lg-3 { max-width: 23%; flex: 0 0 23%; }
       }
     </style>
 
@@ -62,7 +67,7 @@ export default async function renderDraftView() {
           <div class="col-md-2">
             <label for="select-position" class="form-label">Posición</label>
             <select id="select-position" class="form-select">
-              ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
+              ${positionOptions}
             </select>
           </div>
           <div class="col-md-3">
@@ -72,7 +77,7 @@ export default async function renderDraftView() {
           <div class="col-md-2">
             <label for="select-status" class="form-label">Status</label>
             <select id="select-status" class="form-select">
-              <option value="LIBRE">LIBRE</option>
+              <option value="LIBRE" selected>LIBRE</option>
               <option value="TODOS">TODOS</option>
             </select>
           </div>
@@ -112,6 +117,7 @@ export default async function renderDraftView() {
                 <option value="rank">Rank ↑</option>
                 <option value="priorityScore">Priority Score ↓</option>
                 <option value="projection">Proyección ↓</option>
+                <option value="shark">🦈 SharkScore ↓</option>
               </select>
             </label>
           </div>
@@ -181,7 +187,7 @@ export default async function renderDraftView() {
     (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : '';
 
   function getHeatColor(value, min, max) {
-    if (value == null || isNaN(value) || max === min) return '#888';
+    if (value == null || isNaN(value) || !isFinite(min) || !isFinite(max) || max === min) return '#888';
     const ratio = (value - min) / (max - min);
     const r = Math.floor(255 * (1 - ratio));
     const g = Math.floor(255 * ratio);
@@ -199,15 +205,27 @@ export default async function renderDraftView() {
   }
   const getPositionBadge = (pos) => `<span class="badge ${getPositionColor(pos)}">${pos ?? ''}</span>`;
 
+  // 🦈 SharkScore
+  function calculateSharkScore(p = {}) {
+    const steal = Number(p.stealScore) || 0;
+    const adjVor = Number(p.adjustedVOR) || 0;
+    const boom = Number(p.boomRate) || 0;
+    const valOverAdp = Number(p.valueOverADP) || 0;
+    // Ponderaciones agresivas, orientadas a ROI de high-stakes
+    return steal + adjVor * 2 + boom * 5 + valOverAdp * 20;
+  }
+
   function comparePlayers(a, b) {
     if (sortBy === 'rank') {
       const ra = Number(a.rank) || Number.MAX_SAFE_INTEGER;
       const rb = Number(b.rank) || Number.MAX_SAFE_INTEGER;
-      return ra - rb;
+      return ra - rb; // asc
     } else if (sortBy === 'priorityScore') {
       return (Number(b.priorityScore) || 0) - (Number(a.priorityScore) || 0); // desc
     } else if (sortBy === 'projection') {
       return (Number(b.projection) || 0) - (Number(a.projection) || 0); // desc
+    } else if (sortBy === 'shark') {
+      return calculateSharkScore(b) - calculateSharkScore(a); // desc
     }
     return 0;
   }
@@ -239,10 +257,11 @@ export default async function renderDraftView() {
     const start = (currentPage - 1) * pageSize;
     const pagePlayers = filtered.slice(start, start + pageSize);
 
-    // guardamos info
-    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0)) || 1;
-    const minPrio = Math.min(...filtered.map(p => Number(p.priorityScore) || 0));
-    const maxPrio = Math.max(...filtered.map(p => Number(p.priorityScore) || 0));
+    // métricas para barras/badges
+    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0), 1);
+    const prios = filtered.map(p => Number(p.priorityScore)).filter(n => Number.isFinite(n));
+    const minPrio = prios.length ? Math.min(...prios) : 0;
+    const maxPrio = prios.length ? Math.max(...prios) : 1;
 
     if (!pagePlayers.length) {
       cardsContainer.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
@@ -251,14 +270,18 @@ export default async function renderDraftView() {
         <div class="row g-2">
           ${pagePlayers.map(p => {
             const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
-            const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
+            const prioStyle = `background-color:${getHeatColor(Number(p.priorityScore), minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
             const risk = (p.riskTags || []).join(', ');
+            const shark = calculateSharkScore(p);
             return `
               <div class="col-12 col-md-4 col-lg-3">
                 <div class="draft-card">
                   <div class="title-row">
                     <div class="player">${p.nombre ?? ''}</div>
-                    <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
+                      <span class="badge bg-dark">🦈 ${Math.round(shark)}</span>
+                    </div>
                   </div>
                   <div class="meta mb-2">
                     <span class="kv">${getPositionBadge(p.position)}</span>
@@ -276,7 +299,7 @@ export default async function renderDraftView() {
                   <div class="meta">
                     <span class="kv"><strong>VOR:</strong> ${safeNum(p.vor)}</span>
                     <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
-                    <span class="kv"><strong>Drop:</strong> ${p.dropoff ?? ''}</span>
+                    <span class="kv"><strong>Drop:</strong> ${safeNum(p.dropoff)}</span>
                     <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
                   </div>
                   <div class="mt-2 d-flex flex-wrap gap-2">
@@ -295,7 +318,10 @@ export default async function renderDraftView() {
 
     renderSummary(filtered);
     renderPagination();
-    cardsInfo.textContent = `Mostrando ${start + 1}-${Math.min(start + pageSize, filtered.length)} de ${filtered.length} jugadores`;
+    const end = Math.min(start + pageSize, filtered.length);
+    cardsInfo.textContent = filtered.length
+      ? `Mostrando ${start + 1}-${end} de ${filtered.length} jugadores`
+      : `Sin jugadores`;
   }
 
   function renderPagination() {
@@ -303,7 +329,6 @@ export default async function renderDraftView() {
     const firstDisabled = currentPage === 1 ? 'disabled' : '';
     const lastDisabled = currentPage === totalPages ? 'disabled' : '';
 
-    // simple pagination with prev/next + page indicator
     paginationEl.innerHTML = `
       <button class="page-btn" id="btn-first" ${firstDisabled} title="Primera">«</button>
       <button class="page-btn" id="btn-prev" ${firstDisabled} title="Anterior">‹</button>
@@ -324,11 +349,12 @@ export default async function renderDraftView() {
   }
 
   // =============================
-  // Filtrado local (busqueda + status + position + bye)
+  // Filtrado local (búsqueda + status + posición + bye)
   // =============================
   function applyFiltersAndSort() {
     const status = statusSelect.value;
-    const posFilter = positionSelect.value;
+    const posFilter = (positionSelect.value || '').trim();
+    const isAllPos = !posFilter || /^todas$/i.test(posFilter);
     const byeCondition = Number(byeInput.value) || 0;
     const q = (searchQuery || '').trim().toLowerCase();
 
@@ -338,7 +364,7 @@ export default async function renderDraftView() {
         if (((p.status || '').toLowerCase().trim() !== 'libre')) return false;
       }
       // position
-      if (posFilter && posFilter !== '') {
+      if (!isAllPos) {
         if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
       }
       // bye condition (simple >=)
@@ -359,7 +385,7 @@ export default async function renderDraftView() {
     // ordenar
     filtered.sort(comparePlayers);
 
-    // reset page if current page out of range
+    // reset page si quedó fuera de rango
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     if (currentPage > totalPages) currentPage = 1;
 
@@ -371,18 +397,30 @@ export default async function renderDraftView() {
   // =============================
   async function loadDraftData() {
     try {
-      const leagueId = leagueSelect.value;
-      const position = positionSelect.value;
+      // TomSelect puede envolver el select. Tomamos getValue() si existe.
+      const leagueId = (leagueSelect.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
+      const position = (positionSelect.value || 'TODAS').toString().trim(); // el endpoint acepta "TODAS"
       const byeCondition = byeInput.value || 0;
-      const selectedOption = expertSelect.selectedOptions?.[0];
-      const idExpert = selectedOption?.dataset?.id || selectedOption?.value || '';
-      const sleeperADP = sleeperADPCheckbox.checked;
+
+      const expVal = expertSelect.tomselect?.getValue?.() || expertSelect.value || '';
+      const idExpert = (Array.isArray(expVal) ? expVal[0] : expVal || '').toString().trim();
+
+      const sleeperADP = !!sleeperADPCheckbox.checked;
 
       if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
+      const apiResp = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
       Swal.close();
+
+      // Soporta ambos formatos
+      const players = Array.isArray(apiResp?.players)
+        ? apiResp.players
+        : Array.isArray(apiResp?.data?.players)
+          ? apiResp.data.players
+          : [];
+
+      const params = apiResp?.params ?? apiResp?.data?.params ?? null;
 
       if (!players || !players.length) {
         draftData = [];
@@ -422,7 +460,7 @@ export default async function renderDraftView() {
   }
 
   // =============================
-  // Init selects (TomSelect fallback handling similar al original)
+  // Init selects (TomSelect y fallback)
   // =============================
   let expertTS = null, leagueTS = null;
   try {
@@ -512,8 +550,7 @@ export default async function renderDraftView() {
   filtered = [];
   updateCardsForPage(1);
 
-  // Ajuste de reflow en resize (opcional)
   window.addEventListener('resize', () => {
-    // si quieres adaptar columnas dinámicamente puedes hacerlo aquí
+    // Hook para ajustes responsive si lo necesitas
   });
 }
