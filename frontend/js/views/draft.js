@@ -113,6 +113,7 @@ export default async function renderDraftView() {
                 <option value="rank">Rank ↑</option>
                 <option value="priorityScore">Priority Score ↓</option>
                 <option value="projection">Proyección ↓</option>
+								<option value="shark">SharkScore 🦈</option>
               </select>
             </label>
           </div>
@@ -393,8 +394,27 @@ export default async function renderDraftView() {
 	    return true;
 	  });
 
-	  // Ordenamiento (puedes usar comparePlayers o sharkSort según modo)
-	  filtered.sort(comparePlayers);
+	  // === ORDENAMIENTO ===
+	  if (sortBy === 'shark') {
+	    filtered.sort((a, b) => {
+	      const scoreA =
+	        (Number(a.stealScore) || 0) +
+	        (Number(a.adjustedVOR) || 0) * 2 +
+	        (Number(a.boomRate) || 0) * 5 +
+	        (Number(a.valueOverADP) || 0) * 20;
+
+	      const scoreB =
+	        (Number(b.stealScore) || 0) +
+	        (Number(b.adjustedVOR) || 0) * 2 +
+	        (Number(b.boomRate) || 0) * 5 +
+	        (Number(b.valueOverADP) || 0) * 20;
+
+	      return scoreB - scoreA; // descendente
+	    });
+	  } else {
+	    // Orden normal
+	    filtered.sort(comparePlayers);
+	  }
 
 	  // === PAGINACIÓN ===
 	  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
