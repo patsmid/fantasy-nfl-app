@@ -1,4 +1,3 @@
-// draft.simple.js
 import { fetchDraftData } from '../api.js';
 import { positions } from '../../components/constants.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
@@ -9,258 +8,229 @@ export default async function renderDraftView() {
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <style>
-      /* Minimal, readable card layout */
       #draft-cards .draft-card {
-        background: var(--bg-secondary, #0f1720);
-        color: var(--text-primary, #eef2f6);
-        border: 1px solid rgba(255,255,255,.06);
-        border-radius: 12px;
-        padding: 14px;
+        background: var(--bg-secondary, #1e1e1e);
+        color: var(--text-primary, #f8f9fa);
+        border: 1px solid var(--border, rgba(255,255,255,.08));
+        border-radius: .75rem;
+        padding: .75rem .9rem;
         height: 100%;
-        display:flex;
-        flex-direction:column;
-        gap:8px;
       }
-      #draft-cards .player { font-weight:700; font-size:1.02rem; line-height:1.1; }
-      #draft-cards .meta { font-size:.86rem; opacity:.92; display:flex; flex-wrap:wrap; gap:6px 10px; }
-      .small-muted { font-size:.78rem; opacity:.7 }
-      .summary-badges { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:8px }
-      .pagination-controls { display:flex; justify-content:center; gap:.5rem; margin:12px 0; align-items:center }
-
-      /* Responsive grid tweaks */
-      @media (max-width:599px) {
-        #draft-cards .col { padding-left:6px; padding-right:6px }
+      #draft-cards .title-row {
+        display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.35rem;
       }
+      #draft-cards .player { font-weight:600; font-size:1rem; line-height:1.2; }
+      #draft-cards .meta { display:flex; flex-wrap:wrap; gap:.5rem .75rem; font-size:.85rem; opacity:.9; }
+      #draft-cards .kv { display:flex; gap:.25rem; align-items:center; }
+      #draft-cards .progress { height:10px; background: rgba(255,255,255,.08); }
+      #draft-cards .progress-bar { background-color:#0dcaf0; }
     </style>
 
-    <div class="card border-0 shadow-sm">
+    <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-3 gap-2">
-          <h4 class="m-0 d-flex align-items-center gap-2"><i class="bi bi-clipboard-data text-info"></i> Draft Inteligente</h4>
-          <div>
-            <button id="btn-update-draft" class="btn btn-sm btn-outline-info">Actualizar</button>
-          </div>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="m-0 d-flex align-items-center gap-2">
+            <i class="bi bi-clipboard-data text-info"></i> Draft Inteligente
+          </h4>
+          <button class="btn btn-sm btn-primary" id="btn-update-draft">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar Draft
+          </button>
         </div>
 
-        <div class="row g-2 mb-3">
-          <div class="col-12 col-md-4">
+        <form class="row g-3 mb-4">
+          <div class="col-md-3">
+            <label for="select-league" class="form-label">Liga</label>
             <select id="select-league" class="form-select"></select>
           </div>
-          <div class="col-12 col-md-4">
-            <select id="select-expert" class="form-select"></select>
-          </div>
-          <div class="col-6 col-md-2">
+          <div class="col-md-2">
+            <label for="select-position" class="form-label">Posición</label>
             <select id="select-position" class="form-select">
-              <option value="ALL">Todas</option>
               ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
             </select>
           </div>
-          <div class="col-6 col-md-2">
-            <input id="search-input" class="form-control" placeholder="Buscar jugador, equipo...">
+          <div class="col-md-3">
+            <label for="select-expert" class="form-label">Experto</label>
+            <select id="select-expert" class="form-select"></select>
           </div>
-        </div>
-
-        <div id="summary" class="summary-badges"></div>
-
-        <div id="draft-cards" class="row g-2"></div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div>
-            <label class="small-muted">Mostrar por página</label>
-            <select id="page-size" class="form-select form-select-sm" style="width:110px; display:inline-block; margin-left:8px">
-              <option value="8">8</option>
-              <option value="12" selected>12</option>
-              <option value="24">24</option>
+          <div class="col-md-2">
+            <label for="select-status" class="form-label">Status</label>
+            <select id="select-status" class="form-select">
+              <option value="LIBRE">LIBRE</option>
+              <option value="TODOS">TODOS</option>
             </select>
           </div>
-          <div class="pagination-controls">
-            <button id="prev-page" class="btn btn-sm btn-outline-info">Anterior</button>
-            <div id="page-info" class="small-muted"></div>
-            <button id="next-page" class="btn btn-sm btn-outline-info">Siguiente</button>
+          <div class="col-md-2">
+            <label for="input-bye" class="form-label">Bye condición</label>
+            <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
+              <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
+            </div>
+          </div>
+        </form>
+
+        <div class="d-flex flex-wrap gap-3 mb-3">
+          <div id="ranks-updated-label" class="text-start"></div>
+          <div id="adp-updated-label" class="text-start"></div>
         </div>
+
+        <div class="mb-3" id="draft-summary"></div>
+        <div id="draft-cards" class="mb-2"></div>
       </div>
     </div>
   `;
 
   // DOM refs
+  const statusSelect = document.getElementById('select-status');
   const leagueSelect = document.getElementById('select-league');
-  const expertSelect = document.getElementById('select-expert');
   const positionSelect = document.getElementById('select-position');
-  const searchInput = document.getElementById('search-input');
+  const expertSelect = document.getElementById('select-expert');
+  const byeInput = document.getElementById('input-bye');
+  const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
   const cardsContainer = document.getElementById('draft-cards');
-  const summaryContainer = document.getElementById('summary');
-  const prevBtn = document.getElementById('prev-page');
-  const nextBtn = document.getElementById('next-page');
-  const pageInfo = document.getElementById('page-info');
-  const pageSizeSelect = document.getElementById('page-size');
-  const btnUpdate = document.getElementById('btn-update-draft');
 
-  // Estado
   let draftData = [];
-  let filteredData = [];
-  let currentPage = Number(localStorage.getItem('draft_currentPage') || 1);
-  let pageSize = Number(localStorage.getItem('draft_pageSize') || pageSizeSelect.value || 12);
 
-  pageSizeSelect.value = String(pageSize);
+  // Colores de posición
+  function getPositionColor(pos) {
+    switch ((pos || '').toUpperCase()) {
+      case 'RB': return 'bg-success text-white';
+      case 'WR': return 'bg-primary text-white';
+      case 'TE': return 'bg-warning text-dark';
+      case 'QB': return 'bg-danger text-white';
+      default: return 'bg-secondary text-white';
+    }
+  }
+  const getPositionBadge = pos => `<span class="badge ${getPositionColor(pos)}">${pos ?? ''}</span>`;
+  const safeNum = (v, d=2) => (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(d) : '';
 
-  // Utiles
-  const safeNum = (v, d = 2) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(d)) : (v || '');
-  const debounce = (fn, wait = 250) => {
-    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
-  };
-  const getPositionBadge = (pos) => `<span class="badge ${pos==='RB'? 'bg-success': pos==='WR'? 'bg-primary': pos==='TE'? 'bg-warning text-dark': pos==='QB'? 'bg-danger':''}">${pos||''}</span>`;
-
-  // Update summary badges (tiers / steals / risks)
-  function renderSummary(players) {
-    const counts = {};
-    let steals = 0, risks = 0;
-    players.forEach(p => {
-      const label = p.tier_global_label || (p.tier_global ? `Tier ${p.tier_global}` : 'Sin tier');
-      counts[label] = (counts[label] || 0) + 1;
-      if (p.valueTag && String(p.valueTag).toLowerCase().includes('steal')) steals++;
-      if (p.riskTags && p.riskTags.length) risks++;
-    });
-
-    const badges = Object.entries(counts)
-      .map(([k,v]) => `<span class="badge bg-info">${k}: ${v}</span>`)
-      .join(' ');
-
-    summaryContainer.innerHTML = `${badges} <span class="badge bg-success ms-1">Steals: ${steals}</span> <span class="badge bg-warning text-dark ms-1">Riesgos: ${risks}</span>`;
+  function getHeatColor(value, min, max) {
+    if (value == null || isNaN(value) || max === min) return '#888';
+    const ratio = (value - min) / (max - min);
+    const r = Math.floor(255 * (1 - ratio));
+    const g = Math.floor(255 * ratio);
+    return `rgb(${r},${g},0)`;
   }
 
-  // RENDER CARDS
-  function renderCards() {
-    const total = filteredData.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    if (currentPage > totalPages) currentPage = totalPages;
+  function renderSummary(players) {
+    const summary = { tiers: {}, steals: 0, risks: 0 };
+    players.forEach(p => {
+      const tierLabel = p.tier_global_label || 'Sin tier';
+      summary.tiers[tierLabel] = (summary.tiers[tierLabel] || 0) + 1;
+      if (p.valueTag === '💎 Steal') summary.steals++;
+      if (p.riskTags?.length) summary.risks++;
+    });
+    document.getElementById('draft-summary').innerHTML = `
+      <div class="d-flex gap-3 flex-wrap">
+        ${Object.entries(summary.tiers).map(([tier, count]) => `<span class="badge bg-info">${tier}: ${count}</span>`).join('')}
+        <span class="badge bg-success">Steals: ${summary.steals}</span>
+        <span class="badge bg-warning text-dark">Riesgos: ${summary.risks}</span>
+      </div>`;
+  }
 
-    const start = (currentPage - 1) * pageSize;
-    const pagePlayers = filteredData.slice(start, start + pageSize);
-
-    if (!pagePlayers.length) {
+  function updateCards(players) {
+    if (!players.length) {
       cardsContainer.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
-      pageInfo.textContent = ``;
-      prevBtn.disabled = true;
-      nextBtn.disabled = true;
       return;
     }
+    const maxProj = Math.max(...players.map(p => Number(p.projection) || 0)) || 1;
+    const minPrio = Math.min(...players.map(p => Number(p.priorityScore) || 0));
+    const maxPrio = Math.max(...players.map(p => Number(p.priorityScore) || 0));
 
-    const maxProj = Math.max(...filteredData.map(p => Number(p.projection || 0)), 1);
-
-    cardsContainer.innerHTML = pagePlayers.map(p => {
-      const projPct = Math.round(Math.min(100, (Number(p.projection || 0) / maxProj) * 100));
-      const risk = (p.riskTags || []).join(', ');
-      return `
-        <div class="col-12 col-md-6 col-lg-4 col-xl-3">
-          <div class="draft-card">
-            <div class="d-flex justify-content-between align-items-start">
-              <div class="player">${p.nombre || ''}</div>
-              <div>${getPositionBadge(p.position)}</div>
-            </div>
-
-            <div class="meta">
-              <span><i class="bi bi-shield"></i> ${p.team || ''}</span>
-              <span><i class="bi bi-calendar2-x"></i> Bye ${p.bye || ''}</span>
-              <span><i class="bi bi-trophy"></i> Rank ${p.rank || ''}</span>
-              <span><i class="bi bi-person-check"></i> ${p.status || ''}</span>
-            </div>
-
-            <div>
-              <div class="small-muted">Proyección</div>
-              <div class="progress mt-1" style="height:8px"><div class="progress-bar" role="progressbar" style="width:${projPct}%"></div></div>
-            </div>
-
-            <div class="meta">
-              <span><strong>VOR:</strong> ${safeNum(p.vor)}</span>
-              <span><strong>Adj:</strong> ${safeNum(p.adjustedVOR)}</span>
-              <span><strong>Drop:</strong> ${p.dropoff || ''}</span>
-              <span><strong>ADP:</strong> ${p.adpValue || ''}</span>
-            </div>
-
-            <div class="d-flex flex-wrap gap-2 mt-2">
-              ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
-              ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
-              ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global_label}</span>` : ''}
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    pageInfo.textContent = `Página ${currentPage} de ${totalPages} — ${total} jugadores`;
-    prevBtn.disabled = currentPage <= 1;
-    nextBtn.disabled = currentPage >= totalPages;
-
-    // persist page state
-    localStorage.setItem('draft_currentPage', String(currentPage));
-    localStorage.setItem('draft_pageSize', String(pageSize));
-
-    renderSummary(filteredData);
+    cardsContainer.innerHTML = `
+      <div class="row g-2">
+        ${players.map(p => {
+          const projPct = Math.min(100, (Number(p.projection||0)/maxProj)*100);
+          const prioStyle = `background-color:${getHeatColor(p.priorityScore,minPrio,maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;`;
+          return `
+            <div class="col-12 col-md-4 col-lg-3">
+              <div class="draft-card">
+                <div class="title-row">
+                  <div class="player">${p.nombre ?? ''}</div>
+                  <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
+                </div>
+                <div class="meta mb-2">
+                  ${getPositionBadge(p.position)}
+                  <span class="kv"><i class="bi bi-shield"></i> ${p.team ?? ''}</span>
+                  <span class="kv"><i class="bi bi-calendar2-x"></i> Bye ${p.bye ?? ''}</span>
+                  <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
+                  <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
+                  <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
+                  <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span>
+                </div>
+                <div class="mb-2">
+                  <div class="small mb-1">Proyección</div>
+                  <div class="progress"><div class="progress-bar" style="width:${projPct}%"></div></div>
+                </div>
+                <div class="meta">
+                  <span><strong>VOR:</strong> ${safeNum(p.vor)}</span>
+                  <span><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
+                  <span><strong>Drop:</strong> ${p.dropoff ?? ''}</span>
+                  <span><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
+                </div>
+                <div class="mt-2 d-flex flex-wrap gap-2">
+                  ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
+                  ${p.riskTags?.length ? `<span class="badge bg-warning text-dark">${p.riskTags.join(', ')}</span>` : ''}
+                  ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global} ${p.tier_global_label}</span>` : ''}
+                  ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos} ${p.tier_pos_label}</span>` : ''}
+                </div>
+              </div>
+            </div>`;}).join('')}
+      </div>`;
   }
 
-  // FILTRADO
-  function applyFilters() {
-    const pos = positionSelect.value;
-    const q = (searchInput.value || '').trim().toLowerCase();
-
-    filteredData = draftData.filter(p => {
-      const matchesPos = pos === 'ALL' || (p.position || '').toUpperCase() === (pos || '').toUpperCase();
-      const hay = `${p.nombre || ''} ${p.team || ''} ${p.position || ''}`.toLowerCase();
-      const matchesSearch = !q || hay.includes(q);
-      return matchesPos && matchesSearch;
-    });
-
-    currentPage = 1;
-    renderCards();
+  function refreshUI(data) {
+    const statusFilter = statusSelect.value;
+    const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status||'').toLowerCase().trim()==='libre');
+    const sorted = filtered.sort((a,b) => (Number(a.rank)||9999)-(Number(b.rank)||9999));
+    renderSummary(sorted);
+    updateCards(sorted);
   }
 
-  // LOAD DATA
   async function loadDraftData() {
     try {
       const leagueId = leagueSelect.value;
-      const expertId = expertSelect.value;
       const position = positionSelect.value;
-      if (!leagueId || !expertId) return showError('Selecciona liga y experto');
+      const byeCondition = byeInput.value || 0;
+      const idExpert = expertSelect.value;
+      const sleeperADP = sleeperADPCheckbox.checked;
+      if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
-      try { showLoadingBar('Cargando draft', 'Descargando datos...'); } catch (e) {}
+      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+      const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
+      Swal.close();
+      if (!players.length) return showError('No se encontraron jugadores.');
 
-      // Ajusta la firma si tu fetchDraftData espera más params: (leagueId, position, bye, expertId, sleeperADP)
-      const byeCondition = 0;
-      const sleeperADP = false;
-      const resp = await fetchDraftData(leagueId, position === 'ALL' ? null : position, byeCondition, expertId, sleeperADP);
+      draftData = players;
+      refreshUI(draftData);
 
-      // fetchDraftData debe devolver { players, params } o directamente un array. Aceptamos ambas.
-      const players = Array.isArray(resp) ? resp : (resp?.players || []);
-
-      draftData = players || [];
-      applyFilters();
+      if (params?.ranks_published) {
+        const fecha = new Date(params.ranks_published);
+        document.getElementById('ranks-updated-label').innerHTML = `Ranks: ${fecha.toLocaleString('es-MX')}`;
+      }
+      if (params?.ADPdate) {
+        const fecha = new Date(params.ADPdate);
+        document.getElementById('adp-updated-label').innerHTML = `ADP: ${fecha.toLocaleDateString('es-MX')}`;
+      }
     } catch (err) {
-      console.error('loadDraftData error', err);
-      try { Swal.close(); } catch (e) {}
-      showError('Error cargando jugadores');
-    } finally {
-      try { Swal.close(); } catch (e) {}
+      Swal.close();
+      console.error(err);
+      showError('Error al actualizar draft: ' + err.message);
     }
   }
 
-  // EVENTOS
-  const debouncedSearch = debounce(() => applyFilters(), 220);
-  searchInput.addEventListener('input', debouncedSearch);
-  positionSelect.addEventListener('change', () => { localStorage.setItem('draft_position', positionSelect.value); applyFilters(); });
-  pageSizeSelect.addEventListener('change', () => { pageSize = Number(pageSizeSelect.value || 12); currentPage = 1; renderCards(); });
-  prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderCards(); }});
-  nextBtn.addEventListener('click', () => { const maxP = Math.ceil(filteredData.length / pageSize); if (currentPage < maxP) { currentPage++; renderCards(); }});
-  btnUpdate.addEventListener('click', loadDraftData);
+  // Eventos
+  statusSelect.addEventListener('change', () => refreshUI(draftData));
+  sleeperADPCheckbox.addEventListener('change', loadDraftData);
+  positionSelect.addEventListener('change', loadDraftData);
+  document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
 
-  // Inicializar selects con helpers que ya tienes (asumen retornar instancia o autocontrol)
-  await renderLeagueSelect('#select-league', { onChange: loadDraftData });
-  await renderExpertSelect('#select-expert', { onChange: loadDraftData });
+  // Init selects
+  await renderExpertSelect('#select-expert');
+  await renderLeagueSelect('#select-league');
 
-  // Restaurar filtros guardados
-  const savedPos = localStorage.getItem('draft_position');
-  if (savedPos) positionSelect.value = savedPos;
-
-  // Cargar si ya hay liga+experto
-  if (leagueSelect.value && expertSelect.value) await loadDraftData();
+  // Auto-load si hay valores guardados
+  loadDraftData();
 }
