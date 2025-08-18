@@ -238,6 +238,68 @@ export default async function renderDraftView() {
     }));
   }
 
+	function _rangeFrom(arr, pick) {
+	  const vals = arr.map(pick).map(Number).filter(Number.isFinite);
+	  if (!vals.length) return [0, 1];
+	  return [Math.min(...vals), Math.max(...vals)];
+	}
+	function _scale01(v, [min, max], def = 0) {
+	  const x = Number(v);
+	  if (!Number.isFinite(x)) return def;
+	  if (max <= min) return 0.5; // neutral si no hay rango
+	  return (x - min) / (max - min);
+	}
+	function _buildSharkRanges(source) {
+	  const arr = source && source.length ? source : [];
+	  return {
+	    rank:         _rangeFrom(arr, p => p.rank),
+	    adjustedVOR:  _rangeFrom(arr, p => p.adjustedVOR),
+	    projection:   _rangeFrom(arr, p => p.projection),
+	    valueOverADP: _rangeFrom(arr, p => p.valueOverADP),
+	    stealScore:   _rangeFrom(arr, p => p.stealScore),
+	    volatility:   _rangeFrom(arr, p => p.volatility),
+	    tier_global:  _rangeFrom(arr, p => p.tier_global),
+	  };
+	}
+	function computeSharkScore(p, R) {
+	  // Normalizaciones [0..1]
+	  const rnkN   = _scale01(p.rank,         R.rank,         1);     // si no hay rank => 1 (peor)
+	  const adjVN  = _scale01(p.adjustedVOR,  R.adjustedVOR,  0);
+	  const projN  = _scale01(p.projection,   R.projection,   0);
+	  const voaN   = _scale01(p.valueOverADP, R.valueOverADP, 0);
+	  const stealN = _scale01(p.stealScore,   R.stealScore,   0);
+	  const boomN  = Math.max(0, Math.min(1, Number(p.boomRate) / 100));
+	  const bustN  = Math.max(0, Math.min(1, Number(p.bustRate) / 100));
+	  const consN  = Math.max(0, Math.min(1, Number(p.consistency) / 100));
+	  const volN   = _scale01(p.volatility,   R.volatility,   0.5);
+	  const tierInvN = 1 - _scale01(p.tier_global, R.tier_global, 1); // menor tier_global = mejor
+
+	  // Ancla de rank (cuanto menor rank, mayor anchor)
+	  const anchor = (1 - rnkN);
+
+	  // Value edge reducido si el rank es tardío (multiplicamos por 0.4..1.0 según anchor)
+	  const valueEdge = voaN * (0.4 + 0.6 * anchor);
+
+	  let score =
+	      0.45 * anchor +       // ancla fuerte a tu board
+	      0.20 * adjVN +        // valor posicional
+	      0.10 * projN +        // proyección pura
+	      0.08 * valueEdge +    // value Over ADP, atenuado por rank
+	      0.07 * boomN +        // upside
+	      0.05 * consN +        // consistencia
+	      0.03 * tierInvN +     // mejor tier_global suma
+	      0.02 * stealN         // stealScore normalizado, poco peso
+	      - 0.10 * bustN        // penaliza riesgo de bust
+	      - 0.05 * volN;        // y volatilidad
+
+	  // Penalización suave extra si el rank es muy tardío
+	  if (Number.isFinite(p.rank) && p.rank > 100) {
+	    score -= 0.0025 * (p.rank - 100);
+	  }
+
+	  return score; // ~ rango 0..1 (puede ser negativo con muchas penalizaciones)
+	}
+
   // =============================
   // Render summary & cards & paging
   // =============================
@@ -395,26 +457,19 @@ export default async function renderDraftView() {
 	  });
 
 	  // === ORDENAMIENTO ===
-	  if (sortBy === 'shark') {
-	    filtered.sort((a, b) => {
-	      const scoreA =
-	        (Number(a.stealScore) || 0) +
-	        (Number(a.adjustedVOR) || 0) * 2 +
-	        (Number(a.boomRate) || 0) * 5 +
-	        (Number(a.valueOverADP) || 0) * 20;
+		if (sortBy === 'shark') {
+		  // Construimos rangos con el conjunto filtrado (o draftData si no hay suficientes)
+		  const base = filtered.length ? filtered : draftData;
+		  const R = _buildSharkRanges(base);
 
-	      const scoreB =
-	        (Number(b.stealScore) || 0) +
-	        (Number(b.adjustedVOR) || 0) * 2 +
-	        (Number(b.boomRate) || 0) * 5 +
-	        (Number(b.valueOverADP) || 0) * 20;
+		  // Calcula y cachea puntuación para mostrarla en la card
+		  filtered.forEach(p => { p._shark = computeSharkScore(p, R); });
 
-	      return scoreB - scoreA; // descendente
-	    });
-	  } else {
-	    // Orden normal
-	    filtered.sort(comparePlayers);
-	  }
+		  // Orden descendente por SharkScore
+		  filtered.sort((a, b) => (b._shark ?? -Infinity) - (a._shark ?? -Infinity));
+		} else {
+		  filtered.sort(comparePlayers);
+		}
 
 	  // === PAGINACIÓN ===
 	  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
