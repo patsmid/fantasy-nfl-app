@@ -395,162 +395,117 @@ export default async function renderDraftView() {
   // =============================
   // Carga de datos
   // =============================
-  async function loadDraftData() {
-    try {
-      // TomSelect puede envolver el select. Tomamos getValue() si existe.
-      const leagueId = (leagueSelect.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
-      const position = (positionSelect.value || 'TODAS').toString().trim(); // el endpoint acepta "TODAS"
-      const byeCondition = byeInput.value || 0;
+	async function loadDraftData() {
+	  try {
+	    // Liga
+	    const leagueId = (
+	      leagueSelect.tomselect?.getValue?.() ||
+	      leagueSelect.value ||
+	      ''
+	    ).toString().trim();
 
-      const expVal = expertSelect.tomselect?.getValue?.() || expertSelect.value || '';
-      const idExpert = (Array.isArray(expVal) ? expVal[0] : expVal || '').toString().trim();
+	    // Posición (el endpoint acepta "TODAS")
+	    const position = (positionSelect.value || 'TODAS').toString().trim();
 
-      const sleeperADP = !!sleeperADPCheckbox.checked;
+	    // Bye como número
+	    const byeCondition = Number(byeInput.value || 0);
 
-      if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
+	    // Experto (TomSelect puede devolver array o string). Además, si el <option> tiene data-id, lo priorizamos.
+	    const rawExpertVal = expertSelect.tomselect?.getValue?.() ?? expertSelect.value ?? '';
+	    let idExpert = (Array.isArray(rawExpertVal) ? rawExpertVal[0] : rawExpertVal || '').toString().trim();
+	    const selectedOption = expertSelect.selectedOptions?.[0];
+	    if (selectedOption?.dataset?.id) {
+	      idExpert = selectedOption.dataset.id.toString().trim();
+	    }
 
-      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-      const apiResp = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
-      Swal.close();
+	    // Sleeper ADP bandera
+	    const sleeperADP = !!sleeperADPCheckbox.checked;
 
-      // Soporta ambos formatos
-      const players = Array.isArray(apiResp?.players)
-        ? apiResp.players
-        : Array.isArray(apiResp?.data?.players)
-          ? apiResp.data.players
-          : [];
+	    if (!leagueId || !idExpert) {
+	      showError('Selecciona una liga y un experto');
+	      return;
+	    }
 
-      const params = apiResp?.params ?? apiResp?.data?.params ?? null;
+	    showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
+	    const apiResp = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
+	    Swal.close();
 
-      if (!players || !players.length) {
-        draftData = [];
-        filtered = [];
-        updateCardsForPage(1);
-        return showError('No se encontraron jugadores.');
-      }
+	    // Soportar ambos formatos de respuesta
+	    const playersRaw = Array.isArray(apiResp?.players)
+	      ? apiResp.players
+	      : (Array.isArray(apiResp?.data?.players) ? apiResp.data.players : []);
 
-      draftData = players.slice();
-      currentPage = 1;
-      applyFiltersAndSort();
+	    const params = apiResp?.params ?? apiResp?.data?.params ?? null;
 
-      // fechas
-      if (params?.ranks_published) {
-        const fecha = new Date(params.ranks_published);
-        document.getElementById('ranks-updated-label').innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-calendar-check-fill text-success"></i>
-            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
-          </div>`;
-      }
-      if (params?.ADPdate) {
-        const adpDate = new Date(params.ADPdate);
-        document.getElementById('adp-updated-label').innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-clock-history text-warning"></i>
-            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
-          </div>`;
-      }
-    } catch (err) {
-      Swal.close();
-      console.error('Error en loadDraftData:', err);
-      showError('Error al actualizar draft: ' + (err?.message || err));
-    }
-  }
+	    if (!playersRaw?.length) {
+	      draftData = [];
+	      filtered = [];
+	      updateCardsForPage(1);
+	      showError('No se encontraron jugadores.');
+	      return;
+	    }
 
-  // =============================
-  // Init selects (TomSelect y fallback)
-  // =============================
-  let expertTS = null, leagueTS = null;
-  try {
-    expertTS = await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false, onChange() {
-      try { localStorage.setItem('draftExpert', this.getValue?.() || ''); } catch(e) {}
-      loadDraftData();
-      if (this && typeof this.blur === 'function') this.blur();
-    }});
-  } catch (e) {
-    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
+	    // Normalizamos campos numéricos que usamos para ordenar/mostrar
+	    const toNum = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+	    draftData = playersRaw.map(p => ({
+	      ...p,
+	      rank: toNum(p.rank),
+	      projection: toNum(p.projection),
+	      vor: toNum(p.vor),
+	      adjustedVOR: toNum(p.adjustedVOR),
+	      dropoff: toNum(p.dropoff),
+	      priorityScore: toNum(p.priorityScore),
+	      boomRate: toNum(p.boomRate),
+	      bustRate: toNum(p.bustRate),
+	      adpValue: toNum(p.adpValue),
+	      valueOverADP: toNum(p.valueOverADP),
+	      // mantenemos adpRound tal cual (puede ser 1.01 string), y status en mayúsculas si viene vacío o mixto
+	      status: (p.status || '').toString().trim(),
+	    }));
 
-  try {
-    leagueTS = await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false, onChange() {
-      try { localStorage.setItem('draftLeague', this.getValue?.() || ''); } catch(e) {}
-      loadDraftData();
-      if (this && typeof this.blur === 'function') this.blur();
-    }});
-  } catch (e) {
-    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
+	    // Forzamos filtro por "LIBRE" si no hay preferencia previa
+	    if (!statusSelect.value) {
+	      statusSelect.value = 'LIBRE';
+	      try { localStorage.setItem('draftStatusFilter', 'LIBRE'); } catch (_) {}
+	    }
 
-  // Fallback si tomselect no fue devuelto por la función
-  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
-  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
+	    // Reset paginación + render con filtros
+	    currentPage = 1;
+	    applyFiltersAndSort();
 
-  function applySavedValue(selectEl, tsInstance, savedValue) {
-    if (!savedValue) return;
-    try {
-      if (tsInstance && typeof tsInstance.setValue === 'function') {
-        tsInstance.setValue(savedValue);
-        tsInstance.blur?.();
-      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
-        selectEl.tomselect.setValue(savedValue);
-        selectEl.tomselect.blur?.();
-      } else if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        selectEl.blur?.();
-      }
-    } catch (err) {
-      if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  }
+	    // Etiquetas de actualización (defensivo por si no existen los nodos)
+	    const ranksEl = document.getElementById('ranks-updated-label');
+	    if (ranksEl) {
+	      ranksEl.innerHTML = params?.ranks_published
+	        ? (() => {
+	            const fecha = new Date(params.ranks_published);
+	            return `
+	              <div class="px-3 py-1 small rounded-pill shadow-sm"
+	                   style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+	                <i class="bi bi-calendar-check-fill text-success"></i>
+	                Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+	              </div>`;
+	          })()
+	        : '';
+	    }
 
-  applySavedValue(expertSelect, expertTS, savedExpert);
-  applySavedValue(leagueSelect, leagueTS, savedLeague);
-
-  // =============================
-  // Eventos UI
-  // =============================
-  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); applyFiltersAndSort(); });
-  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); applyFiltersAndSort(); });
-  byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
-  sleeperADPCheckbox.addEventListener('change', () => { localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked); loadDraftData(); });
-
-  pageSizeSel.addEventListener('change', () => {
-    pageSize = Number(pageSizeSel.value) || 12;
-    currentPage = 1;
-    updateCardsForPage(currentPage);
-  });
-
-  sortBySel.addEventListener('change', () => {
-    sortBy = sortBySel.value;
-    applyFiltersAndSort();
-  });
-
-  searchInput.addEventListener('input', debounce((e) => {
-    searchQuery = e.target.value || '';
-    currentPage = 1;
-    applyFiltersAndSort();
-  }, 250));
-
-  btnUpdate.addEventListener('click', loadDraftData);
-
-  // expert/league fallback native change -> load
-  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
-  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
-
-  // Init: si hay liga y experto guardados, cargar
-  if (savedLeague && savedExpert) loadDraftData();
-
-  // Forzar render inicial vacío
-  filtered = [];
-  updateCardsForPage(1);
-
-  window.addEventListener('resize', () => {
-    // Hook para ajustes responsive si lo necesitas
-  });
-}
+	    const adpEl = document.getElementById('adp-updated-label');
+	    if (adpEl) {
+	      adpEl.innerHTML = params?.ADPdate
+	        ? (() => {
+	            const adpDate = new Date(params.ADPdate);
+	            return `
+	              <div class="px-3 py-1 small rounded-pill shadow-sm"
+	                   style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
+	                <i class="bi bi-clock-history text-warning"></i>
+	                ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+	              </div>`;
+	          })()
+	        : '';
+	    }
+	  } catch (err) {
+	    Swal.close();
+	    console.error('Error en loadDraftData:', err);
+	    showError('Error al actualizar draft: ' + (err?.message || err));
+	  }
+	}
