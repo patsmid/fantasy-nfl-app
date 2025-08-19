@@ -5,7 +5,9 @@ import { supabase } from '../components/supabaseClient.js';
 // utils
 // ==========================
 function getUsernameFromURL() {
+  // Quita los slashes iniciales
   const path = window.location.pathname.replace(/^\/+/, '');
+  // Devuelve solo la primera parte (por si luego usas subrutas)
   return path.split('/')[0] || '';
 }
 
@@ -18,6 +20,8 @@ async function loadSidebar(username) {
 
   try {
     const response = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`);
+
+    // 🚨 Manejo de status inválidos (400 / 404)
     if (!response.ok) {
       if (response.status === 400 || response.status === 404) {
         showError('Usuario inválido. Por favor ingresa un usuario válido.');
@@ -29,6 +33,8 @@ async function loadSidebar(username) {
     }
 
     const menuTree = await response.json();
+
+    // 🚨 Manejo de error explícito en el JSON
     if (menuTree.error === "USERNAME_INVALID") {
       showError('Usuario inválido. Por favor intenta de nuevo.');
       localStorage.removeItem('fantasyUser');
@@ -36,28 +42,27 @@ async function loadSidebar(username) {
       return;
     }
 
+    // -------------------------------
+    // Renderizado normal del sidebar
+    // -------------------------------
     const sidebarHTML = renderSidebar(menuTree);
 
-    // Desktop
-    if (sidebar) {
-      sidebar.innerHTML = `
-        <div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>
-        ${sidebarHTML}
-        <div id="sidebar-user-block" class="mt-auto" style="margin-top: 1rem;">
-          <div style="padding:0.75rem 0.5rem;border-top:1px solid rgba(255,255,255,0.03);">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem">
-              <div>
-                <div style="font-weight:600">${username}</div>
-                <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
-              </div>
-              <button id="logoutBtn" class="btn btn-accent" style="white-space:nowrap">Cerrar sesión</button>
+    sidebar.innerHTML = `
+      <div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>
+      ${sidebarHTML}
+      <div id="sidebar-user-block" class="mt-auto" style="margin-top: 1rem;">
+        <div style="padding:0.75rem 0.5rem;border-top:1px solid rgba(255,255,255,0.03);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem">
+            <div>
+              <div style="font-weight:600">${username}</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
             </div>
+            <button id="logoutBtn" class="btn btn-accent" style="white-space:nowrap">Cerrar sesión</button>
           </div>
         </div>
-      `;
-    }
+      </div>
+    `;
 
-    // Mobile
     if (sidebarMobile) {
       sidebarMobile.innerHTML = `
         <div class="flock-logo">🏈 Fantasy NFL</div>
@@ -77,16 +82,26 @@ async function loadSidebar(username) {
     activateSidebarLinks();
 
     const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('fantasyUser');
+        window.location.href = '/login.html';
+      });
+    }
     const logoutBtnMobile = document.getElementById('logoutBtnMobile');
-    if (logoutBtnMobile) logoutBtnMobile.addEventListener('click', handleLogout);
+    if (logoutBtnMobile) {
+      logoutBtnMobile.addEventListener('click', () => {
+        localStorage.removeItem('fantasyUser');
+        window.location.href = '/login.html';
+      });
+    }
 
     if (Array.isArray(menuTree) && menuTree.length > 0) {
       const firstView = menuTree[0].view || (menuTree[0].children?.[0]?.view) || 'config';
       await loadView(firstView);
       setActiveSidebarItem(firstView);
     } else {
+      console.warn('Menu vacío o no válido recibido del backend.');
       const content = document.getElementById('content-container');
       if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
     }
@@ -95,13 +110,6 @@ async function loadSidebar(username) {
     console.error('Error cargando sidebar:', error);
     showError('Error cargando menú. Revisa la consola para más detalles.');
   }
-}
-
-function handleLogout() {
-  localStorage.removeItem('fantasyUser');
-  localStorage.removeItem('fantasyUserId');
-  supabase.auth.signOut(); // cerrar sesión en Supabase
-  window.location.href = '/login.html';
 }
 
 function renderSidebar(menuTree) {
@@ -147,9 +155,14 @@ function renderSidebar(menuTree) {
 }
 
 function activateSidebarLinks() {
+  // Seleccionamos los links del sidebar desktop y mobile
   const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
-  links.forEach(link => link.replaceWith(link.cloneNode(true))); // quitar listeners previos
+  links.forEach(link => {
+    // quitamos listeners previos por si se vuelve a renderizar
+    link.replaceWith(link.cloneNode(true));
+  });
 
+  // re-query para los clones
   const freshLinks = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   freshLinks.forEach(link => {
     link.addEventListener('click', async (e) => {
@@ -158,17 +171,21 @@ function activateSidebarLinks() {
       await loadView(view);
       setActiveSidebarItem(view);
 
+      // Cerrar offcanvas si está abierto (en móvil)
       const sidebarMobileEl = document.getElementById('sidebarMobile');
       const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
       if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
+  // Botón hamburguesa para móvil
   const toggleBtn = document.getElementById('toggle-sidebar');
-  if (toggleBtn) toggleBtn.addEventListener('click', () => {
-    const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
-    offcanvas.show();
-  });
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
+      offcanvas.show();
+    });
+  }
 }
 
 // ==========================
@@ -185,12 +202,14 @@ async function loadView(viewName) {
     }
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
+    // Opcional: mostrar alerta o contenido fallback
     const content = document.getElementById('content-container');
     if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No se pudo cargar la vista "${viewName}". Revisa la consola.</div></div>`;
   }
 }
 
 function setActiveSidebarItem(viewName) {
+  // Activamos el link en desktop y mobile
   document.querySelectorAll('[data-view]').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-view') === viewName);
   });
@@ -200,46 +219,25 @@ function setActiveSidebarItem(viewName) {
 // init
 // ==========================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Recuperar username de localStorage
+  // Intentamos obtener usuario de localStorage
   const username = localStorage.getItem('fantasyUser');
+
   if (!username) {
-    window.location.href = '/login.html';
+    // Si no hay usuario → mandamos al login
+    // Si ya estás en login.html no redirigimos para evitar bucle
+    if (!window.location.pathname.endsWith('/login.html')) {
+      window.location.href = '/login.html';
+    }
     return;
   }
 
-  // 🔹 Recuperar sesión Supabase
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
-    console.error('No hay sesión activa', sessionError);
-    localStorage.removeItem('fantasyUser');
-    window.location.href = '/login.html';
-    return;
-  }
-
-  const user = session.user;
-  localStorage.setItem('fantasyUserId', user.id);
-
-  // 🔹 Upsert perfil
-  const { data: existingProfiles } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const roleToSave = existingProfiles?.role || 'user';
-
-  await supabase.from('profiles').upsert({
-    id: user.id,
-    username,
-    role: roleToSave
-  });
-
-  // 🔹 Cargar sidebar
+  // Cargamos sidebar con el usuario
   await loadSidebar(username);
 
-  // 🔹 Toggle sidebar escritorio
+  // Botón de toggle para escritorio
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   const sidebarIcon = document.getElementById('sidebar-icon');
+
   if (toggleDesktopBtn) {
     toggleDesktopBtn.addEventListener('click', () => {
       const sidebar = document.getElementById('sidebar');
@@ -251,18 +249,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (sidebar.classList.contains('sidebar-hidden')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
+
         if (sidebarIcon) {
           sidebarIcon.classList.remove('bi-arrow-left');
           sidebarIcon.classList.add('bi-list');
         }
+
         toggleDesktopBtn.classList.remove('sidebar-open');
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
+
         if (sidebarIcon) {
           sidebarIcon.classList.remove('bi-list');
           sidebarIcon.classList.add('bi-arrow-left');
         }
+
         toggleDesktopBtn.classList.add('sidebar-open');
       }
     });
