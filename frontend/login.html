@@ -44,7 +44,7 @@
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     const form = document.getElementById('loginForm');
-    const btnCreateTestUsers = document.getElementById('btnCreateTestUsers');
+		const btnCreateTestUsers = document.getElementById('btnCreateTestUsers');
 
     // FUNCIONES DE LOGIN
     form.addEventListener('submit', async (e) => {
@@ -78,38 +78,67 @@
     })();
 
     // BOTÓN TEMPORAL: CREAR USUARIOS DE PRUEBA
-    btnCreateTestUsers.addEventListener('click', async () => {
-      try {
-        const testUsers = [
-          { email: "admin@test.com", password: "123456", rol: "admin", full_name: "Admin Test" },
-          { email: "user@test.com", password: "123456", rol: "user", full_name: "User Test" }
-        ];
+		btnCreateTestUsers.addEventListener('click', async () => {
+		  try {
+		    const testUsers = [
+		      { email: "admin5@test.com", password: "123456", role: "admin", username: "admin5" },
+		      { email: "user5@test.com", password: "123456", role: "user", username: "user5" }
+		    ];
 
-        for (const u of testUsers) {
-          // Registramos en Auth
-          const { data, error } = await supabase.auth.signUp({
-            email: u.email,
-            password: u.password
-          });
-          if (error) {
-            console.warn(`Usuario ${u.email} ya existe:`, error.message);
-            continue;
-          }
+		    for (const u of testUsers) {
+		      // Registramos en Auth
+		      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+		        email: u.email,
+		        password: u.password
+		      });
 
-          // Creamos perfil vinculado al ID de Auth
-          await supabase.from('profiles').insert({
-            id: data.user.id,
-            full_name: u.full_name,
-            rol: u.rol
-          });
-        }
+		      if (signUpError && signUpError.message.includes("already registered")) {
+		        console.warn(`Usuario ${u.email} ya existe, se omitirá creación Auth.`);
+		        // Obtener ID existente del usuario
+		        const { data: existingUser, error: fetchError } = await supabase
+		          .from('profiles')
+		          .select('id')
+		          .eq('email', u.email)
+		          .single();
+		        if (!existingUser) {
+		          console.warn(`No se encontró perfil existente para ${u.email}, se omitirá.`);
+		          continue;
+		        }
+		        u.id = existingUser.id;
+		      } else if (signUpError) {
+		        console.error(signUpError);
+		        continue;
+		      } else {
+		        u.id = signUpData.user.id;
+		      }
 
-        showSuccess("Usuarios creados", "Se han creado dos usuarios de prueba: admin y user", null);
-      } catch (err) {
-        console.error(err);
-        showError("Error creando usuarios", err.message || err);
-      }
-    });
+		      // Verificamos si el perfil ya existe
+		      const { data: existingProfile } = await supabase
+		        .from('profiles')
+		        .select('id')
+		        .eq('id', u.id)
+		        .single();
+
+		      if (!existingProfile) {
+		        // Insertamos perfil
+		        await supabase.from('profiles').insert({
+		          id: u.id,
+		          username: u.username,
+		          role: u.role,
+		          email: u.email
+		        });
+		        console.log(`Perfil creado: ${u.username}`);
+		      } else {
+		        console.log(`Perfil ${u.username} ya existe`);
+		      }
+		    }
+
+		    showSuccess("Usuarios de prueba", "Se han creado / verificado admin y user", null);
+		  } catch (err) {
+		    console.error(err);
+		    showError("Error creando usuarios", err.message || err);
+		  }
+		});
   </script>
 </body>
 </html>
