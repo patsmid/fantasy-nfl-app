@@ -1,35 +1,38 @@
 // =============================
-// SIDEBAR
+// Obtiene y renderiza el sidebar según el usuario logueado
 // =============================
-async function loadSidebar(username) {
+async function loadSidebar(username, initialView = 'config') {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
+    // 🔑 Pedimos menú basado en username
     const response = await fetch(`https://fantasy-nfl-backend.onrender.com/admin/menu/${username}`);
     if (!response.ok) throw new Error('No se pudo obtener el menú');
 
     const menuTree = await response.json();
-    const sidebarHTML = renderSidebar(menuTree);
 
+    const sidebarHTML = renderSidebar(menuTree, username);
     sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
     sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
 
-    activateSidebarLinks();
-    await loadView('config');
-    setActiveSidebarItem('config');
+    // cargar vista inicial
+    await loadView(username, initialView);
+    setActiveSidebarItem(initialView);
+
   } catch (error) {
     console.error('Error cargando sidebar:', error);
   }
 }
 
-function renderSidebar(menuTree) {
+function renderSidebar(menuTree, username) {
   const ul = document.createElement('ul');
   ul.className = 'nav flex-column flock-nav';
 
   for (const item of menuTree) {
     const li = document.createElement('li');
     li.className = 'nav-item';
+
     const hasChildren = item.children && item.children.length > 0;
 
     if (hasChildren) {
@@ -42,7 +45,7 @@ function renderSidebar(menuTree) {
         <ul class="nav flex-column ms-3 collapse" id="${submenuId}">
           ${item.children.map(child => `
             <li class="nav-item">
-              <a href="#" class="nav-link" data-view="${child.view}">
+              <a href="/${username}?view=${child.view}" class="nav-link">
                 <i class="bi ${child.icon}"></i> <span>${child.title}</span>
               </a>
             </li>
@@ -51,46 +54,23 @@ function renderSidebar(menuTree) {
       `;
     } else {
       li.innerHTML = `
-        <a href="#" class="nav-link" data-view="${item.view}">
+        <a href="/${username}?view=${item.view}" class="nav-link">
           <i class="bi ${item.icon}"></i>
           <span>${item.title}</span>
         </a>
       `;
     }
+
     ul.appendChild(li);
   }
+
   return ul.outerHTML;
 }
 
-function activateSidebarLinks() {
-  const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
-  links.forEach(link => {
-    link.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const view = link.getAttribute('data-view');
-      history.pushState({ view }, '', `/${currentUsername}/${view}`); // SPA URL
-      await loadView(view);
-      setActiveSidebarItem(view);
-
-      const sidebarMobileEl = document.getElementById('sidebarMobile');
-      const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
-      if (bsOffcanvas) bsOffcanvas.hide();
-    });
-  });
-
-  const toggleBtn = document.getElementById('toggle-sidebar');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
-      offcanvas.show();
-    });
-  }
-}
-
-async function loadView(viewName) {
+async function loadView(username, viewName) {
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    await viewModule.default();
+    await viewModule.default(username);
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
   }
@@ -103,23 +83,20 @@ function setActiveSidebarItem(viewName) {
 }
 
 // =============================
-// SPA Routing Helpers
+// INICIO - Carga inicial
 // =============================
-let currentUsername = null;
-
-function getUsernameFromURL() {
+document.addEventListener('DOMContentLoaded', async () => {
+  // 🔑 Detectar username desde la URL
   const pathParts = window.location.pathname.split('/').filter(Boolean);
-  return pathParts[0] || null;
-}
+  let username = pathParts[0] || 'demo1';
 
-async function initApp() {
-  currentUsername = getUsernameFromURL();
-  if (!currentUsername) {
-    console.warn("⚠️ No se encontró username en la URL");
-    return;
-  }
-  await loadSidebar(currentUsername);
+  // 🔑 Detectar vista desde query param ?view=...
+  const params = new URLSearchParams(window.location.search);
+  let view = params.get('view') || 'config';
 
+  await loadSidebar(username, view);
+
+  // Toggle Sidebar Desktop
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   const sidebarIcon = document.getElementById('sidebar-icon');
 
@@ -145,25 +122,5 @@ async function initApp() {
         toggleDesktopBtn.classList.add('sidebar-open');
       }
     });
-  }
-}
-
-// =============================
-// INICIO
-// =============================
-document.addEventListener('DOMContentLoaded', initApp);
-
-// Maneja navegación SPA con botones de navegador
-window.addEventListener('popstate', async () => {
-  const username = getUsernameFromURL();
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  const view = pathParts[1] || 'config';
-
-  if (username !== currentUsername) {
-    currentUsername = username;
-    await loadSidebar(currentUsername);
-  } else {
-    await loadView(view);
-    setActiveSidebarItem(view);
   }
 });
