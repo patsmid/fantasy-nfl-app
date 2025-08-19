@@ -35,7 +35,7 @@ async function loadSidebar(username) {
     }
 
     const menuTree = await response.json();
-
+    console.log(menuTree);
     // 🚨 Manejo de error explícito del backend
     if (menuTree.error === "USERNAME_INVALID") {
       showError('Usuario inválido. Por favor intenta de nuevo.');
