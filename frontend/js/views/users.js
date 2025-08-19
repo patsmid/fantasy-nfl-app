@@ -6,7 +6,7 @@ export default async function () {
   const content = document.getElementById('content-container');
   content.innerHTML = renderTemplate();
 
-  setupModal();
+  setupModalsAndEvents();
   await loadUsers();
 }
 
@@ -38,11 +38,14 @@ function renderTemplate() {
     </div>
   </div>
 
-  ${renderModal()}
+  ${renderUserModal()}
+  ${renderResetModal()}
   `;
 }
 
-function renderModal() {
+/* ---------- Modales ---------- */
+
+function renderUserModal() {
   return `
   <div class="modal fade" id="userModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
@@ -68,6 +71,44 @@ function renderModal() {
   `;
 }
 
+function renderResetModal() {
+  return `
+  <div class="modal fade" id="resetModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <form class="modal-content bg-dark text-white border border-secondary rounded" id="resetForm">
+        <div class="modal-header border-bottom border-secondary">
+          <h5 class="modal-title">Resetear contraseña</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="resetEmail" />
+          <div class="mb-2">
+            <small class="text-secondary">Usuario:</small>
+            <div id="resetEmailLabel" class="fw-semibold"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nueva contraseña</label>
+            <input type="password" class="form-control" id="resetPass1" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Confirmar contraseña</label>
+            <input type="password" class="form-control" id="resetPass2" required />
+          </div>
+        </div>
+        <div class="modal-footer border-top border-secondary">
+          <button type="submit" class="btn btn-warning">
+            <i class="bi bi-key-fill me-1"></i> Actualizar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  `;
+}
+
+/* ---------- Helpers UI ---------- */
+
 function renderInput(label, name, placeholder = '', type = 'text', required = true) {
   return `
     <div class="mb-3">
@@ -89,21 +130,24 @@ function renderRoleSelect() {
   `;
 }
 
-function setupModal() {
-  const modalEl = document.getElementById('userModal');
-  const modal = new bootstrap.Modal(modalEl);
-  const form = document.getElementById('userForm');
+/* ---------- Setup eventos ---------- */
+
+function setupModalsAndEvents() {
+  // Modal usuario (crear/editar)
+  const userModalEl = document.getElementById('userModal');
+  const userModal = new bootstrap.Modal(userModalEl);
+  const userForm = document.getElementById('userForm');
 
   document.getElementById('addUserBtn').onclick = () => {
-    form.reset();
-    form.elements['user_id'].value = '';
+    userForm.reset();
+    userForm.elements['user_id'].value = '';
     document.getElementById('userModalLabel').textContent = 'Agregar Usuario';
-    modal.show();
+    userModal.show();
   };
 
-  form.onsubmit = async (e) => {
+  userForm.onsubmit = async (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(form));
+    const data = Object.fromEntries(new FormData(userForm));
 
     const body = {
       id: data.user_id || null,
@@ -119,22 +163,116 @@ function setupModal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'Error al guardar');
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'Error al guardar');
 
       showSuccess('Usuario guardado');
-      modal.hide();
+      userModal.hide();
       await loadUsers();
     } catch (err) {
       showError('No se pudo guardar: ' + err.message);
     }
   };
+
+  // Modal reset password
+  const resetModalEl = document.getElementById('resetModal');
+  const resetModal = new bootstrap.Modal(resetModalEl);
+  const resetForm = document.getElementById('resetForm');
+
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('resetEmail').value;
+    const p1 = (document.getElementById('resetPass1').value || '').trim();
+    const p2 = (document.getElementById('resetPass2').value || '').trim();
+
+    if (p1.length < 6) {
+      showError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (p1 !== p2) {
+      showError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    try {
+      const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/admin/user/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword: p1 })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'Error en reset');
+
+      resetModal.hide();
+      showSuccess(`Contraseña actualizada para ${email}`);
+    } catch (err) {
+      showError('No se pudo resetear: ' + err.message);
+    }
+  });
+
+  // Delegación de eventos para acciones en la tabla (funciona incluso con DataTables)
+  const tbody = document.getElementById('userTableBody');
+  tbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    const email = btn.dataset.email;
+
+    if (btn.dataset.action === 'edit') {
+      const user = users.find(u => u.id === id);
+      if (!user) return;
+      document.getElementById('userModalLabel').textContent = 'Editar Usuario';
+      userForm.elements['user_id'].value = user.id;
+      userForm.elements['username'].value = user.username || '';
+      userForm.elements['email'].value = user.email || '';
+      userForm.elements['role'].value = user.role || 'user';
+      userModal.show();
+    }
+
+    if (btn.dataset.action === 'reset') {
+      document.getElementById('resetEmail').value = email;
+      document.getElementById('resetEmailLabel').textContent = email;
+      resetForm.reset();
+      resetModal.show();
+    }
+
+    if (btn.dataset.action === 'delete') {
+      const ok = await confirmDelete('¿Seguro que deseas eliminar este usuario?');
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/users/${id}`, { method: 'DELETE' });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || 'Error al eliminar');
+        showSuccess('Usuario eliminado');
+        await loadUsers();
+      } catch (err) {
+        showError('No se pudo eliminar: ' + err.message);
+      }
+    }
+  });
 }
+
+async function confirmDelete(message) {
+  // Soporta showConfirm que devuelva boolean o un objeto estilo SweetAlert2 { isConfirmed: true/false }
+  if (typeof showConfirm === 'function') {
+    const res = await showConfirm(message);
+    if (typeof res === 'boolean') return res;
+    if (res && typeof res === 'object' && 'isConfirmed' in res) return !!res.isConfirmed;
+    // Cualquier otro retorno lo tratamos como "no confirmado"
+    return false;
+  }
+  return window.confirm(message);
+}
+
+/* ---------- Carga de datos ---------- */
 
 async function loadUsers() {
   try {
     const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/admin/users');
-    if (!res.ok) throw new Error('Error cargando usuarios');
     const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error cargando usuarios');
     users = json.users || [];
     renderUserList();
   } catch (err) {
@@ -142,32 +280,39 @@ async function loadUsers() {
   }
 }
 
-function renderUserList() {
-  const tbody = document.getElementById('userTableBody');
-  tbody.innerHTML = '';
+/* ---------- Render tabla ---------- */
 
-  for (const user of users) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+function renderUserList() {
+  // Destruir DataTable previo ANTES de tocar el DOM para evitar estados zombis
+  if ($.fn.DataTable && $.fn.DataTable.isDataTable('#usersTable')) {
+    $('#usersTable').DataTable().destroy();
+  }
+
+  const tbody = document.getElementById('userTableBody');
+
+  const rowsHtml = users.map(user => `
+    <tr>
       <td>${user.email ?? ''}</td>
       <td>${user.username ?? ''}</td>
       <td><span class="badge ${user.role === 'admin' ? 'bg-primary' : 'bg-secondary'}">${user.role}</span></td>
       <td>
-        <button class="btn btn-sm btn-outline-info me-1" title="Editar"><i class="bi bi-pencil-square"></i></button>
-        <button class="btn btn-sm btn-outline-warning me-1" title="Reset Pass"><i class="bi bi-key-fill"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash-fill"></i></button>
+        <button class="btn btn-sm btn-outline-info me-1" data-action="edit" data-id="${user.id}" title="Editar">
+          <i class="bi bi-pencil-square"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-warning me-1" data-action="reset" data-id="${user.id}" data-email="${user.email}" title="Resetear contraseña">
+          <i class="bi bi-key-fill"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${user.id}" title="Eliminar">
+          <i class="bi bi-trash-fill"></i>
+        </button>
       </td>
-    `;
+    </tr>
+  `).join('');
 
-    tr.querySelector('.btn-outline-info').onclick = () => editUser(user);
-    tr.querySelector('.btn-outline-warning').onclick = () => resetPassword(user.email);
-    tr.querySelector('.btn-outline-danger').onclick = () => deleteUser(user.id);
+  tbody.innerHTML = rowsHtml;
 
-    tbody.appendChild(tr);
-  }
-
-  // inicializar/reiniciar DataTable
-  if (!$.fn.DataTable.isDataTable('#usersTable')) {
+  // Re-inicializar DataTable con el DOM ya actualizado
+  if ($.fn.DataTable) {
     $('#usersTable').DataTable({
       responsive: true,
       pageLength: 10,
@@ -176,58 +321,5 @@ function renderUserList() {
       },
       dom: 'tip'
     });
-  } else {
-    $('#usersTable').DataTable().clear().destroy();
-    $('#usersTable').DataTable({
-      responsive: true,
-      pageLength: 10,
-      language: {
-        url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-      },
-      dom: 'tip'
-    });
-  }
-}
-
-function editUser(user) {
-  if (!user) return;
-  document.getElementById('userModalLabel').textContent = 'Editar Usuario';
-  const form = document.getElementById('userForm');
-  form.elements['user_id'].value = user.id;
-  form.elements['username'].value = user.username || '';
-  form.elements['email'].value = user.email || '';
-  form.elements['role'].value = user.role || 'user';
-  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal'));
-  modal.show();
-}
-
-async function deleteUser(id) {
-  const ok = await showConfirm?.('¿Seguro que deseas eliminar este usuario?') ?? confirm('¿Seguro que deseas eliminar este usuario?');
-  if (!ok) return;
-
-  try {
-    const res = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/users/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error || 'Error al eliminar');
-    showSuccess('Usuario eliminado');
-    await loadUsers();
-  } catch (err) {
-    showError('No se pudo eliminar: ' + err.message);
-  }
-}
-
-async function resetPassword(email) {
-  const newPassword = prompt(`Nueva contraseña para ${email}:`);
-  if (!newPassword) return;
-
-  try {
-    const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/admin/user/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, newPassword })
-    });
-    if (!res.ok) throw new Error((await res.json()).error || 'Error en reset');
-    showSuccess(`Contraseña actualizada para ${email}`);
-  } catch (err) {
-    showError('No se pudo resetear: ' + err.message);
   }
 }
