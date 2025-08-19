@@ -6,14 +6,12 @@
   <title>Fantasy NFL - Iniciar sesión</title>
 
   <link rel="stylesheet" href="./css/login.css" />
-  <!-- Bootstrap JS (si lo necesitas para otros componentes) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
   <main class="login-root">
     <div class="login-card">
       <div class="login-brand">🏈 <span class="brand-text">Fantasy NFL</span></div>
-
       <h1 class="login-title">Bienvenido</h1>
       <p class="login-sub">Introduce tu usuario para continuar</p>
 
@@ -27,27 +25,50 @@
     </div>
   </main>
 
-  <script>
-    // Submit del login
-    document.getElementById('loginForm').addEventListener('submit', (e) => {
+  <script type="module">
+    import { supabase } from './components/supabaseClient.js';
+
+    const loginForm = document.getElementById('loginForm');
+
+    // Redirige automáticamente si ya hay sesión
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      window.location.href = '/index.html';
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = document.getElementById('username').value.trim();
       if (!username) {
         alert('Ingresa un usuario válido');
         return;
       }
-      // Guardamos en localStorage y llevamos al index
-      localStorage.setItem('fantasyUser', username);
-      window.location.href = '/index.html';
-    });
 
-    // Si ya hay usuario, redirigimos automáticamente
-    (function autoRedirectIfLogged() {
-      const u = localStorage.getItem('fantasyUser');
-      if (u) {
+      try {
+        // ------------------------------
+        // Login anónimo (crea sesión en Supabase)
+        // ------------------------------
+        const { data, error } = await supabase.auth.signInWithOtp({
+          email: username + '@fantasy.com' // email ficticio por username
+        });
+
+        if (error) {
+          console.error('Error en login:', error);
+          alert('Error iniciando sesión. Revisa la consola.');
+          return;
+        }
+
+        // Guardamos en localStorage para tu main.js
+        localStorage.setItem('fantasyUser', username);
+
+        // Redirige a la página principal
         window.location.href = '/index.html';
+
+      } catch (err) {
+        console.error('Excepción en login:', err);
+        alert('Error inesperado. Revisa la consola.');
       }
-    })();
+    });
   </script>
 </body>
 </html>
