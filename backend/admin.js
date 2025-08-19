@@ -51,7 +51,7 @@ router.get("/users", async (req, res) => {
     if (ids.length) {
       const { data: profs, error: pErr } = await supabase
         .from('profiles')
-        .select('id, username, role, email')
+        .select('id, username, role')
         .in('id', ids);
       if (pErr) throw pErr;
       profiles = profs;
@@ -97,27 +97,27 @@ router.post("/users/upsert", async (req, res) => {
       authUser = data.user;
     } else {
       // crear auth
-      const { data, error } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: password || strongRandomPassword(),
-        email_confirm: true,
-      });
+			const { data, error } = await supabaseAdmin.auth.admin.createUser({
+			  email,
+			  password: password || strongRandomPassword(),
+			  email_confirmed: true,
+			});
+
       if (error) throw error;
       authUser = data.user;
     }
 
     // upsert profiles
-    const profileRow = {
-      id: authUser.id,
-      email,
-      ...(username ? { username } : {}),
-      ...(role ? { role } : {}), // si no viene, no sobreescribes
-    };
+		const profileRow = {
+		  id: authUser.id,
+		  ...(username ? { username } : {}),
+		  ...(role ? { role } : {}),
+		};
 
     const { data: prof, error: pErr } = await supabase
       .from('profiles')
       .upsert(profileRow, { onConflict: 'id' })
-      .select('id, username, role, email')
+      .select('id, username, role')
       .single();
     if (pErr) throw pErr;
 
