@@ -77,7 +77,7 @@ router.post("/users/upsert", async (req, res) => {
   try {
     const { id, email, password, username, role } = req.body;
 
-    // Validaciones básicas
+    // --- Validaciones ---
     if (!email) return res.status(400).json({ error: "Email requerido" });
     if (username && !isValidUsername(username)) {
       return res.status(400).json({ error: "USERNAME_INVALID" });
@@ -88,12 +88,13 @@ router.post("/users/upsert", async (req, res) => {
 
     let authUser;
 
+    // --- Crear o actualizar usuario en Auth ---
     if (id) {
       // Actualizar usuario existente
       const { data, error } = await supabaseAdmin.auth.admin.updateUserById(id, {
         email,
         ...(password ? { password } : {}),
-        email_confirmed: true, // 🔹 Asegura que el email quede confirmado
+        email_confirmed: true, // 🔹 asegura email_confirmed_at
       });
       if (error) throw error;
       authUser = data.user;
@@ -102,13 +103,15 @@ router.post("/users/upsert", async (req, res) => {
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: password || strongRandomPassword(),
-        email_confirmed: true, // 🔹 Nuevo usuario confirmado
+        email_confirmed: true, // 🔹 marca email como confirmado
+        email_change_confirm_redirect: '', // opcional, evita token de confirmación
+        user_metadata: { created_by_admin: true }, // metadata para triggers
       });
       if (error) throw error;
       authUser = data.user;
     }
 
-    // Upsert en profiles (sin campo email)
+    // --- Upsert perfil ---
     const profileRow = {
       id: authUser.id,
       ...(username ? { username } : {}),
@@ -120,15 +123,18 @@ router.post("/users/upsert", async (req, res) => {
       .upsert(profileRow, { onConflict: 'id' })
       .select('id, username, role')
       .single();
+
     if (pErr) throw pErr;
 
+    // --- Respuesta ---
     return res.json({
       user: {
         id: authUser.id,
         email: authUser.email,
         username: prof?.username ?? '',
         role: prof?.role ?? 'user',
-      }
+        email_confirmed_at: authUser.email_confirmed_at || null, // muestra timestamp confirmado
+      },
     });
   } catch (err) {
     console.error("Error upsertUser:", err);
