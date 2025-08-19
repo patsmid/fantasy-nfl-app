@@ -1,75 +1,38 @@
-// =============================
-// Config
-// =============================
-const BACKEND_BASE = 'https://fantasy-nfl-backend.onrender.com';
-const ADMIN_BASE = `${BACKEND_BASE}/api/admin`; // 👈 añadimos prefijo real
-
-// =============================
-// Utils
-// =============================
-function getParams() {
-  return new URLSearchParams(window.location.search);
+// ==========================
+// utils
+// ==========================
+function getUsernameFromURL() {
+  // Quita los slashes iniciales
+  const path = window.location.pathname.replace(/^\/+/, '');
+  // Devuelve solo la primera parte (por si luego usas subrutas)
+  return path.split('/')[0] || '';
 }
 
-function setParamInURL(paramsObj = {}) {
-  const params = getParams();
-  Object.entries(paramsObj).forEach(([k, v]) => {
-    if (v === null || v === undefined) params.delete(k);
-    else params.set(k, v);
-  });
-  const newUrl = `${window.location.pathname}?${params.toString()}`;
-  history.pushState(paramsObj, '', newUrl);
-}
-
-function resolveInitialUsername() {
-  const params = getParams();
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  const isAdminRoute = pathParts[0] === 'admin';
-
-  // Prioridades: ?u= -> localStorage -> path (si no es /admin) -> demo1
-  return (
-    params.get('u') ||
-    localStorage.getItem('username') ||
-    (!isAdminRoute ? (pathParts[0] || null) : null) ||
-    'demo1'
-  );
-}
-
-function resolveInitialView() {
-  const params = getParams();
-  return params.get('view') || 'config';
-}
-
-// =============================
-// Backend
-// =============================
-async function fetchMenu(username) {
-  if (!username) throw new Error('No se especificó username');
-  // 👇 corregido para usar el prefijo /admin
-  const res = await fetch(`${ADMIN_BASE}/menu/${encodeURIComponent(username)}`);
-  if (!res.ok) throw new Error('No se pudo obtener el menú');
-  return res.json();
-}
-
-// =============================
-// Sidebar
-// =============================
-async function loadSidebar(username, initialView = 'config') {
+// ==========================
+// sidebar
+// ==========================
+async function loadSidebar(username) {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
-    const menuTree = await fetchMenu(username);
+    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`);
+    if (!response.ok) throw new Error('No se pudo obtener el menú');
+
+    const menuTree = await response.json();
 
     const sidebarHTML = renderSidebar(menuTree);
-    if (sidebar) sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
-    if (sidebarMobile) sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
 
-    activateSidebarLinks(username);
+    activateSidebarLinks();
 
-    // Carga vista inicial
-    await loadView(initialView, username);
-    setActiveSidebarItem(initialView);
+    // Cargar la primera vista disponible
+    if (menuTree.length > 0) {
+      const firstView = menuTree[0].view || (menuTree[0].children?.[0]?.view) || 'config';
+      await loadView(firstView);
+      setActiveSidebarItem(firstView);
+    }
 
   } catch (error) {
     console.error('Error cargando sidebar:', error);
@@ -118,26 +81,20 @@ function renderSidebar(menuTree) {
   return ul.outerHTML;
 }
 
-function activateSidebarLinks(username) {
-  // Desktop + Mobile
+function activateSidebarLinks() {
+  // Seleccionamos los links del sidebar desktop y mobile
   const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   links.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       const view = link.getAttribute('data-view');
-
-      // Actualiza URL (?view=&u=) sin recargar
-      setParamInURL({ view, u: username });
-
-      await loadView(view, username);
+      await loadView(view);
       setActiveSidebarItem(view);
 
-      // Cerrar offcanvas si está abierto (móvil)
+      // Cerrar offcanvas si está abierto (en móvil)
       const sidebarMobileEl = document.getElementById('sidebarMobile');
-      if (sidebarMobileEl) {
-        const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl) || new bootstrap.Offcanvas(sidebarMobileEl);
-        if (bsOffcanvas) bsOffcanvas.hide();
-      }
+      const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
+      if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
@@ -151,46 +108,41 @@ function activateSidebarLinks(username) {
   }
 }
 
-// =============================
-// Carga de vistas
-// =============================
-async function loadView(viewName, username) {
+// ==========================
+// views
+// ==========================
+async function loadView(viewName) {
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    if (typeof viewModule.default === 'function') {
-      await viewModule.default(username);
-    }
+    await viewModule.default();
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
+    // Opcional: mostrar alerta o contenido fallback
   }
 }
 
 function setActiveSidebarItem(viewName) {
+  // Activamos el link en desktop y mobile
   document.querySelectorAll('[data-view]').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-view') === viewName);
   });
 }
 
-// Navegación con back/forward
-window.addEventListener('popstate', () => {
-  const view = resolveInitialView();
-  const username = resolveInitialUsername();
-  loadView(view, username);
-  setActiveSidebarItem(view);
-});
-
-// =============================
-// INICIO
-// =============================
+// ==========================
+// init
+// ==========================
 document.addEventListener('DOMContentLoaded', async () => {
-  const username = resolveInitialUsername();
-  const view = resolveInitialView();
+  const username = getUsernameFromURL();
 
-  localStorage.setItem('username', username);
+  if (!username) {
+    // Si no hay username en la URL, mandamos a página genérica
+    window.location.href = "/generic.html";
+    return;
+  }
 
-  await loadSidebar(username, view);
+  await loadSidebar(username);
 
-  // Toggle Sidebar Desktop
+  // Botón de toggle para escritorio
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   const sidebarIcon = document.getElementById('sidebar-icon');
 
@@ -200,27 +152,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       const content = document.getElementById('content-container');
       const topbar = document.querySelector('.navbar.flock-topbar');
 
-      if (!sidebar || !content || !topbar) return;
-
       sidebar.classList.toggle('sidebar-hidden');
 
       if (sidebar.classList.contains('sidebar-hidden')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
 
-        if (sidebarIcon) {
-          sidebarIcon.classList.remove('bi-arrow-left');
-          sidebarIcon.classList.add('bi-list');
-        }
+        sidebarIcon.classList.remove('bi-arrow-left');
+        sidebarIcon.classList.add('bi-list');
+
         toggleDesktopBtn.classList.remove('sidebar-open');
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
 
-        if (sidebarIcon) {
-          sidebarIcon.classList.remove('bi-list');
-          sidebarIcon.classList.add('bi-arrow-left');
-        }
+        sidebarIcon.classList.remove('bi-list');
+        sidebarIcon.classList.add('bi-arrow-left');
+
         toggleDesktopBtn.classList.add('sidebar-open');
       }
     });
