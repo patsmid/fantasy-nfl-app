@@ -69,7 +69,7 @@ async function loadSidebar(username, role) {
               <div style="font-weight:600">${username}</div>
               <div style="font-size:0.85rem;color:var(--text-secondary)">${role}</div>
             </div>
-            <button id="logoutBtnMobile" class="btn btn-accent">Cerrar sesión</button>
+            <button id="logoutBtnMobile" class="btn btn-accent"><i class="bi bi-box-arrow-right"></i></button>
           </div>
         </div>
       `;

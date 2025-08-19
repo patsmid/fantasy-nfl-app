@@ -1,11 +1,25 @@
 :root {
+  --radius: 12px;
+}
+
+/* Tema claro */
+:root[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f2f2f2;
+  --accent: #ff7a00;
+  --text-primary: #1c1c1c;
+  --text-secondary: #555;
+  --border: #dcdcdc;
+}
+
+/* Tema oscuro */
+:root[data-theme="dark"] {
   --bg-primary: #16181d;
   --bg-secondary: #1f2228;
   --accent: #ff7a00;
   --text-primary: #e4e6eb;
   --text-secondary: #b0b3b8;
   --border: #2f3033;
-  --radius: 12px;
 }
 
 /* Base */
@@ -33,6 +47,7 @@ html, body {
 
 /* Card */
 .login-card {
+  position: relative;
   width: 100%;
   max-width: 420px;
   background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
@@ -42,6 +57,20 @@ html, body {
   box-shadow: 0 8px 30px rgba(0,0,0,0.6);
   text-align: center;
 }
+
+/* Botón cambio tema */
+.theme-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+.theme-toggle:hover { color: var(--accent); }
 
 /* Brand */
 .login-brand {

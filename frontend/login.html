@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- Mini utilidades para ojo de password y links; NO alteran tu tema -->
+  <!-- Utilidades internas -->
   <style>
     .input-wrap { position: relative; }
     .toggle-pass {
@@ -33,6 +33,9 @@
 <body>
   <main class="login-root">
     <div class="login-card">
+      <!-- Botón cambio tema -->
+      <button id="themeToggle" class="theme-toggle" aria-label="Cambiar tema">🌞</button>
+
       <div class="login-brand">🏈 <span class="brand-text">Fantasy NFL</span></div>
 
       <h1 class="login-title">Bienvenido</h1>
@@ -68,15 +71,11 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // Config (puedes inyectar por window.__SUPABASE_* si lo prefieres)
     const supabaseUrl = window.__SUPABASE_URL || "https://cdmesdcgkcvogbgzqobt.supabase.co";
     const supabaseAnonKey = window.__SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
 
-    // Persistencia por defecto (localStorage). Si quisieras sesión efímera cuando "remember" está desmarcado,
-    // se puede migrar a sessionStorage tras login; lo dejo listo más abajo.
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // DOM
     const form = document.getElementById('loginForm');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
@@ -85,6 +84,22 @@
     const btnText = loginBtn.querySelector('.btn-text');
     const remember = document.getElementById('remember');
     const forgotLink = document.getElementById('forgotLink');
+    const themeToggle = document.getElementById("themeToggle");
+
+    // =====================
+    // THEME TOGGLE
+    // =====================
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    document.documentElement.setAttribute("data-theme", savedTheme);
+    themeToggle.textContent = savedTheme === "light" ? "🌙" : "🌞";
+
+    themeToggle.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+      themeToggle.textContent = next === "light" ? "🌙" : "🌞";
+    });
 
     // Si ya hay sesión, redirige
     (async () => {
@@ -133,34 +148,26 @@
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Sesión de Supabase (guardada por el SDK en localStorage)
         const { data: { session } } = await supabase.auth.getSession();
 
-        // Si NO quiere “recordar”, migramos la sesión a sessionStorage (opcional y transparente para tu app)
         if (!remember.checked && session) {
           try {
-            // Copiamos claves internas de supabase a sessionStorage y limpiamos localStorage
             for (const k in localStorage) {
               if (k.startsWith('sb-')) {
                 sessionStorage.setItem(k, localStorage.getItem(k));
               }
             }
-            // Además, como tu app usa estas keys personalizadas:
             localStorage.removeItem("sb_session");
             localStorage.removeItem("sb_access_token");
-            // Nota: el SDK seguirá leyendo de localStorage en recargas. Si quieres 100% efímero,
-            // crea el cliente con persistSession: false cuando remember=false.
           } catch {}
         }
 
-        // Tus claves de compatibilidad para el backend
         if (session) {
           localStorage.setItem("sb_session", JSON.stringify(session));
           localStorage.setItem("sb_access_token", session.access_token || "");
           localStorage.setItem("fantasyEmail", email);
         }
 
-        // Perfil/rol
         try {
           const { data: profile } = await supabase
             .from('profiles')
@@ -178,7 +185,6 @@
       }
     });
 
-    // Helpers
     function setLoading(v) {
       emailInput.disabled = v;
       passwordInput.disabled = v;
