@@ -36,6 +36,14 @@ async function loadSidebar(username) {
 
     const menuTree = await response.json();
 
+    // 🚨 Manejo de error explícito del backend
+    if (menuTree.error === "USERNAME_INVALID") {
+      showError('Usuario inválido. Por favor intenta de nuevo.');
+      localStorage.removeItem('fantasyUser');
+      window.location.href = '/login.html';
+      return;
+    }
+
     const sidebarHTML = renderSidebar(menuTree);
     // Creamos la estructura del sidebar + bloque de usuario y logout
     sidebar.innerHTML = `
@@ -98,7 +106,6 @@ async function loadSidebar(username) {
     } else {
       // Si no hay items, mostramos una vista por defecto o mensaje
       console.warn('Menu vacío o no válido recibido del backend.');
-      // Opcional: limpiar contenido
       const content = document.getElementById('content-container');
       if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
     }
