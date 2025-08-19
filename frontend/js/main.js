@@ -23,10 +23,10 @@ async function loadSidebar(username) {
   try {
     const response = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`);
 
+    // 🚨 Manejo de status inválidos (400 / 404)
     if (!response.ok) {
-      if (response.status === 404) {
-        // Usuario no existe en backend -> volvemos al login
-        showError('Usuario no encontrado. Por favor ingresa un usuario válido.');
+      if (response.status === 400 || response.status === 404) {
+        showError('Usuario inválido. Por favor ingresa un usuario válido.');
         localStorage.removeItem('fantasyUser');
         window.location.href = '/login.html';
         return;
@@ -35,8 +35,8 @@ async function loadSidebar(username) {
     }
 
     const menuTree = await response.json();
-    console.log(menuTree);
-    // 🚨 Manejo de error explícito del backend
+
+    // 🚨 Manejo de error explícito en el JSON
     if (menuTree.error === "USERNAME_INVALID") {
       showError('Usuario inválido. Por favor intenta de nuevo.');
       localStorage.removeItem('fantasyUser');
@@ -44,8 +44,11 @@ async function loadSidebar(username) {
       return;
     }
 
+    // -------------------------------
+    // Renderizado normal del sidebar
+    // -------------------------------
     const sidebarHTML = renderSidebar(menuTree);
-    // Creamos la estructura del sidebar + bloque de usuario y logout
+
     sidebar.innerHTML = `
       <div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>
       ${sidebarHTML}
@@ -62,7 +65,6 @@ async function loadSidebar(username) {
       </div>
     `;
 
-    // Mobile: añadimos logout al content del offcanvas (si existe)
     if (sidebarMobile) {
       sidebarMobile.innerHTML = `
         <div class="flock-logo">🏈 Fantasy NFL</div>
@@ -79,10 +81,8 @@ async function loadSidebar(username) {
       `;
     }
 
-    // Activamos links y listeners
     activateSidebarLinks();
 
-    // Logout handlers
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
@@ -98,13 +98,11 @@ async function loadSidebar(username) {
       });
     }
 
-    // Cargar la primera vista disponible
     if (Array.isArray(menuTree) && menuTree.length > 0) {
       const firstView = menuTree[0].view || (menuTree[0].children?.[0]?.view) || 'config';
       await loadView(firstView);
       setActiveSidebarItem(firstView);
     } else {
-      // Si no hay items, mostramos una vista por defecto o mensaje
       console.warn('Menu vacío o no válido recibido del backend.');
       const content = document.getElementById('content-container');
       if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
