@@ -8,9 +8,6 @@
   <!-- Tus estilos -->
   <link rel="stylesheet" href="./css/login.css" />
 
-  <!-- Bootstrap JS (si lo necesitas para otros componentes) -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -123,16 +120,16 @@
       e.preventDefault();
       const email = emailInput.value.trim();
       if (!email) {
-        return Swal.fire({ icon: 'info', title: 'Ingresa tu email', text: 'Escribe tu correo para enviarte el enlace de recuperación.' });
+        return Swal.fire({ icon: 'info', confirmButtonText: 'Aceptar', title: 'Ingresa tu email', text: 'Escribe tu correo para enviarte el enlace de recuperación.' });
       }
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${location.origin}/auth/callback.html`
         });
         if (error) throw error;
-        Swal.fire({ icon: 'success', title: 'Revisa tu correo', text: 'Te enviamos un enlace para restablecer tu contraseña.' });
+        Swal.fire({ icon: 'success', confirmButtonText: 'Aceptar', title: 'Revisa tu correo', text: 'Te enviamos un enlace para restablecer tu contraseña.' });
       } catch (err) {
-        Swal.fire({ icon: 'error', title: 'No se pudo enviar', text: normalizaSupabaseError(err) });
+        Swal.fire({ icon: 'error', confirmButtonText: 'Aceptar', title: 'No se pudo enviar', text: normalizaSupabaseError(err) });
       }
     });
 
@@ -143,7 +140,7 @@
       const email = emailInput.value.trim();
       const password = passwordInput.value;
       if (!email || !password) {
-        return Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Ingresa tu email y contraseña.' });
+        return Swal.fire({ icon: 'warning', confirmButtonText: 'Aceptar', title: 'Campos incompletos', text: 'Ingresa tu email y contraseña.' });
       }
 
       setLoading(true);
@@ -182,7 +179,7 @@
 
         window.location.href = "/index.html";
       } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Credenciales inválidas', text: normalizaSupabaseError(err) });
+        Swal.fire({ icon: 'error', confirmButtonText: 'Aceptar', title: 'Credenciales inválidas', text: normalizaSupabaseError(err) });
       } finally {
         setLoading(false);
       }
