@@ -2,7 +2,7 @@
 // Config
 // =============================
 const BACKEND_BASE = 'https://fantasy-nfl-backend.onrender.com';
-const ADMIN_BASE = `${BACKEND_BASE}/admin`; // 👈 añadimos prefijo real
+const ADMIN_BASE = `${BACKEND_BASE}/api/admin`; // 👈 añadimos prefijo real
 
 // =============================
 // Utils
