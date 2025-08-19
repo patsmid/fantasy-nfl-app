@@ -30,10 +30,10 @@ async function resolveRole({ username, roleFallback = 'user' }) {
 }
 
 // ------------------ MENÚ (dinámico por rol/username) ------------------
-router.get('/menu', async (req, res) => {
+async function handleMenu(req, res) {
   try {
     const username = req.query.username?.trim();
-    const roleQuery = req.query.role?.trim(); // compatibilidad hacia atrás
+    const roleQuery = req.query.role?.trim(); // compat
     const roleDefault = roleQuery || 'user';
 
     const resolved = await resolveRole({ username, roleFallback: roleDefault });
@@ -55,17 +55,12 @@ router.get('/menu', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    // Filtrar por rol (mantengo tu lógica actual en Node)
     const menuItems = (data || []).filter(item => Array.isArray(item.roles) && item.roles.includes(role));
 
-    // Construir árbol
     const map = new Map();
     const tree = [];
 
-    for (const item of menuItems) {
-      map.set(item.id, { ...item, children: [] });
-    }
-
+    for (const item of menuItems) map.set(item.id, { ...item, children: [] });
     for (const item of menuItems) {
       if (item.parent_id) {
         const parent = map.get(item.parent_id);
@@ -80,7 +75,16 @@ router.get('/menu', async (req, res) => {
     console.error('Error /menu:', err);
     return res.status(500).json({ error: 'Error interno' });
   }
+}
+
+router.get('/menu', handleMenu);
+
+// Alias compatible con /admin/menu/:username
+router.get('/menu/:username', (req, res) => {
+  req.query.username = req.params.username?.trim();
+  return handleMenu(req, res);
 });
+
 
 // ------------------ CONFIG (sin cambios funcionales) ------------------
 router.get('/menu/config', async (req, res) => {

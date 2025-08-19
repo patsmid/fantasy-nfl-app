@@ -1,23 +1,85 @@
+// main.js (ESM)
+
 // =============================
-// Obtiene y renderiza el sidebar según el usuario logueado
+// Config
+// =============================
+const BACKEND_BASE = 'https://fantasy-nfl-backend.onrender.com';
+
+// =============================
+// Utils
+// =============================
+function getParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+function setParamInURL(paramsObj = {}) {
+  const params = getParams();
+  Object.entries(paramsObj).forEach(([k, v]) => {
+    if (v === null || v === undefined) params.delete(k);
+    else params.set(k, v);
+  });
+  const newUrl = `${window.location.pathname}?${params.toString()}`;
+  history.pushState(paramsObj, '', newUrl);
+}
+
+function resolveInitialUsername() {
+  const params = getParams();
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const isAdminRoute = pathParts[0] === 'admin';
+
+  // Prioridades: ?u= -> localStorage -> path (si no es /admin) -> demo1
+  return (
+    params.get('u') ||
+    localStorage.getItem('username') ||
+    (!isAdminRoute ? (pathParts[0] || null) : null) ||
+    'demo1'
+  );
+}
+
+function resolveInitialView() {
+  const params = getParams();
+  return params.get('view') || 'config';
+}
+
+// =============================
+// Backend
+// =============================
+async function fetchMenu({ username, roleFallback = 'user' } = {}) {
+  // 1) Primero intentamos por username
+  if (username) {
+    let res = await fetch(`${BACKEND_BASE}/admin/menu?username=${encodeURIComponent(username)}`);
+    // 404 -> usuario no encontrado: pedimos menú por rol (seguro)
+    if (res.status === 404) {
+      res = await fetch(`${BACKEND_BASE}/admin/menu?role=${encodeURIComponent(roleFallback)}`);
+    }
+    if (!res.ok) throw new Error('No se pudo obtener el menú');
+    return res.json();
+  }
+
+  // 2) Sin username: menú por rol
+  const res = await fetch(`${BACKEND_BASE}/admin/menu?role=${encodeURIComponent(roleFallback)}`);
+  if (!res.ok) throw new Error('No se pudo obtener el menú');
+  return res.json();
+}
+
+// =============================
+// Sidebar
 // =============================
 async function loadSidebar(username, initialView = 'config') {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
-    // 🔑 Pedimos menú basado en username
-    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/admin/menu/${username}`);
-    if (!response.ok) throw new Error('No se pudo obtener el menú');
+    const menuTree = await fetchMenu({ username, roleFallback: 'user' });
 
-    const menuTree = await response.json();
+    const sidebarHTML = renderSidebar(menuTree);
+    if (sidebar) sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    if (sidebarMobile) sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
 
-    const sidebarHTML = renderSidebar(menuTree, username);
-    sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
-    sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    activateSidebarLinks(username);
 
-    // cargar vista inicial
-    await loadView(username, initialView);
+    // Carga vista inicial
+    await loadView(initialView, username);
     setActiveSidebarItem(initialView);
 
   } catch (error) {
@@ -25,7 +87,7 @@ async function loadSidebar(username, initialView = 'config') {
   }
 }
 
-function renderSidebar(menuTree, username) {
+function renderSidebar(menuTree) {
   const ul = document.createElement('ul');
   ul.className = 'nav flex-column flock-nav';
 
@@ -45,7 +107,7 @@ function renderSidebar(menuTree, username) {
         <ul class="nav flex-column ms-3 collapse" id="${submenuId}">
           ${item.children.map(child => `
             <li class="nav-item">
-              <a href="/${username}?view=${child.view}" class="nav-link">
+              <a href="#" class="nav-link" data-view="${child.view}">
                 <i class="bi ${child.icon}"></i> <span>${child.title}</span>
               </a>
             </li>
@@ -54,7 +116,7 @@ function renderSidebar(menuTree, username) {
       `;
     } else {
       li.innerHTML = `
-        <a href="/${username}?view=${item.view}" class="nav-link">
+        <a href="#" class="nav-link" data-view="${item.view}">
           <i class="bi ${item.icon}"></i>
           <span>${item.title}</span>
         </a>
@@ -67,12 +129,52 @@ function renderSidebar(menuTree, username) {
   return ul.outerHTML;
 }
 
-async function loadView(username, viewName) {
+function activateSidebarLinks(username) {
+  // Desktop + Mobile
+  const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
+  links.forEach(link => {
+    link.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const view = link.getAttribute('data-view');
+
+      // Actualiza URL (?view=&u=) sin recargar
+      setParamInURL({ view, u: username });
+
+      await loadView(view, username);
+      setActiveSidebarItem(view);
+
+      // Cerrar offcanvas si está abierto (móvil)
+      const sidebarMobileEl = document.getElementById('sidebarMobile');
+      if (sidebarMobileEl) {
+        const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl) || new bootstrap.Offcanvas(sidebarMobileEl);
+        if (bsOffcanvas) bsOffcanvas.hide();
+      }
+    });
+  });
+
+  // Botón hamburguesa para móvil
+  const toggleBtn = document.getElementById('toggle-sidebar');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
+      offcanvas.show();
+    });
+  }
+}
+
+// =============================
+// Carga de vistas
+// =============================
+async function loadView(viewName, username) {
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    await viewModule.default(username);
+    // Pasa username a la vista (opcional según cada vista)
+    if (typeof viewModule.default === 'function') {
+      await viewModule.default(username);
+    }
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
+    // Aquí podrías mostrar una alerta visual si quieres
   }
 }
 
@@ -82,17 +184,23 @@ function setActiveSidebarItem(viewName) {
   });
 }
 
+// Soporte de navegación con botones atrás/adelante
+window.addEventListener('popstate', () => {
+  const view = resolveInitialView();
+  const username = resolveInitialUsername();
+  loadView(view, username);
+  setActiveSidebarItem(view);
+});
+
 // =============================
 // INICIO - Carga inicial
 // =============================
 document.addEventListener('DOMContentLoaded', async () => {
-  // 🔑 Detectar username desde la URL
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  let username = pathParts[0] || 'demo1';
+  const username = resolveInitialUsername();
+  const view = resolveInitialView();
 
-  // 🔑 Detectar vista desde query param ?view=...
-  const params = new URLSearchParams(window.location.search);
-  let view = params.get('view') || 'config';
+  // Guarda username para siguientes visitas
+  localStorage.setItem('username', username);
 
   await loadSidebar(username, view);
 
@@ -106,20 +214,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       const content = document.getElementById('content-container');
       const topbar = document.querySelector('.navbar.flock-topbar');
 
+      if (!sidebar || !content || !topbar) return;
+
       sidebar.classList.toggle('sidebar-hidden');
 
       if (sidebar.classList.contains('sidebar-hidden')) {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
-        sidebarIcon.classList.remove('bi-arrow-left');
-        sidebarIcon.classList.add('bi-list');
-        toggleDesktopBtn.classList.remove('sidebar-open');
+
+        if (sidebarIcon) {
+          sidebarIcon.classList.remove('bi-arrow-left');
+          sidebarIcon.classList.add('bi-list');
+        }
+        toggleDesktopBtn.classList.remove('sidebar-open'); // sidebar cerrado
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
-        sidebarIcon.classList.remove('bi-list');
-        sidebarIcon.classList.add('bi-arrow-left');
-        toggleDesktopBtn.classList.add('sidebar-open');
+
+        if (sidebarIcon) {
+          sidebarIcon.classList.remove('bi-list');
+          sidebarIcon.classList.add('bi-arrow-left');
+        }
+        toggleDesktopBtn.classList.add('sidebar-open'); // sidebar abierto, clase naranja
       }
     });
   }
