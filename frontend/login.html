@@ -26,10 +26,6 @@
 
         <button type="submit" class="btn login-btn">Entrar</button>
       </form>
-
-      <!-- BOTÓN TEMPORAL DE PRUEBA -->
-      <button id="btnCreateTestUsers" class="btn btn-warning w-100 mt-2">Crear usuarios de prueba</button>
-
       <p class="login-foot">¿No tienes usuario? Pide acceso al administrador.</p>
     </div>
   </main>
@@ -41,35 +37,54 @@
 
     const supabaseUrl = "https://cdmesdcgkcvogbgzqobt.supabase.co";
     const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     const form = document.getElementById('loginForm');
-		const btnCreateTestUsers = document.getElementById('btnCreateTestUsers');
 
-    // FUNCIONES DE LOGIN
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
+      console.log("Intentando login con:", { email, password });
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
+        console.error("Error detallado de login:", error);
         showError("Error al iniciar sesión", error.message);
         return;
       }
 
-      // Guardamos sesión
+      console.log("Login exitoso, data:", data);
+
+      // Guardamos sesión en localStorage
       localStorage.setItem("sb_session", JSON.stringify(data.session));
       localStorage.setItem("fantasyEmail", email);
 
-      showSuccess("¡Bienvenido!", "Inicio de sesión exitoso", () => {
+      // Consultar rol desde profiles
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, username')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        console.warn("No se encontró perfil, usando rol por defecto 'user'", profileError);
+      }
+
+      const role = profile?.role || 'user';
+      console.log("Rol detectado:", role);
+
+      showSuccess("¡Bienvenido!", `Inicio de sesión exitoso. Rol: ${role}`, () => {
+        // Redirigir a index.html u otra página según rol
         window.location.href = "/index.html";
       });
     });
 
-    // REDIRECCIÓN AUTOMÁTICA SI YA HAY SESIÓN
+		// REDIRECCIÓN AUTOMÁTICA SI YA HAY SESIÓN
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -77,63 +92,7 @@
       }
     })();
 
-    // BOTÓN TEMPORAL: CREAR USUARIOS DE PRUEBA
-		btnCreateTestUsers.addEventListener('click', async () => {
-		  try {
-		    const testUsers = [
-		      { email: "admin5@test.com", password: "123456", role: "admin", username: "admin5" },
-		      { email: "user5@test.com", password: "123456", role: "user", username: "user5" }
-		    ];
-
-		    for (const u of testUsers) {
-		      // Verificar si el usuario ya existe en Auth
-		      let { data: existingAuthUser } = await supabase.auth.admin.listUsers({ filter: `email=eq.${u.email}` });
-		      let userId;
-		      if (existingAuthUser.length > 0) {
-		        console.log(`Usuario Auth existente: ${u.email}`);
-		        userId = existingAuthUser[0].id;
-		      } else {
-		        // Crear usuario en Auth
-		        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-		          email: u.email,
-		          password: u.password
-		        });
-		        if (signUpError) {
-		          console.error(`Error creando Auth user ${u.email}:`, signUpError.message);
-		          continue;
-		        }
-		        userId = signUpData.user.id;
-		        console.log(`Usuario Auth creado: ${u.email}`);
-		      }
-
-		      // Verificar si el perfil ya existe
-		      const { data: existingProfile } = await supabase
-		        .from('profiles')
-		        .select('id')
-		        .eq('id', userId)
-		        .single();
-
-		      if (!existingProfile) {
-		        // Insertar perfil con todos los campos obligatorios
-		        await supabase.from('profiles').insert({
-		          id: userId,
-		          username: u.username,
-		          role: u.role,
-		          email: u.email
-		        });
-		        console.log(`Perfil creado: ${u.username}`);
-		      } else {
-		        console.log(`Perfil ${u.username} ya existe`);
-		      }
-		    }
-
-		    showSuccess("Usuarios de prueba", "Se han creado/verificado admin y user", null);
-		  } catch (err) {
-		    console.error(err);
-		    showError("Error creando usuarios", err.message || err);
-		  }
-		});
-
   </script>
+
 </body>
 </html>
