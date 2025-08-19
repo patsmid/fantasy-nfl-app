@@ -1,5 +1,6 @@
 :root {
   --radius: 12px;
+  --brand: #ff7a00; /* naranja fijo para Fantasy NFL */
 }
 
 /* Tema claro */
@@ -16,10 +17,10 @@
 :root[data-theme="dark"] {
   --bg-primary: #16181d;
   --bg-secondary: #1f2228;
-  --accent: #ff7a00;
+  --accent: #ff7a00;       /* naranja en botón */
   --text-primary: #e4e6eb;
   --text-secondary: #b0b3b8;
-  --border: #666;          /* bordes más claros */
+  --border: #666;          /* bordes claros */
 }
 
 /* Base */
@@ -80,7 +81,7 @@ html, body {
 }
 .brand-text {
   margin-left: 0.5rem;
-  color: var(--accent);
+  color: var(--brand); /* ahora siempre naranja */
 }
 
 /* Headings */
