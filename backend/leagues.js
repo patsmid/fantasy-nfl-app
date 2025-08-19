@@ -144,8 +144,6 @@ export async function updateLeagueDynasty(req, res) {
  * Inserta o actualiza una liga manualmente (upsert por league_id).
  * Incluye user_id si viene; si viene vacío, lo deja en null.
  */
- import { supabase } from './supabaseClient.js';
-
  // genera league_id sin librerías externas
  function generateLeagueId() {
    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
