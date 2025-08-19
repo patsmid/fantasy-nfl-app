@@ -98,10 +98,10 @@ router.post("/users/upsert", async (req, res) => {
         ...(email ? { email_confirm: true } : {})
       };
 
-      const { data: updatedUser, error } =
-        await supabaseAdmin.auth.admin.updateUserById(id, attrs);
-      if (error) throw error;
-      authUser = updatedUser; // OJO: data es el usuario directamente
+			const { data, error } =
+			  await supabaseAdmin.auth.admin.updateUserById(id, attrs);
+			if (error) throw error;
+			authUser = data.user;
     } else {
       // Crear nuevo usuario (autoconfirmado)
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
