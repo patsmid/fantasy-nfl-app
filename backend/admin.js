@@ -3,40 +3,86 @@ import { supabase } from './supabaseClient.js';
 
 const router = express.Router();
 
-router.get('/menu', async (req, res) => {
-  const role = req.query.role || 'user';
+// --- helpers ---
+function isValidUsername(username = '') {
+  // ajusta el patrón a tu gusto (solo letras, números, punto, guion y guion bajo)
+  return /^[a-zA-Z0-9._-]{3,32}$/.test(username);
+}
+
+async function resolveRole({ username, roleFallback = 'user' }) {
+  if (!username) return { role: roleFallback, from: 'fallback' };
+
+  if (!isValidUsername(username)) {
+    return { error: 'USERNAME_INVALID', status: 400 };
+  }
 
   const { data, error } = await supabase
-    .from('sidebar_menu')
-    .select('*')
-    .eq('enabled', true)
-    .order('display_order', { ascending: true });
+    .from('profiles')
+    .select('role')
+    .eq('username', username)
+    .single();
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  if (error || !data) {
+    return { error: 'USER_NOT_FOUND', status: 404 };
   }
 
-  const menuItems = data.filter(item => item.roles?.includes(role));
+  return { role: data.role, from: 'profiles' };
+}
 
-  const map = new Map();
-  const tree = [];
+// ------------------ MENÚ (dinámico por rol/username) ------------------
+router.get('/menu', async (req, res) => {
+  try {
+    const username = req.query.username?.trim();
+    const roleQuery = req.query.role?.trim(); // compatibilidad hacia atrás
+    const roleDefault = roleQuery || 'user';
 
-  for (const item of menuItems) {
-    map.set(item.id, { ...item, children: [] });
-  }
-
-  for (const item of menuItems) {
-    if (item.parent_id) {
-      const parent = map.get(item.parent_id);
-      if (parent) parent.children.push(map.get(item.id));
-    } else {
-      tree.push(map.get(item.id));
+    const resolved = await resolveRole({ username, roleFallback: roleDefault });
+    if (resolved.error) {
+      if (resolved.status === 400) return res.status(400).json({ error: 'Username inválido' });
+      if (resolved.status === 404) return res.status(404).json({ error: 'Usuario no encontrado' });
+      return res.status(500).json({ error: 'No se pudo resolver el rol' });
     }
-  }
 
-  res.json(tree);
+    const role = resolved.role;
+
+    const { data, error } = await supabase
+      .from('sidebar_menu')
+      .select('*')
+      .eq('enabled', true)
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Filtrar por rol (mantengo tu lógica actual en Node)
+    const menuItems = (data || []).filter(item => Array.isArray(item.roles) && item.roles.includes(role));
+
+    // Construir árbol
+    const map = new Map();
+    const tree = [];
+
+    for (const item of menuItems) {
+      map.set(item.id, { ...item, children: [] });
+    }
+
+    for (const item of menuItems) {
+      if (item.parent_id) {
+        const parent = map.get(item.parent_id);
+        if (parent) parent.children.push(map.get(item.id));
+      } else {
+        tree.push(map.get(item.id));
+      }
+    }
+
+    return res.json(tree);
+  } catch (err) {
+    console.error('Error /menu:', err);
+    return res.status(500).json({ error: 'Error interno' });
+  }
 });
 
+// ------------------ CONFIG (sin cambios funcionales) ------------------
 router.get('/menu/config', async (req, res) => {
   const { data, error } = await supabase
     .from('sidebar_menu')
@@ -48,6 +94,7 @@ router.get('/menu/config', async (req, res) => {
   res.json(data);
 });
 
+// ------------------ CRUD (sin cambios) ------------------
 router.post('/menu', async (req, res) => {
   const { title, icon, view, parent_id, roles, enabled } = req.body;
   const rolesArray = Array.isArray(roles) ? roles : [roles || 'user'];
@@ -94,14 +141,14 @@ router.delete('/menu/:id', async (req, res) => {
 router.post('/menu/reorder', async (req, res) => {
   const updates = req.body; // [{ id, order, parent_id }]
 
-  const updatesPromises = updates.map(({ id, order, parent_id }) =>
-    supabase
-      .from('sidebar_menu')
-      .update({ display_order: order, parent_id })
-      .eq('id', id)
+  const results = await Promise.all(
+    updates.map(({ id, order, parent_id }) =>
+      supabase
+        .from('sidebar_menu')
+        .update({ display_order: order, parent_id })
+        .eq('id', id)
+    )
   );
-
-  const results = await Promise.all(updatesPromises);
 
   if (results.some(r => r.error)) {
     return res.status(500).json({ error: 'Error al reordenar elementos del menú.' });
@@ -150,24 +197,45 @@ router.post('/menu/upsert', async (req, res) => {
   }
 });
 
-
 router.post('/menu/order', async (req, res) => {
   const updates = req.body; // [{ id, display_order }, ...]
 
   try {
-    const updatePromises = updates.map(({ id, display_order }) =>
-      supabase
-        .from('sidebar_menu')
-        .update({ display_order, updated_at: new Date().toISOString() })
-        .eq('id', id)
+    await Promise.all(
+      updates.map(({ id, display_order }) =>
+        supabase
+          .from('sidebar_menu')
+          .update({ display_order, updated_at: new Date().toISOString() })
+          .eq('id', id)
+      )
     );
-
-    await Promise.all(updatePromises);
     res.json({ success: true });
   } catch (err) {
     console.error('Error al actualizar orden:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ------------------ Endpoints auxiliares ------------------
+// Verificar/obtener rol por username (útil para /:username antes de pedir menú)
+router.get('/user/resolve', async (req, res) => {
+  const username = req.query.username?.trim();
+  if (!username) return res.status(400).json({ error: 'Username requerido' });
+  if (!isValidUsername(username)) return res.status(400).json({ error: 'Username inválido' });
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, role')
+    .eq('username', username)
+    .single();
+
+  if (error || !data) return res.status(404).json({ error: 'Usuario no encontrado' });
+  return res.json(data);
+});
+
+// 404 JSON para rutas no encontradas en este router
+router.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
 });
 
 export default router;

@@ -1,21 +1,23 @@
-async function loadSidebar(role = 'admin') {
+// =============================
+// SIDEBAR
+// =============================
+async function loadSidebar(username) {
   const sidebar = document.getElementById('sidebar');
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
-    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/admin/menu?role=${role}`);
+    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/admin/menu/${username}`);
     if (!response.ok) throw new Error('No se pudo obtener el menú');
 
     const menuTree = await response.json();
-
     const sidebarHTML = renderSidebar(menuTree);
+
     sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
     sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
 
     activateSidebarLinks();
-    await loadView('config'); // o vista inicial dinámica
+    await loadView('config');
     setActiveSidebarItem('config');
-
   } catch (error) {
     console.error('Error cargando sidebar:', error);
   }
@@ -28,7 +30,6 @@ function renderSidebar(menuTree) {
   for (const item of menuTree) {
     const li = document.createElement('li');
     li.className = 'nav-item';
-
     const hasChildren = item.children && item.children.length > 0;
 
     if (hasChildren) {
@@ -56,51 +57,27 @@ function renderSidebar(menuTree) {
         </a>
       `;
     }
-
     ul.appendChild(li);
   }
-
   return ul.outerHTML;
 }
 
-// async function loadSidebar() {
-//   const sidebar = document.getElementById('sidebar');
-//   const sidebarMobile = document.getElementById('sidebarMobileContent');
-//
-//   try {
-//     const response = await fetch('/components/sidebar.html');
-//     if (!response.ok) throw new Error('No se pudo cargar el sidebar');
-//
-//     const html = await response.text();
-//     sidebar.innerHTML = html;
-//     sidebarMobile.innerHTML = html;
-//
-//     activateSidebarLinks();
-//     await loadView('config'); // Vista inicial
-//     setActiveSidebarItem('config');
-//   } catch (error) {
-//     console.error('Error cargando sidebar:', error);
-//   }
-// }
-
 function activateSidebarLinks() {
-  // Seleccionamos los links del sidebar desktop y mobile
   const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   links.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       const view = link.getAttribute('data-view');
+      history.pushState({ view }, '', `/${currentUsername}/${view}`); // SPA URL
       await loadView(view);
       setActiveSidebarItem(view);
 
-      // Cerrar offcanvas si está abierto (en móvil)
       const sidebarMobileEl = document.getElementById('sidebarMobile');
       const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
       if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
-  // Botón hamburguesa para móvil
   const toggleBtn = document.getElementById('toggle-sidebar');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
@@ -116,48 +93,77 @@ async function loadView(viewName) {
     await viewModule.default();
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
-    // Opcional: mostrar alerta o contenido fallback
   }
 }
 
 function setActiveSidebarItem(viewName) {
-  // Activamos el link en desktop y mobile
   document.querySelectorAll('[data-view]').forEach(link => {
     link.classList.toggle('active', link.getAttribute('data-view') === viewName);
   });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-	const userRole = 'admin'; // Esto debería venir de Supabase Auth o sesión
-  await loadSidebar(userRole);
+// =============================
+// SPA Routing Helpers
+// =============================
+let currentUsername = null;
+
+function getUsernameFromURL() {
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  return pathParts[0] || null;
+}
+
+async function initApp() {
+  currentUsername = getUsernameFromURL();
+  if (!currentUsername) {
+    console.warn("⚠️ No se encontró username en la URL");
+    return;
+  }
+  await loadSidebar(currentUsername);
 
   const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
   const sidebarIcon = document.getElementById('sidebar-icon');
 
-  toggleDesktopBtn.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
-    const content = document.getElementById('content-container');
-    const topbar = document.querySelector('.navbar.flock-topbar');
+  if (toggleDesktopBtn) {
+    toggleDesktopBtn.addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      const content = document.getElementById('content-container');
+      const topbar = document.querySelector('.navbar.flock-topbar');
 
-    sidebar.classList.toggle('sidebar-hidden');
+      sidebar.classList.toggle('sidebar-hidden');
 
-    if (sidebar.classList.contains('sidebar-hidden')) {
-      content.style.marginLeft = '0';
-      topbar.style.left = '0';
+      if (sidebar.classList.contains('sidebar-hidden')) {
+        content.style.marginLeft = '0';
+        topbar.style.left = '0';
+        sidebarIcon.classList.remove('bi-arrow-left');
+        sidebarIcon.classList.add('bi-list');
+        toggleDesktopBtn.classList.remove('sidebar-open');
+      } else {
+        content.style.marginLeft = '250px';
+        topbar.style.left = '250px';
+        sidebarIcon.classList.remove('bi-list');
+        sidebarIcon.classList.add('bi-arrow-left');
+        toggleDesktopBtn.classList.add('sidebar-open');
+      }
+    });
+  }
+}
 
-      sidebarIcon.classList.remove('bi-arrow-left');
-      sidebarIcon.classList.add('bi-list');
+// =============================
+// INICIO
+// =============================
+document.addEventListener('DOMContentLoaded', initApp);
 
-      toggleDesktopBtn.classList.remove('sidebar-open'); // sidebar cerrado
-    } else {
-      content.style.marginLeft = '250px';
-      topbar.style.left = '250px';
+// Maneja navegación SPA con botones de navegador
+window.addEventListener('popstate', async () => {
+  const username = getUsernameFromURL();
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const view = pathParts[1] || 'config';
 
-      sidebarIcon.classList.remove('bi-list');
-      sidebarIcon.classList.add('bi-arrow-left');
-
-      toggleDesktopBtn.classList.add('sidebar-open'); // sidebar abierto, clase naranja
-    }
-  });
-
+  if (username !== currentUsername) {
+    currentUsername = username;
+    await loadSidebar(currentUsername);
+  } else {
+    await loadView(view);
+    setActiveSidebarItem(view);
+  }
 });
