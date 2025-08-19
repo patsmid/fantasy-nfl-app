@@ -1,5 +1,4 @@
 import { showSuccess, showError, showConfirm } from '../components/alerts.js';
-import { supabase } from '../components/supabaseClient.js';
 
 // ==========================
 // utils

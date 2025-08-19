@@ -1,5 +1,3 @@
-import { supabase } from '../../components/supabaseClient.js'
-
 export default async function renderExtrasView() {
   // Intentar importar los helpers de alerts; si falla, usar fallback simple
   let showSuccess, showError, showConfirm;
@@ -17,18 +15,6 @@ export default async function renderExtrasView() {
       return { isConfirmed: ok };
     };
     console.warn('No se pudo importar components/alerts.js — usando fallbacks.', err);
-  }
-
-  // Validar sesión
-  const { data: sessionData, error: userErr } = await supabase.auth.getUser();
-  const currentUser = sessionData?.user ?? null;
-  if (userErr || !currentUser) {
-    console.error('Usuario no autenticado:', userErr);
-    showError('No estás autenticado. Serás redirigido al login.');
-    localStorage.removeItem('fantasyUser');
-    localStorage.removeItem('fantasyUserId');
-    window.location.href = '/login.html';
-    return;
   }
 
   const content = document.getElementById('content-container');
@@ -193,25 +179,25 @@ export default async function renderExtrasView() {
       const id = document.getElementById('taskId')?.value || '';
       const task = (document.getElementById('taskContent')?.value || '').trim();
       try {
-        if (id) {
-          const { data, error } = await supabase
-            .from('tasks')
-            .update({ task, updated_at: new Date().toISOString() })
-            .eq('id', id)
-            .select();
-          if (error) throw error;
-        } else {
-          const { data, error } = await supabase
-            .from('tasks')
-            .insert({ task, completed: false })
-            .select();
-          if (error) throw error;
+        const method = id ? 'PUT' : 'POST';
+        const endpoint = id ? `/extras/tasks/${id}` : '/extras/tasks';
+        const res = await fetch(`https://fantasy-nfl-backend.onrender.com${endpoint}`, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task })
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Status ${res.status}: ${text}`);
         }
-        getModalInstance(taskModalEl)?.hide();
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Error inesperado');
+        const inst = getModalInstance(taskModalEl);
+        if (inst) inst.hide();
         showSuccess('Tarea guardada correctamente');
         await loadTasks();
       } catch (err) {
-        showError('Error al guardar tarea: ' + (err.message || err));
+        showError('Error al guardar tarea: ' + err.message);
       }
     });
   }
@@ -248,6 +234,16 @@ export default async function renderExtrasView() {
       }
     });
   }
+
+  // FABs (si existen en layout global)
+  const fabAddLink = document.getElementById('fab-add-link');
+  if (fabAddLink) fabAddLink.addEventListener('click', (e) => { e.preventDefault(); linkForm?.reset(); (document.getElementById('linkId')||{}).value=''; modalLink?.show(); });
+
+  const fabAddNote = document.getElementById('fab-add-note');
+  if (fabAddNote) fabAddNote.addEventListener('click', (e) => { e.preventDefault(); noteForm?.reset(); (document.getElementById('noteId')||{}).value=''; modalNote?.show(); });
+
+  const fabAddTask = document.getElementById('fab-add-task');
+  if (fabAddTask) fabAddTask.addEventListener('click', (e) => { e.preventDefault(); taskForm?.reset(); (document.getElementById('taskId')||{}).value=''; modalTask?.show(); });
 
   // Cargar datos
   await loadLinks();
@@ -404,17 +400,18 @@ export default async function renderExtrasView() {
 
   async function loadTasks() {
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
-
+      const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/tasks');
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Status ${res.status}: ${txt}`);
+      }
+      const json = await res.json();
+      const data = Array.isArray(json.data) ? json.data : [];
       const list = document.getElementById('taskList');
       if (!list) return;
       list.innerHTML = '';
 
-      (data || []).forEach(task => {
+      data.forEach(task => {
         const li = document.createElement('li');
         li.className = 'list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center';
         li.innerHTML = `
@@ -438,14 +435,18 @@ export default async function renderExtrasView() {
           checkbox.onchange = async (e) => {
             const completed = e.target.checked;
             try {
-              const { error } = await supabase
-                .from('tasks')
-                .update({ completed, updated_at: new Date().toISOString() })
-                .eq('id', task.id);
-              if (error) throw error;
+              const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/tasks/${task.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: task.task, completed })
+              });
+              if (!res.ok) {
+                const txt = await res.text();
+                throw new Error(`Status ${res.status}: ${txt}`);
+              }
               await loadTasks();
             } catch (err) {
-              showError('Error actualizando tarea: ' + (err.message || err));
+              showError('Error actualizando tarea: ' + err.message);
             }
           };
         }
@@ -454,7 +455,8 @@ export default async function renderExtrasView() {
           btnEdit.onclick = () => {
             (document.getElementById('taskId') || {}).value = task.id || '';
             (document.getElementById('taskContent') || {}).value = task.task || '';
-            getModalInstance(taskModalEl)?.show();
+            const inst = getModalInstance(taskModalEl);
+            if (inst) inst.show();
           };
         }
 
@@ -463,12 +465,17 @@ export default async function renderExtrasView() {
             const result = await showConfirm({ text: '¿Eliminar esta tarea?' });
             if (result.isConfirmed) {
               try {
-                const { error } = await supabase.from('tasks').delete().eq('id', task.id);
-                if (error) throw error;
+                const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/tasks/${task.id}`, { method: 'DELETE' });
+                if (!res.ok) {
+                  const txt = await res.text();
+                  throw new Error(`Status ${res.status}: ${txt}`);
+                }
+                const j = await res.json();
+                if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
                 showSuccess('Tarea eliminada');
                 await loadTasks();
               } catch (err) {
-                showError('Error al eliminar tarea: ' + (err.message || err));
+                showError('Error al eliminar tarea: ' + err.message);
               }
             }
           };
@@ -477,7 +484,7 @@ export default async function renderExtrasView() {
         list.appendChild(li);
       });
     } catch (err) {
-      showError('Error al cargar tareas: ' + (err.message || err));
+      showError('Error al cargar tareas: ' + err.message);
     }
   }
 
