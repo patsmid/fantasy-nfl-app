@@ -1,7 +1,3 @@
-// ===============================
-// FRONTEND - VISTA COMPLETA "extras"
-// ===============================
-
 import { showSuccess, showError, showConfirm } from '../../components/alerts.js';
 
 export default async function renderExtrasView() {
@@ -65,20 +61,6 @@ export default async function renderExtrasView() {
 	      </div>
 	    </div>
 	  </div>
-
-		<!-- Botón flotante -->
-		<!-- <div class="fab-container position-fixed bottom-0 end-0 p-4 z-1030">
-		  <div class="dropdown">
-		    <button class="btn btn-primary btn-lg rounded-circle shadow dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-		      <i class="bi bi-plus-lg fs-4"></i>
-		    </button>
-		    <ul class="dropdown-menu dropdown-menu-end shadow">
-		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-link"><i class="bi bi-bookmark-plus-fill text-warning"></i> Nuevo link</a></li>
-		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-note"><i class="bi bi-journal-plus text-info"></i> Nueva nota</a></li>
-		      <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="fab-add-task"><i class="bi bi-check2-circle text-success"></i> Nuevo pendiente</a></li>
-		    </ul>
-		  </div>
-		</div> -->
 
 	  <!-- Modales -->
 	  ${renderLinkModal()}
@@ -178,8 +160,8 @@ export default async function renderExtrasView() {
 	};
 
   await loadLinks();
-  await loadNotes();
-  await loadTasks();
+  //await loadNotes();
+  //await loadTasks();
 
 	document.getElementById('fab-add-link').onclick = (e) => {
 	  e.preventDefault();
