@@ -132,11 +132,12 @@ function setActiveSidebarItem(viewName) {
 // init
 // ==========================
 document.addEventListener('DOMContentLoaded', async () => {
-  const username = getUsernameFromURL();
+  // Obtenemos el usuario guardado
+  const username = localStorage.getItem('fantasyUser');
 
   if (!username) {
-    // Si no hay username en la URL, mandamos a página genérica
-    window.location.href = "/generic.html";
+    // Si no hay usuario → mandamos al login
+    window.location.href = "/login.html";
     return;
   }
 
