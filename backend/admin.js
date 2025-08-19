@@ -91,24 +91,27 @@ router.post("/users/upsert", async (req, res) => {
     // --- Crear o actualizar usuario en Auth ---
     if (id) {
       // Actualizar usuario existente
-      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(id, {
-        email,
+      const attrs = {
+        ...(email ? { email } : {}),
         ...(password ? { password } : {}),
-        email_confirmed: true, // 🔹 asegura email_confirmed_at
-      });
+        // Si cambias el email o quieres marcarlo verificado:
+        ...(email ? { email_confirm: true } : {})
+      };
+
+      const { data: updatedUser, error } =
+        await supabaseAdmin.auth.admin.updateUserById(id, attrs);
       if (error) throw error;
-      authUser = data.user;
+      authUser = updatedUser; // OJO: data es el usuario directamente
     } else {
-      // Crear nuevo usuario
+      // Crear nuevo usuario (autoconfirmado)
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: password || strongRandomPassword(),
-        email_confirmed: true, // 🔹 marca email como confirmado
-        email_change_confirm_redirect: '', // opcional, evita token de confirmación
-        user_metadata: { created_by_admin: true }, // metadata para triggers
+        email_confirm: true, // <-- este es el correcto
+        user_metadata: { created_by_admin: true },
       });
       if (error) throw error;
-      authUser = data.user;
+      authUser = data.user; // createUser sí retorna { user }
     }
 
     // --- Upsert perfil ---
@@ -118,6 +121,7 @@ router.post("/users/upsert", async (req, res) => {
       ...(role ? { role } : {}),
     };
 
+    // Recomendación: usa un cliente con service_role para BD en este endpoint
     const { data: prof, error: pErr } = await supabase
       .from('profiles')
       .upsert(profileRow, { onConflict: 'id' })
@@ -133,7 +137,8 @@ router.post("/users/upsert", async (req, res) => {
         email: authUser.email,
         username: prof?.username ?? '',
         role: prof?.role ?? 'user',
-        email_confirmed_at: authUser.email_confirmed_at || null, // muestra timestamp confirmado
+        // Lo correcto es email_confirmed_at. confirmed_at es generada.
+        email_confirmed_at: authUser.email_confirmed_at || null,
       },
     });
   } catch (err) {
