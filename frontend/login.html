@@ -7,7 +7,6 @@
 
   <link rel="stylesheet" href="./css/login.css" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.min.css" />
 </head>
 <body>
   <main class="login-root">
@@ -26,65 +25,19 @@
 
         <button type="submit" class="btn login-btn">Entrar</button>
       </form>
-      <p class="login-foot">¿No tienes usuario? Pide acceso al administrador.</p>
     </div>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-    import { showSuccess, showError } from "../components/alerts.js";
 
     const supabaseUrl = "https://cdmesdcgkcvogbgzqobt.supabase.co";
     const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
-
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     const form = document.getElementById('loginForm');
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-
-      console.log("Intentando login con:", { email, password });
-
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        console.error("Error detallado de login:", error);
-        showError("Error al iniciar sesión", error.message);
-        return;
-      }
-
-      console.log("Login exitoso, data:", data);
-
-      // Guardamos sesión en localStorage
-      localStorage.setItem("sb_session", JSON.stringify(data.session));
-      localStorage.setItem("fantasyEmail", email);
-
-      // Consultar rol desde profiles
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, username')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profileError) {
-        console.warn("No se encontró perfil, usando rol por defecto 'user'", profileError);
-      }
-
-      const role = profile?.role || 'user';
-      console.log("Rol detectado:", role);
-
-      showSuccess("¡Bienvenido!", `Inicio de sesión exitoso. Rol: ${role}`, () => {
-        // Redirigir a index.html u otra página según rol
-        window.location.href = "/index.html";
-      });
-    });
-
-		// REDIRECCIÓN AUTOMÁTICA SI YA HAY SESIÓN
+    // Redirección automática si ya hay sesión
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -92,7 +45,35 @@
       }
     })();
 
-  </script>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error("Error de login:", error);
+        alert("Credenciales inválidas");
+        return;
+      }
+
+      // Guardamos sesión en localStorage
+      const { data: sessionData } = await supabase.auth.getSession();
+      localStorage.setItem("sb_session", JSON.stringify(sessionData.session));
+      localStorage.setItem("fantasyEmail", email);
+
+      // Opcional: consultar rol
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, username')
+        .eq('id', data.user.id)
+        .single();
+      localStorage.setItem("fantasyRole", profile?.role || 'user');
+
+      // Redirigir al sitio principal
+      window.location.href = "/index.html";
+    });
+  </script>
 </body>
 </html>
