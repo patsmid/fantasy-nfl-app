@@ -1,17 +1,23 @@
 // extras.routes.js
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
-import { supabase as dbClient } from './supabaseClient.js'; // tu cliente actual para BD (probablemente service_role)
 
 const router = express.Router();
 
-// Cliente SOLO para validar tokens (usar ANON KEY, NO service_role)
-const supabaseAuth = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const { SUPABASE_URL, SUPABASE_ANON_KEY, DEBUG_AUTH } = process.env;
 
-// --- Middleware de autenticación ---
+/**
+ * Cliente SOLO para validar tokens (ANON KEY, sin JWT de usuario).
+ * No usar este cliente para queries con RLS, solo para auth.getUser(token).
+ */
+const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/**
+ * Middleware de autenticación
+ * - Valida el Bearer token
+ * - Crea un cliente de BD por-request (req.db) con Authorization: Bearer <user_token>
+ *   para que RLS (auth.uid(), auth.jwt()) funcione.
+ */
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers['authorization'] || '';
@@ -21,7 +27,27 @@ async function requireAuth(req, res, next) {
     const { data, error } = await supabaseAuth.auth.getUser(token);
     if (error || !data?.user) return res.status(401).json({ error: 'Invalid token' });
 
-    req.user = data.user; // { id, email, ... }
+    req.user = data.user;
+
+    // Cliente de BD por-request “impersonando” al usuario:
+    req.db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
+    // Debug opcional del contexto que verá RLS en Postgres
+    if (DEBUG_AUTH === '1') {
+      try {
+        const dbg = await req.db.rpc('debug_ctx'); // crea la función con el SQL más abajo (opcional)
+        console.log('🔎 RLS ctx:', dbg.data);
+      } catch (e) {
+        console.log('ℹ️ debug_ctx no disponible:', e.message);
+      }
+    }
+
     return next();
   } catch (err) {
     console.error('Auth error:', err);
@@ -29,44 +55,46 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// (Opcional) helper: ¿es admin?
+// ¿Es admin? (ajústalo a tu modelo; aquí por email)
+const ADMIN_EMAILS = new Set(['admin@fantasy.com']);
 function isAdmin(user) {
-  // Si manejas roles en auth.user_metadata o en profiles:
-  const role = user?.user_metadata?.role || user?.role; // ajusta a tu modelo
-  return role === 'admin';
+  return !!user?.email && ADMIN_EMAILS.has(user.email.toLowerCase());
 }
 
-// Usa el cliente de BD
-const supabase = dbClient;
-
-// APLICA AUTH A TODO LO DE EXTRAS
+// Aplica auth a todo
 router.use(requireAuth);
 
 // ------------------ LINKS ------------------
-// GET: solo del usuario (o todos si admin y así lo decides)
 router.get('/links', async (req, res) => {
-  console.log('👉 req.user', req.user);
+  try {
+    console.log('👉 req.user', { id: req.user.id, email: req.user.email });
 
-  let q = supabase.from('links').select('*').order('updated_at', { ascending: false });
-  if (!isAdmin(req.user)) {
-    console.log('Filtrando por user_id:', req.user.id);
-    q = q.eq('user_id', req.user.id);
-  } else {
-    console.log('Usuario admin, sin filtro user_id');
-  }
+    let q = req.db.from('links').select('*').order('updated_at', { ascending: false });
 
-  const { data, error } = await q;
-  if (error) {
-    console.error('❌ Supabase error:', error);
-    return res.status(500).json({ error: error.message || error });
+    // Si no eres admin, filtra por dueño (además de la RLS)
+    if (!isAdmin(req.user)) {
+      console.log('Filtrando por user_id:', req.user.id);
+      q = q.eq('user_id', req.user.id);
+    } else {
+      console.log('Usuario admin, sin filtro user_id (RLS debe permitirlo)');
+    }
+
+    const { data, error } = await q;
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      return res.status(500).json({ error: error.message || error });
+    }
+    console.log('✅ Query result:', data);
+    return res.json({ success: true, data });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Unexpected error' });
   }
-  console.log('✅ Query result:', data);
-  res.json({ success: true, data });
 });
 
 router.post('/links', async (req, res) => {
   const { title, url, description } = req.body;
-  const { data, error } = await supabase
+  const { data, error } = await req.db
     .from('links')
     .insert({ title, url, description, user_id: req.user.id })
     .select();
@@ -79,7 +107,7 @@ router.put('/links/:id', async (req, res) => {
   const { title, url, description } = req.body;
   const upd = { title, url, description, updated_at: new Date(), user_id: req.user.id };
 
-  let q = supabase.from('links').update(upd).eq('id', id);
+  let q = req.db.from('links').update(upd).eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { data, error } = await q.select();
@@ -89,7 +117,7 @@ router.put('/links/:id', async (req, res) => {
 
 router.delete('/links/:id', async (req, res) => {
   const { id } = req.params;
-  let q = supabase.from('links').delete().eq('id', id);
+  let q = req.db.from('links').delete().eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { error } = await q;
@@ -99,7 +127,7 @@ router.delete('/links/:id', async (req, res) => {
 
 // ------------------ NOTES ------------------
 router.get('/notes', async (req, res) => {
-  const q = supabase.from('notes').select('*').order('updated_at', { ascending: false });
+  const q = req.db.from('notes').select('*').order('updated_at', { ascending: false });
   const { data, error } = await (isAdmin(req.user) ? q : q.eq('user_id', req.user.id));
   if (error) return res.status(500).json({ error: error.message || error });
   res.json({ success: true, data });
@@ -107,7 +135,7 @@ router.get('/notes', async (req, res) => {
 
 router.post('/notes', async (req, res) => {
   const { title, content } = req.body;
-  const { data, error } = await supabase
+  const { data, error } = await req.db
     .from('notes')
     .insert({ title, content, user_id: req.user.id, updated_at: new Date() })
     .select();
@@ -120,7 +148,7 @@ router.put('/notes/:id', async (req, res) => {
   const { title, content } = req.body;
   const upd = { title, content, user_id: req.user.id, updated_at: new Date() };
 
-  let q = supabase.from('notes').update(upd).eq('id', id);
+  let q = req.db.from('notes').update(upd).eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { data, error } = await q.select();
@@ -130,7 +158,7 @@ router.put('/notes/:id', async (req, res) => {
 
 router.delete('/notes/:id', async (req, res) => {
   const { id } = req.params;
-  let q = supabase.from('notes').delete().eq('id', id);
+  let q = req.db.from('notes').delete().eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { error } = await q;
@@ -140,7 +168,7 @@ router.delete('/notes/:id', async (req, res) => {
 
 // ------------------ TASKS ------------------
 router.get('/tasks', async (req, res) => {
-  const q = supabase.from('tasks').select('*').order('updated_at', { ascending: false });
+  const q = req.db.from('tasks').select('*').order('updated_at', { ascending: false });
   const { data, error } = await (isAdmin(req.user) ? q : q.eq('user_id', req.user.id));
   if (error) return res.status(500).json({ error: error.message || error });
   res.json({ success: true, data });
@@ -148,7 +176,7 @@ router.get('/tasks', async (req, res) => {
 
 router.post('/tasks', async (req, res) => {
   const { task } = req.body;
-  const { data, error } = await supabase
+  const { data, error } = await req.db
     .from('tasks')
     .insert({ task, completed: false, user_id: req.user.id, updated_at: new Date() })
     .select();
@@ -161,7 +189,7 @@ router.put('/tasks/:id', async (req, res) => {
   const { task, completed } = req.body;
   const upd = { task, completed, user_id: req.user.id, updated_at: new Date() };
 
-  let q = supabase.from('tasks').update(upd).eq('id', id);
+  let q = req.db.from('tasks').update(upd).eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { data, error } = await q.select();
@@ -171,7 +199,7 @@ router.put('/tasks/:id', async (req, res) => {
 
 router.delete('/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  let q = supabase.from('tasks').delete().eq('id', id);
+  let q = req.db.from('tasks').delete().eq('id', id);
   if (!isAdmin(req.user)) q = q.eq('user_id', req.user.id);
 
   const { error } = await q;
