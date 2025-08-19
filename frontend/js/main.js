@@ -1,9 +1,8 @@
-// main.js (ESM)
-
 // =============================
 // Config
 // =============================
 const BACKEND_BASE = 'https://fantasy-nfl-backend.onrender.com';
+const ADMIN_BASE = `${BACKEND_BASE}/admin`; // 👈 añadimos prefijo real
 
 // =============================
 // Utils
@@ -44,20 +43,10 @@ function resolveInitialView() {
 // =============================
 // Backend
 // =============================
-async function fetchMenu({ username, roleFallback = 'user' } = {}) {
-  // 1) Primero intentamos por username
-  if (username) {
-    let res = await fetch(`${BACKEND_BASE}/admin/menu?username=${encodeURIComponent(username)}`);
-    // 404 -> usuario no encontrado: pedimos menú por rol (seguro)
-    if (res.status === 404) {
-      res = await fetch(`${BACKEND_BASE}/admin/menu?role=${encodeURIComponent(roleFallback)}`);
-    }
-    if (!res.ok) throw new Error('No se pudo obtener el menú');
-    return res.json();
-  }
-
-  // 2) Sin username: menú por rol
-  const res = await fetch(`${BACKEND_BASE}/admin/menu?role=${encodeURIComponent(roleFallback)}`);
+async function fetchMenu(username) {
+  if (!username) throw new Error('No se especificó username');
+  // 👇 corregido para usar el prefijo /admin
+  const res = await fetch(`${ADMIN_BASE}/menu/${encodeURIComponent(username)}`);
   if (!res.ok) throw new Error('No se pudo obtener el menú');
   return res.json();
 }
@@ -70,7 +59,7 @@ async function loadSidebar(username, initialView = 'config') {
   const sidebarMobile = document.getElementById('sidebarMobileContent');
 
   try {
-    const menuTree = await fetchMenu({ username, roleFallback: 'user' });
+    const menuTree = await fetchMenu(username);
 
     const sidebarHTML = renderSidebar(menuTree);
     if (sidebar) sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
@@ -168,13 +157,11 @@ function activateSidebarLinks(username) {
 async function loadView(viewName, username) {
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    // Pasa username a la vista (opcional según cada vista)
     if (typeof viewModule.default === 'function') {
       await viewModule.default(username);
     }
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
-    // Aquí podrías mostrar una alerta visual si quieres
   }
 }
 
@@ -184,7 +171,7 @@ function setActiveSidebarItem(viewName) {
   });
 }
 
-// Soporte de navegación con botones atrás/adelante
+// Navegación con back/forward
 window.addEventListener('popstate', () => {
   const view = resolveInitialView();
   const username = resolveInitialUsername();
@@ -193,13 +180,12 @@ window.addEventListener('popstate', () => {
 });
 
 // =============================
-// INICIO - Carga inicial
+// INICIO
 // =============================
 document.addEventListener('DOMContentLoaded', async () => {
   const username = resolveInitialUsername();
   const view = resolveInitialView();
 
-  // Guarda username para siguientes visitas
   localStorage.setItem('username', username);
 
   await loadSidebar(username, view);
@@ -226,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           sidebarIcon.classList.remove('bi-arrow-left');
           sidebarIcon.classList.add('bi-list');
         }
-        toggleDesktopBtn.classList.remove('sidebar-open'); // sidebar cerrado
+        toggleDesktopBtn.classList.remove('sidebar-open');
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
@@ -235,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           sidebarIcon.classList.remove('bi-list');
           sidebarIcon.classList.add('bi-arrow-left');
         }
-        toggleDesktopBtn.classList.add('sidebar-open'); // sidebar abierto, clase naranja
+        toggleDesktopBtn.classList.add('sidebar-open');
       }
     });
   }

@@ -186,7 +186,7 @@ app.use('/lineup', lineupRouter);
 app.use('/projections', projectionsRouter);
 app.use('/extras', extrasRouter);
 app.use('/rankings', rankingsRouter);
-app.use('/admin', adminRouter);
+app.use('/api/admin', adminRouter);
 app.use('/manual', manualRouter);
 
 // 🌐 Default

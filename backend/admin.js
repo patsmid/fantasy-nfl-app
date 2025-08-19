@@ -5,13 +5,11 @@ const router = express.Router();
 
 // --- helpers ---
 function isValidUsername(username = '') {
-  // ajusta el patrón a tu gusto (solo letras, números, punto, guion y guion bajo)
   return /^[a-zA-Z0-9._-]{3,32}$/.test(username);
 }
 
 async function resolveRole({ username, roleFallback = 'user' }) {
   if (!username) return { role: roleFallback, from: 'fallback' };
-
   if (!isValidUsername(username)) {
     return { error: 'USERNAME_INVALID', status: 400 };
   }
@@ -29,18 +27,16 @@ async function resolveRole({ username, roleFallback = 'user' }) {
   return { role: data.role, from: 'profiles' };
 }
 
-// ------------------ MENÚ (dinámico por rol/username) ------------------
+// ------------------ MENÚ ------------------
 async function handleMenu(req, res) {
   try {
-    const username = req.query.username?.trim();
-    const roleQuery = req.query.role?.trim(); // compat
+    const username = req.query.username?.trim() || req.params.username?.trim();
+    const roleQuery = req.query.role?.trim();
     const roleDefault = roleQuery || 'user';
 
     const resolved = await resolveRole({ username, roleFallback: roleDefault });
     if (resolved.error) {
-      if (resolved.status === 400) return res.status(400).json({ error: 'Username inválido' });
-      if (resolved.status === 404) return res.status(404).json({ error: 'Usuario no encontrado' });
-      return res.status(500).json({ error: 'No se pudo resolver el rol' });
+      return res.status(resolved.status).json({ error: resolved.error });
     }
 
     const role = resolved.role;
@@ -51,15 +47,13 @@ async function handleMenu(req, res) {
       .eq('enabled', true)
       .order('display_order', { ascending: true });
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    if (error) return res.status(500).json({ error: error.message });
 
     const menuItems = (data || []).filter(item => Array.isArray(item.roles) && item.roles.includes(role));
 
+    // Construir árbol
     const map = new Map();
     const tree = [];
-
     for (const item of menuItems) map.set(item.id, { ...item, children: [] });
     for (const item of menuItems) {
       if (item.parent_id) {
@@ -77,14 +71,9 @@ async function handleMenu(req, res) {
   }
 }
 
-router.get('/menu', handleMenu);
-
-// Alias compatible con /admin/menu/:username
-router.get('/menu/:username', (req, res) => {
-  req.query.username = req.params.username?.trim();
-  return handleMenu(req, res);
-});
-
+// ---- Endpoints de menú ----
+router.get('/menu', handleMenu);            // /api/admin/menu?username=foo
+router.get('/menu/:username', handleMenu); // /api/admin/menu/foo
 
 // ------------------ CONFIG (sin cambios funcionales) ------------------
 router.get('/menu/config', async (req, res) => {
@@ -220,8 +209,6 @@ router.post('/menu/order', async (req, res) => {
   }
 });
 
-// ------------------ Endpoints auxiliares ------------------
-// Verificar/obtener rol por username (útil para /:username antes de pedir menú)
 router.get('/user/resolve', async (req, res) => {
   const username = req.query.username?.trim();
   if (!username) return res.status(400).json({ error: 'Username requerido' });
@@ -237,9 +224,6 @@ router.get('/user/resolve', async (req, res) => {
   return res.json(data);
 });
 
-// 404 JSON para rutas no encontradas en este router
-router.use((req, res) => {
-  res.status(404).json({ error: 'Not Found' });
-});
+router.use((req, res) => res.status(404).json({ error: 'Not Found' }));
 
 export default router;
