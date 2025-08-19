@@ -1,4 +1,5 @@
 import { showSuccess, showError, showConfirm } from '../components/alerts.js';
+import { supabase } from '../components/supabaseClient.js';
 
 // ==========================
 // utils
@@ -218,19 +219,49 @@ function setActiveSidebarItem(viewName) {
 // init
 // ==========================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Intentamos obtener usuario de localStorage
+  // Recuperamos username de localStorage
   const username = localStorage.getItem('fantasyUser');
 
   if (!username) {
-    // Si no hay usuario → mandamos al login
-    // Si ya estás en login.html no redirigimos para evitar bucle
     if (!window.location.pathname.endsWith('/login.html')) {
       window.location.href = '/login.html';
     }
     return;
   }
 
-  // Cargamos sidebar con el usuario
+  // 🚀 Obtenemos el usuario actual desde Supabase Auth
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    console.error('Error obteniendo usuario de Supabase:', error);
+    localStorage.removeItem('fantasyUser');
+    window.location.href = '/login.html';
+    return;
+  }
+
+  // Guardamos también el user_id en localStorage para usarlo globalmente
+  localStorage.setItem('fantasyUserId', user.id);
+
+  const { data: existingProfiles, error: fetchError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  let roleToSave = 'user';
+
+  if (existingProfiles && existingProfiles.role) {
+    roleToSave = existingProfiles.role; // 👈 respetamos rol existente
+  }
+
+  // Upsert del perfil
+  const { error: upsertError } = await supabase.from('profiles').upsert({
+    id: user.id,
+    username: username,
+    role: roleToSave
+  });
+
+  // Cargamos sidebar con el username
   await loadSidebar(username);
 
   // Botón de toggle para escritorio
