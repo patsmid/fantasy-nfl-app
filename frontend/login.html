@@ -61,13 +61,28 @@
         <button type="submit" class="login-btn" id="loginBtn">
           <span class="btn-text">Entrar</span>
         </button>
-
-        <div class="login-foot">
-          <a href="/" style="color:inherit;text-decoration:none;">Volver al inicio</a>
-        </div>
       </form>
     </div>
   </main>
+
+	<main class="login-root">
+		<div class="login-card">
+			<div class="login-brand">🏈 <span class="brand-text">Fantasy NFL</span></div>
+
+			<h1 class="login-title">Bienvenido</h1>
+			<p class="login-sub">Introduce tus credenciales para continuar</p>
+
+			<form id="loginForm" class="login-form" autocomplete="off">
+				<label for="email" class="visually-hidden">Email</label>
+				<input id="email" name="email" type="email" placeholder="usuario@ejemplo.com" required autocomplete="email" />
+
+				<label for="password" class="visually-hidden">Password</label>
+				<input id="password" name="password" type="password" placeholder="••••••" required autocomplete="current-password" />
+
+				<button type="submit" class="btn login-btn">Entrar</button>
+			</form>
+		</div>
+	</main>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
