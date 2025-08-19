@@ -1,5 +1,3 @@
-// sidebar_admin.js
-
 import { showSuccess, showError } from '../../components/alerts.js';
 
 let menuItems = [];
@@ -125,7 +123,7 @@ function setupModal() {
 
 async function loadMenuItems() {
   try {
-    const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/admin/menu/config');
+    const res = await fetch('https://fantasy-nfl-backend.onrender.com/api/admin/config/menu');
     if (!res.ok) throw new Error('Error cargando menú');
     menuItems = await res.json();
     renderMenuList();

@@ -76,7 +76,7 @@ router.get('/menu', handleMenu);            // /api/admin/menu?username=foo
 router.get('/menu/:username', handleMenu); // /api/admin/menu/foo
 
 // ------------------ CONFIG (sin cambios funcionales) ------------------
-router.get('/menu/config', async (req, res) => {
+router.get('/config/menu', async (req, res) => {
   const { data, error } = await supabase
     .from('sidebar_menu')
     .select('*')
