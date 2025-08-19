@@ -86,43 +86,37 @@
 		    ];
 
 		    for (const u of testUsers) {
-		      // Registramos en Auth
-		      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-		        email: u.email,
-		        password: u.password
-		      });
-
-		      if (signUpError && signUpError.message.includes("already registered")) {
-		        console.warn(`Usuario ${u.email} ya existe, se omitirá creación Auth.`);
-		        // Obtener ID existente del usuario
-		        const { data: existingUser, error: fetchError } = await supabase
-		          .from('profiles')
-		          .select('id')
-		          .eq('email', u.email)
-		          .single();
-		        if (!existingUser) {
-		          console.warn(`No se encontró perfil existente para ${u.email}, se omitirá.`);
+		      // Verificar si el usuario ya existe en Auth
+		      let { data: existingAuthUser } = await supabase.auth.admin.listUsers({ filter: `email=eq.${u.email}` });
+		      let userId;
+		      if (existingAuthUser.length > 0) {
+		        console.log(`Usuario Auth existente: ${u.email}`);
+		        userId = existingAuthUser[0].id;
+		      } else {
+		        // Crear usuario en Auth
+		        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+		          email: u.email,
+		          password: u.password
+		        });
+		        if (signUpError) {
+		          console.error(`Error creando Auth user ${u.email}:`, signUpError.message);
 		          continue;
 		        }
-		        u.id = existingUser.id;
-		      } else if (signUpError) {
-		        console.error(signUpError);
-		        continue;
-		      } else {
-		        u.id = signUpData.user.id;
+		        userId = signUpData.user.id;
+		        console.log(`Usuario Auth creado: ${u.email}`);
 		      }
 
-		      // Verificamos si el perfil ya existe
+		      // Verificar si el perfil ya existe
 		      const { data: existingProfile } = await supabase
 		        .from('profiles')
 		        .select('id')
-		        .eq('id', u.id)
+		        .eq('id', userId)
 		        .single();
 
 		      if (!existingProfile) {
-		        // Insertamos perfil
+		        // Insertar perfil con todos los campos obligatorios
 		        await supabase.from('profiles').insert({
-		          id: u.id,
+		          id: userId,
 		          username: u.username,
 		          role: u.role,
 		          email: u.email
@@ -133,12 +127,13 @@
 		      }
 		    }
 
-		    showSuccess("Usuarios de prueba", "Se han creado / verificado admin y user", null);
+		    showSuccess("Usuarios de prueba", "Se han creado/verificado admin y user", null);
 		  } catch (err) {
 		    console.error(err);
 		    showError("Error creando usuarios", err.message || err);
 		  }
 		});
+
   </script>
 </body>
 </html>
