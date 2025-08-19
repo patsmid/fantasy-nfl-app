@@ -16,7 +16,7 @@ export default async function () {
 function renderTemplate() {
   return `
     <h2>Administración del Menú</h2>
-    <button class="btn btn-accent mb-3" id="addMenuBtn">➕ Agregar Ítem</button>
+    <button class="btn btn-accent mb-3" id="addMenuBtn"><i class="bi bi-plus-circle me-1"></i> Agregar</button>
     <ul id="menuList" class="list-group mb-5"></ul>
     ${renderModal()}
   `;
