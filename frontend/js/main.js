@@ -10,11 +10,6 @@ function getUsernameFromURL() {
   return path.split('/')[0] || '';
 }
 
-function showError(message) {
-  console.error(message);
-  alert(message);
-}
-
 // ==========================
 // sidebar
 // ==========================
