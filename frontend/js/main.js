@@ -1,43 +1,40 @@
-import { showSuccess, showError, showConfirm } from '../components/alerts.js';
+// main.js
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { showSuccess, showError, showConfirm } from "../components/alerts.js";
 
 // ==========================
-// utils
+// Supabase client
 // ==========================
-function getUsernameFromURL() {
-  // Quita los slashes iniciales
-  const path = window.location.pathname.replace(/^\/+/, '');
-  // Devuelve solo la primera parte (por si luego usas subrutas)
-  return path.split('/')[0] || '';
-}
+const supabase = createClient("https://cdmesdcgkcvogbgzqobt.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8");
 
 // ==========================
 // sidebar
 // ==========================
-async function loadSidebar(username) {
-  const sidebar = document.getElementById('sidebar');
-  const sidebarMobile = document.getElementById('sidebarMobileContent');
+async function loadSidebar(username, role) {
+  const sidebar = document.getElementById("sidebar");
+  const sidebarMobile = document.getElementById("sidebarMobileContent");
 
   try {
-    const response = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`);
+    const response = await fetch(
+      `https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`
+    );
 
-    // 🚨 Manejo de status inválidos (400 / 404)
     if (!response.ok) {
       if (response.status === 400 || response.status === 404) {
-        showError('Usuario inválido. Por favor ingresa un usuario válido.');
-        localStorage.removeItem('fantasyUser');
-        window.location.href = '/login.html';
+        showError("Usuario inválido. Por favor ingresa un usuario válido.");
+        await logout();
         return;
       }
-      throw new Error(`No se pudo obtener el menú (status: ${response.status})`);
+      throw new Error(
+        `No se pudo obtener el menú (status: ${response.status})`
+      );
     }
 
     const menuTree = await response.json();
 
-    // 🚨 Manejo de error explícito en el JSON
     if (menuTree.error === "USERNAME_INVALID") {
-      showError('Usuario inválido. Por favor intenta de nuevo.');
-      localStorage.removeItem('fantasyUser');
-      window.location.href = '/login.html';
+      showError("Usuario inválido. Por favor intenta de nuevo.");
+      await logout();
       return;
     }
 
@@ -54,7 +51,7 @@ async function loadSidebar(username) {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem">
             <div>
               <div style="font-weight:600">${username}</div>
-              <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary)">${role}</div>
             </div>
             <button id="logoutBtn" class="btn btn-accent" style="white-space:nowrap">Cerrar sesión</button>
           </div>
@@ -70,7 +67,7 @@ async function loadSidebar(username) {
           <div style="display:flex;gap:0.75rem;align-items:center;justify-content:space-between">
             <div>
               <div style="font-weight:600">${username}</div>
-              <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary)">${role}</div>
             </div>
             <button id="logoutBtnMobile" class="btn btn-accent">Cerrar sesión</button>
           </div>
@@ -80,44 +77,36 @@ async function loadSidebar(username) {
 
     activateSidebarLinks();
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('fantasyUser');
-        window.location.href = '/login.html';
-      });
-    }
-    const logoutBtnMobile = document.getElementById('logoutBtnMobile');
-    if (logoutBtnMobile) {
-      logoutBtnMobile.addEventListener('click', () => {
-        localStorage.removeItem('fantasyUser');
-        window.location.href = '/login.html';
-      });
-    }
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+    const logoutBtnMobile = document.getElementById("logoutBtnMobile");
+    if (logoutBtnMobile) logoutBtnMobile.addEventListener("click", logout);
 
     if (Array.isArray(menuTree) && menuTree.length > 0) {
-      const firstView = menuTree[0].view || (menuTree[0].children?.[0]?.view) || 'config';
+      const firstView =
+        menuTree[0].view || menuTree[0].children?.[0]?.view || "config";
       await loadView(firstView);
       setActiveSidebarItem(firstView);
     } else {
-      console.warn('Menu vacío o no válido recibido del backend.');
-      const content = document.getElementById('content-container');
-      if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
+      console.warn("Menu vacío o no válido recibido del backend.");
+      const content = document.getElementById("content-container");
+      if (content)
+        content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
     }
-
   } catch (error) {
-    console.error('Error cargando sidebar:', error);
-    showError('Error cargando menú. Revisa la consola para más detalles.');
+    console.error("Error cargando sidebar:", error);
+    showError("Error cargando menú. Revisa la consola para más detalles.");
   }
 }
 
 function renderSidebar(menuTree) {
-  const ul = document.createElement('ul');
-  ul.className = 'nav flex-column flock-nav';
+  const ul = document.createElement("ul");
+  ul.className = "nav flex-column flock-nav";
 
   for (const item of menuTree) {
-    const li = document.createElement('li');
-    li.className = 'nav-item';
+    const li = document.createElement("li");
+    li.className = "nav-item";
 
     const hasChildren = item.children && item.children.length > 0;
 
@@ -129,13 +118,17 @@ function renderSidebar(menuTree) {
           <i class="bi bi-caret-down-fill small"></i>
         </a>
         <ul class="nav flex-column ms-3 collapse" id="${submenuId}">
-          ${item.children.map(child => `
+          ${item.children
+            .map(
+              (child) => `
             <li class="nav-item">
               <a href="#" class="nav-link" data-view="${child.view}">
                 <i class="bi ${child.icon}"></i> <span>${child.title}</span>
               </a>
             </li>
-          `).join('')}
+          `
+            )
+            .join("")}
         </ul>
       `;
     } else {
@@ -154,34 +147,33 @@ function renderSidebar(menuTree) {
 }
 
 function activateSidebarLinks() {
-  // Seleccionamos los links del sidebar desktop y mobile
-  const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
-  links.forEach(link => {
-    // quitamos listeners previos por si se vuelve a renderizar
+  const links = document.querySelectorAll(
+    "#sidebar [data-view], #sidebarMobileContent [data-view]"
+  );
+  links.forEach((link) => {
     link.replaceWith(link.cloneNode(true));
   });
 
-  // re-query para los clones
-  const freshLinks = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
-  freshLinks.forEach(link => {
-    link.addEventListener('click', async (e) => {
+  const freshLinks = document.querySelectorAll(
+    "#sidebar [data-view], #sidebarMobileContent [data-view]"
+  );
+  freshLinks.forEach((link) => {
+    link.addEventListener("click", async (e) => {
       e.preventDefault();
-      const view = link.getAttribute('data-view');
+      const view = link.getAttribute("data-view");
       await loadView(view);
       setActiveSidebarItem(view);
 
-      // Cerrar offcanvas si está abierto (en móvil)
-      const sidebarMobileEl = document.getElementById('sidebarMobile');
+      const sidebarMobileEl = document.getElementById("sidebarMobile");
       const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarMobileEl);
       if (bsOffcanvas) bsOffcanvas.hide();
     });
   });
 
-  // Botón hamburguesa para móvil
-  const toggleBtn = document.getElementById('toggle-sidebar');
+  const toggleBtn = document.getElementById("toggle-sidebar");
   if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      const offcanvas = new bootstrap.Offcanvas('#sidebarMobile');
+    toggleBtn.addEventListener("click", () => {
+      const offcanvas = new bootstrap.Offcanvas("#sidebarMobile");
       offcanvas.show();
     });
   }
@@ -194,77 +186,97 @@ async function loadView(viewName) {
   if (!viewName) return;
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    if (viewModule && typeof viewModule.default === 'function') {
+    if (viewModule && typeof viewModule.default === "function") {
       await viewModule.default();
     } else {
       console.warn(`Módulo de vista "${viewName}" sin export default() válido.`);
     }
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
-    // Opcional: mostrar alerta o contenido fallback
-    const content = document.getElementById('content-container');
-    if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No se pudo cargar la vista "${viewName}". Revisa la consola.</div></div>`;
+    const content = document.getElementById("content-container");
+    if (content)
+      content.innerHTML = `<div class="container py-4"><div class="card p-3">No se pudo cargar la vista "${viewName}". Revisa la consola.</div></div>`;
   }
 }
 
 function setActiveSidebarItem(viewName) {
-  // Activamos el link en desktop y mobile
-  document.querySelectorAll('[data-view]').forEach(link => {
-    link.classList.toggle('active', link.getAttribute('data-view') === viewName);
+  document.querySelectorAll("[data-view]").forEach((link) => {
+    link.classList.toggle("active", link.getAttribute("data-view") === viewName);
   });
+}
+
+// ==========================
+// auth helpers
+// ==========================
+async function logout() {
+  await supabase.auth.signOut();
+  localStorage.clear();
+  window.location.href = "/login.html";
 }
 
 // ==========================
 // init
 // ==========================
-document.addEventListener('DOMContentLoaded', async () => {
-  // Intentamos obtener usuario de localStorage
-  const username = localStorage.getItem('fantasyUser');
-
-  if (!username) {
-    // Si no hay usuario → mandamos al login
-    // Si ya estás en login.html no redirigimos para evitar bucle
-    if (!window.location.pathname.endsWith('/login.html')) {
-      window.location.href = '/login.html';
+document.addEventListener("DOMContentLoaded", async () => {
+  const { data, error } = await supabase.auth.getSession();
+  if (!data.session) {
+    if (!window.location.pathname.endsWith("/login.html")) {
+      window.location.href = "/login.html";
     }
     return;
   }
 
-  // Cargamos sidebar con el usuario
-  await loadSidebar(username);
+  // obtenemos perfil
+  const { data: profile, error: errProfile } = await supabase
+    .from("profiles")
+    .select("username, role")
+    .eq("id", data.session.user.id)
+    .single();
+
+  if (errProfile) {
+    showError("No se pudo cargar el perfil");
+    console.error(errProfile);
+    await logout();
+    return;
+  }
+
+  const username = profile.username;
+  const role = profile.role;
+
+  await loadSidebar(username, role);
 
   // Botón de toggle para escritorio
-  const toggleDesktopBtn = document.getElementById('toggle-sidebar-desktop');
-  const sidebarIcon = document.getElementById('sidebar-icon');
+  const toggleDesktopBtn = document.getElementById("toggle-sidebar-desktop");
+  const sidebarIcon = document.getElementById("sidebar-icon");
 
   if (toggleDesktopBtn) {
-    toggleDesktopBtn.addEventListener('click', () => {
-      const sidebar = document.getElementById('sidebar');
-      const content = document.getElementById('content-container');
-      const topbar = document.querySelector('.navbar.flock-topbar');
+    toggleDesktopBtn.addEventListener("click", () => {
+      const sidebar = document.getElementById("sidebar");
+      const content = document.getElementById("content-container");
+      const topbar = document.querySelector(".navbar.flock-topbar");
 
-      sidebar.classList.toggle('sidebar-hidden');
+      sidebar.classList.toggle("sidebar-hidden");
 
-      if (sidebar.classList.contains('sidebar-hidden')) {
-        content.style.marginLeft = '0';
-        topbar.style.left = '0';
+      if (sidebar.classList.contains("sidebar-hidden")) {
+        content.style.marginLeft = "0";
+        topbar.style.left = "0";
 
         if (sidebarIcon) {
-          sidebarIcon.classList.remove('bi-arrow-left');
-          sidebarIcon.classList.add('bi-list');
+          sidebarIcon.classList.remove("bi-arrow-left");
+          sidebarIcon.classList.add("bi-list");
         }
 
-        toggleDesktopBtn.classList.remove('sidebar-open');
+        toggleDesktopBtn.classList.remove("sidebar-open");
       } else {
-        content.style.marginLeft = '250px';
-        topbar.style.left = '250px';
+        content.style.marginLeft = "250px";
+        topbar.style.left = "250px";
 
         if (sidebarIcon) {
-          sidebarIcon.classList.remove('bi-list');
-          sidebarIcon.classList.add('bi-arrow-left');
+          sidebarIcon.classList.remove("bi-list");
+          sidebarIcon.classList.add("bi-arrow-left");
         }
 
-        toggleDesktopBtn.classList.add('sidebar-open');
+        toggleDesktopBtn.classList.add("sidebar-open");
       }
     });
   }

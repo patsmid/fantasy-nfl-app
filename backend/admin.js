@@ -1,5 +1,5 @@
 import express from 'express';
-import { supabase } from './supabaseClient.js';
+import { supabase, supabaseAdmin } from './supabaseClient.js';
 
 const router = express.Router();
 
@@ -26,6 +26,159 @@ async function resolveRole({ username, roleFallback = 'user' }) {
 
   return { role: data.role, from: 'profiles' };
 }
+
+// ------------------ USUARIOS ------------------
+// === LISTAR USUARIOS ===
+// helpers
+function isValidRole(role) {
+  return role === 'admin' || role === 'user';
+}
+
+function strongRandomPassword(len = 16) {
+  // Node 18+
+  return require('crypto').randomBytes(len).toString('base64url').slice(0, len);
+}
+
+// === LISTAR USUARIOS (auth + profiles) ===
+router.get("/users", async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+    if (error) throw error;
+    const authUsers = data.users || [];
+
+    const ids = authUsers.map(u => u.id);
+    let profiles = [];
+    if (ids.length) {
+      const { data: profs, error: pErr } = await supabase
+        .from('profiles')
+        .select('id, username, role, email')
+        .in('id', ids);
+      if (pErr) throw pErr;
+      profiles = profs;
+    }
+
+    const byId = Object.fromEntries(profiles.map(p => [p.id, p]));
+    const merged = authUsers.map(u => ({
+      id: u.id,
+      email: u.email,
+      username: byId[u.id]?.username ?? '',
+      role: byId[u.id]?.role ?? 'user',
+    }));
+
+    return res.json({ users: merged });
+  } catch (err) {
+    console.error("Error listUsers:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// === CREAR / EDITAR USUARIO (auth + profiles) ===
+router.post("/users/upsert", async (req, res) => {
+  try {
+    const { id, email, password, username, role } = req.body;
+
+    if (!email) return res.status(400).json({ error: "Email requerido" });
+    if (username && !isValidUsername(username)) {
+      return res.status(400).json({ error: "USERNAME_INVALID" });
+    }
+    if (role && !isValidRole(role)) {
+      return res.status(400).json({ error: "ROLE_INVALID" });
+    }
+
+    let authUser;
+
+    if (id) {
+      // actualizar auth
+      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        email,
+        ...(password ? { password } : {}),
+      });
+      if (error) throw error;
+      authUser = data.user;
+    } else {
+      // crear auth
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: password || strongRandomPassword(),
+        email_confirm: true,
+      });
+      if (error) throw error;
+      authUser = data.user;
+    }
+
+    // upsert profiles
+    const profileRow = {
+      id: authUser.id,
+      email,
+      ...(username ? { username } : {}),
+      ...(role ? { role } : {}), // si no viene, no sobreescribes
+    };
+
+    const { data: prof, error: pErr } = await supabase
+      .from('profiles')
+      .upsert(profileRow, { onConflict: 'id' })
+      .select('id, username, role, email')
+      .single();
+    if (pErr) throw pErr;
+
+    return res.json({
+      user: {
+        id: authUser.id,
+        email: authUser.email,
+        username: prof?.username ?? '',
+        role: prof?.role ?? 'user',
+      }
+    });
+  } catch (err) {
+    console.error("Error upsertUser:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// === ELIMINAR USUARIO ===
+router.delete("/users/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleteUser:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// === RESETEAR CONTRASEÑA POR EMAIL ===
+router.post("/user/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: "Email y nueva contraseña requeridos" });
+    }
+
+    // Buscar usuario
+    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) throw listError;
+
+    const user = users?.users?.find((u) => u.email === email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Actualizar contraseña
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: newPassword,
+    });
+    if (error) throw error;
+
+    return res.json({ success: true, user: data.user });
+  } catch (err) {
+    console.error("Error reset-password:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // ------------------ MENÚ ------------------
 async function handleMenu(req, res) {

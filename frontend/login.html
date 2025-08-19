@@ -6,7 +6,6 @@
   <title>Fantasy NFL - Iniciar sesión</title>
 
   <link rel="stylesheet" href="./css/login.css" />
-  <!-- Bootstrap JS (si lo necesitas para otros componentes) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -15,11 +14,15 @@
       <div class="login-brand">🏈 <span class="brand-text">Fantasy NFL</span></div>
 
       <h1 class="login-title">Bienvenido</h1>
-      <p class="login-sub">Introduce tu usuario para continuar</p>
+      <p class="login-sub">Introduce tus credenciales para continuar</p>
 
       <form id="loginForm" class="login-form" autocomplete="off">
-        <label for="username" class="visually-hidden">Usuario</label>
-        <input id="username" name="username" type="text" placeholder="Ej: demo1" required autocomplete="username" />
+        <label for="email" class="visually-hidden">Email</label>
+        <input id="email" name="email" type="email" placeholder="usuario@ejemplo.com" required autocomplete="email" />
+
+        <label for="password" class="visually-hidden">Password</label>
+        <input id="password" name="password" type="password" placeholder="••••••" required autocomplete="current-password" />
+
         <button type="submit" class="btn login-btn">Entrar</button>
       </form>
 
@@ -27,25 +30,43 @@
     </div>
   </main>
 
-  <script>
-    // Submit del login
-    document.getElementById('loginForm').addEventListener('submit', (e) => {
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import { showSuccess, showError } from "../components/alerts.js";
+
+		const supabaseUrl = "https://cdmesdcgkcvogbgzqobt.supabase.co";
+	  const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
+	  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    const form = document.getElementById('loginForm');
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const username = document.getElementById('username').value.trim();
-      if (!username) {
-        alert('Ingresa un usuario válido');
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        showError("Error al iniciar sesión", error.message);
         return;
       }
-      // Guardamos en localStorage y llevamos al index
-      localStorage.setItem('fantasyUser', username);
-      window.location.href = '/index.html';
+
+      // Guardamos sesión
+      localStorage.setItem("sb_session", JSON.stringify(data.session));
+      localStorage.setItem("fantasyEmail", email);
+
+      showSuccess("¡Bienvenido!", "Inicio de sesión exitoso", () => {
+        window.location.href = "/index.html";
+      });
     });
 
-    // Si ya hay usuario, redirigimos automáticamente
-    (function autoRedirectIfLogged() {
-      const u = localStorage.getItem('fantasyUser');
-      if (u) {
-        window.location.href = '/index.html';
+    // Si ya hay sesión -> redirigir
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        window.location.href = "/index.html";
       }
     })();
   </script>
