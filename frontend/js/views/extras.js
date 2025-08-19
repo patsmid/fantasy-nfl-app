@@ -1,5 +1,8 @@
+// extras.js
+const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
+
 export default async function renderExtrasView() {
-  // Intentar importar los helpers de alerts; si falla, usar fallback simple
+  // --------- Alerts helpers (con fallback) ---------
   let showSuccess, showError, showConfirm;
   try {
     const alerts = await import('../../components/alerts.js');
@@ -7,19 +10,58 @@ export default async function renderExtrasView() {
     showError = alerts.showError;
     showConfirm = alerts.showConfirm;
   } catch (err) {
-    // Fallbacks simples para que la vista no rompa si no se pudo importar
     showError = (msg) => { console.error(msg); alert(msg); };
     showSuccess = (msg) => { console.log(msg); alert(msg); };
-    showConfirm = async ({ text }) => {
-      const ok = confirm(text || '¿Confirmar?');
-      return { isConfirmed: ok };
-    };
-    console.warn('No se pudo importar components/alerts.js — usando fallbacks.', err);
+    showConfirm = async ({ text }) => ({ isConfirmed: confirm(text || '¿Confirmar?') });
   }
 
+  // --------- Auth helpers ---------
+  async function getAccessToken() {
+    try {
+      // Intenta importar tu cliente de supabase del frontend
+      const mod = await import('../components/supabaseClient.js').catch(() => null);
+      const supa = mod?.supabase || window?.supabase;
+      if (!supa) return null;
+      const { data: { session } } = await supa.auth.getSession();
+      return session?.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function authedFetch(path, opts = {}) {
+    const token = await getAccessToken();
+    if (!token) {
+      showError('Debes iniciar sesión.');
+      window.location.hash = '#/login';
+      throw new Error('UNAUTHENTICATED');
+    }
+    const headers = new Headers(opts.headers || {});
+    headers.set('Authorization', `Bearer ${token}`);
+    if (opts.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+    if (res.status === 401 || res.status === 403) {
+      showError('Tu sesión expiró. Inicia sesión nuevamente.');
+      window.location.hash = '#/login';
+      throw new Error('UNAUTHORIZED');
+    }
+    return res;
+  }
+
+  // --------- Montaje de la vista ---------
   const content = document.getElementById('content-container');
   if (!content) {
     showError('No se encontró el contenedor de contenido.');
+    return;
+  }
+
+  // Verifica sesión antes de renderizar
+  const token = await getAccessToken();
+  if (!token) {
+    showError('Debes iniciar sesión.');
+    window.location.hash = '#/login';
     return;
   }
 
@@ -89,7 +131,7 @@ export default async function renderExtrasView() {
     ${renderTaskModal()}
   `;
 
-  // crear instancias de modal con elementos DOM (no pasar strings)
+  // Instancias Modals
   const linkModalEl = document.getElementById('linkModal');
   const noteModalEl = document.getElementById('noteModal');
   const taskModalEl = document.getElementById('taskModal');
@@ -97,169 +139,107 @@ export default async function renderExtrasView() {
   const modalNote = noteModalEl ? new bootstrap.Modal(noteModalEl) : null;
   const modalTask = taskModalEl ? new bootstrap.Modal(taskModalEl) : null;
 
-  // Helpers para obtener instancia segura
-  const getModalInstance = (el) => {
-    if (!el) return null;
-    return bootstrap.Modal.getOrCreateInstance(el);
-  };
+  const getModalInstance = (el) => (el ? bootstrap.Modal.getOrCreateInstance(el) : null);
 
-  // Botones "Agregar" (si existen)
-  const btnAddLink = document.getElementById('btn-add-link');
-  if (btnAddLink) {
-    btnAddLink.addEventListener('click', () => {
-      const form = document.getElementById('linkForm');
-      if (form) form.reset();
-      const idEl = document.getElementById('linkId');
-      if (idEl) idEl.value = '';
-      if (modalLink) modalLink.show();
-    });
-  }
+  // Botones Agregar
+  document.getElementById('btn-add-link')?.addEventListener('click', () => {
+    document.getElementById('linkForm')?.reset();
+    const idEl = document.getElementById('linkId'); if (idEl) idEl.value = '';
+    modalLink?.show();
+  });
 
-  const btnAddNote = document.getElementById('btn-add-note');
-  if (btnAddNote) {
-    btnAddNote.addEventListener('click', () => {
-      const form = document.getElementById('noteForm');
-      if (form) form.reset();
-      const idEl = document.getElementById('noteId');
-      if (idEl) idEl.value = '';
-      if (modalNote) modalNote.show();
-    });
-  }
+  document.getElementById('btn-add-note')?.addEventListener('click', () => {
+    document.getElementById('noteForm')?.reset();
+    const idEl = document.getElementById('noteId'); if (idEl) idEl.value = '';
+    modalNote?.show();
+  });
 
-  const btnAddTask = document.getElementById('btn-add-task');
-  if (btnAddTask) {
-    btnAddTask.addEventListener('click', () => {
-      const form = document.getElementById('taskForm');
-      if (form) form.reset();
-      const idEl = document.getElementById('taskId');
-      if (idEl) idEl.value = '';
-      if (modalTask) modalTask.show();
-    });
-  }
+  document.getElementById('btn-add-task')?.addEventListener('click', () => {
+    document.getElementById('taskForm')?.reset();
+    const idEl = document.getElementById('taskId'); if (idEl) idEl.value = '';
+    modalTask?.show();
+  });
 
-  // ---------------------------
-  // SUBMITS: Note, Task, Link
-  // ---------------------------
-  const noteForm = document.getElementById('noteForm');
-  if (noteForm) {
-    noteForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('noteId')?.value || '';
-      const title = (document.getElementById('noteTitle')?.value || '').trim();
-      const body = (document.getElementById('noteContent')?.value || '').trim();
+  // SUBMIT: Notas
+  document.getElementById('noteForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('noteId')?.value || '';
+    const title = (document.getElementById('noteTitle')?.value || '').trim();
+    const body = (document.getElementById('noteContent')?.value || '').trim();
 
-      try {
-        const method = id ? 'PUT' : 'POST';
-        const endpoint = id ? `/extras/notes/${id}` : '/extras/notes';
-        const res = await fetch(`https://fantasy-nfl-backend.onrender.com${endpoint}`, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content: body })
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Status ${res.status}: ${text}`);
-        }
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Error inesperado');
-        const inst = getModalInstance(noteModalEl);
-        if (inst) inst.hide();
-        showSuccess('Nota guardada correctamente');
-        await loadNotes();
-      } catch (err) {
-        showError('Error al guardar nota: ' + err.message);
-      }
-    });
-  }
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const endpoint = id ? `/extras/notes/${id}` : '/extras/notes';
+      const res = await authedFetch(endpoint, {
+        method,
+        body: JSON.stringify({ title, content: body })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Error inesperado');
+      getModalInstance(noteModalEl)?.hide();
+      showSuccess('Nota guardada correctamente');
+      await loadNotes();
+    } catch (err) {
+      showError('Error al guardar nota: ' + err.message);
+    }
+  });
 
-  const taskForm = document.getElementById('taskForm');
-  if (taskForm) {
-    taskForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('taskId')?.value || '';
-      const task = (document.getElementById('taskContent')?.value || '').trim();
-      try {
-        const method = id ? 'PUT' : 'POST';
-        const endpoint = id ? `/extras/tasks/${id}` : '/extras/tasks';
-        const res = await fetch(`https://fantasy-nfl-backend.onrender.com${endpoint}`, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task })
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Status ${res.status}: ${text}`);
-        }
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Error inesperado');
-        const inst = getModalInstance(taskModalEl);
-        if (inst) inst.hide();
-        showSuccess('Tarea guardada correctamente');
-        await loadTasks();
-      } catch (err) {
-        showError('Error al guardar tarea: ' + err.message);
-      }
-    });
-  }
+  // SUBMIT: Tareas
+  document.getElementById('taskForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('taskId')?.value || '';
+    const task = (document.getElementById('taskContent')?.value || '').trim();
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const endpoint = id ? `/extras/tasks/${id}` : '/extras/tasks';
+      const res = await authedFetch(endpoint, {
+        method,
+        body: JSON.stringify({ task })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Error inesperado');
+      getModalInstance(taskModalEl)?.hide();
+      showSuccess('Tarea guardada correctamente');
+      await loadTasks();
+    } catch (err) {
+      showError('Error al guardar tarea: ' + err.message);
+    }
+  });
 
-  const linkForm = document.getElementById('linkForm');
-  if (linkForm) {
-    linkForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('linkId')?.value || '';
-      const title = (document.getElementById('linkTitle')?.value || '').trim();
-      const url = (document.getElementById('linkURL')?.value || '').trim();
-      const description = (document.getElementById('linkDescription')?.value || '').trim();
+  // SUBMIT: Links
+  document.getElementById('linkForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('linkId')?.value || '';
+    const title = (document.getElementById('linkTitle')?.value || '').trim();
+    const url = (document.getElementById('linkURL')?.value || '').trim();
+    const description = (document.getElementById('linkDescription')?.value || '').trim();
 
-      try {
-        const method = id ? 'PUT' : 'POST';
-        const endpoint = id ? `/extras/links/${id}` : '/extras/links';
-        const res = await fetch(`https://fantasy-nfl-backend.onrender.com${endpoint}`, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, url, description })
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Status ${res.status}: ${text}`);
-        }
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Error inesperado');
-        const inst = getModalInstance(linkModalEl);
-        if (inst) inst.hide();
-        showSuccess('Link guardado correctamente');
-        await loadLinks();
-      } catch (err) {
-        showError('Error al guardar link: ' + err.message);
-      }
-    });
-  }
-
-  // FABs (si existen en layout global)
-  const fabAddLink = document.getElementById('fab-add-link');
-  if (fabAddLink) fabAddLink.addEventListener('click', (e) => { e.preventDefault(); linkForm?.reset(); (document.getElementById('linkId')||{}).value=''; modalLink?.show(); });
-
-  const fabAddNote = document.getElementById('fab-add-note');
-  if (fabAddNote) fabAddNote.addEventListener('click', (e) => { e.preventDefault(); noteForm?.reset(); (document.getElementById('noteId')||{}).value=''; modalNote?.show(); });
-
-  const fabAddTask = document.getElementById('fab-add-task');
-  if (fabAddTask) fabAddTask.addEventListener('click', (e) => { e.preventDefault(); taskForm?.reset(); (document.getElementById('taskId')||{}).value=''; modalTask?.show(); });
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const endpoint = id ? `/extras/links/${id}` : '/extras/links';
+      const res = await authedFetch(endpoint, {
+        method,
+        body: JSON.stringify({ title, url, description })
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Error inesperado');
+      getModalInstance(linkModalEl)?.hide();
+      showSuccess('Link guardado correctamente');
+      await loadLinks();
+    } catch (err) {
+      showError('Error al guardar link: ' + err.message);
+    }
+  });
 
   // Cargar datos
   await loadLinks();
   await loadNotes();
   await loadTasks();
 
-  // ---------------------------
-  // CARGADORES
-  // ---------------------------
+  // --------- Loaders ---------
   async function loadLinks() {
     try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/links');
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Status ${res.status}: ${txt}`);
-      }
+      const res = await authedFetch('/extras/links');
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : [];
       const list = document.getElementById('linksList');
@@ -287,40 +267,27 @@ export default async function renderExtrasView() {
           </div>
         `;
 
-        const btnEdit = li.querySelector('.btn-edit');
-        const btnDelete = li.querySelector('.btn-delete');
+        li.querySelector('.btn-edit')?.addEventListener('click', () => {
+          document.getElementById('linkId').value = link.id;
+          document.getElementById('linkTitle').value = link.title || '';
+          document.getElementById('linkURL').value = link.url || '';
+          document.getElementById('linkDescription').value = link.description || '';
+          getModalInstance(linkModalEl)?.show();
+        });
 
-        if (btnEdit) {
-          btnEdit.onclick = () => {
-            (document.getElementById('linkId') || {}).value = link.id;
-            (document.getElementById('linkTitle') || {}).value = link.title || '';
-            (document.getElementById('linkURL') || {}).value = link.url || '';
-            (document.getElementById('linkDescription') || {}).value = link.description || '';
-            const inst = getModalInstance(linkModalEl);
-            if (inst) inst.show();
-          };
-        }
-
-        if (btnDelete) {
-          btnDelete.onclick = async () => {
-            const result = await showConfirm({ text: '¿Eliminar este link?' });
-            if (result.isConfirmed) {
-              try {
-                const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/links/${link.id}`, { method: 'DELETE' });
-                if (!res.ok) {
-                  const txt = await res.text();
-                  throw new Error(`Status ${res.status}: ${txt}`);
-                }
-                const j = await res.json();
-                if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
-                showSuccess('Link eliminado');
-                await loadLinks();
-              } catch (err) {
-                showError('Error al eliminar link: ' + err.message);
-              }
-            }
-          };
-        }
+        li.querySelector('.btn-delete')?.addEventListener('click', async () => {
+          const result = await showConfirm({ text: '¿Eliminar este link?' });
+          if (!result.isConfirmed) return;
+          try {
+            const res = await authedFetch(`/extras/links/${link.id}`, { method: 'DELETE' });
+            const j = await res.json();
+            if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
+            showSuccess('Link eliminado');
+            await loadLinks();
+          } catch (err) {
+            showError('Error al eliminar link: ' + err.message);
+          }
+        });
 
         list.appendChild(li);
       });
@@ -331,11 +298,7 @@ export default async function renderExtrasView() {
 
   async function loadNotes() {
     try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/notes');
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Status ${res.status}: ${txt}`);
-      }
+      const res = await authedFetch('/extras/notes');
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : [];
       const container = document.getElementById('notesList');
@@ -357,39 +320,27 @@ export default async function renderExtrasView() {
             </div>
           </div>
         `;
-        const btnEdit = div.querySelector('.btn-edit');
-        const btnDelete = div.querySelector('.btn-delete');
 
-        if (btnEdit) {
-          btnEdit.onclick = () => {
-            (document.getElementById('noteId') || {}).value = note.id || '';
-            (document.getElementById('noteTitle') || {}).value = note.title || '';
-            (document.getElementById('noteContent') || {}).value = note.content || '';
-            const inst = getModalInstance(noteModalEl);
-            if (inst) inst.show();
-          };
-        }
+        div.querySelector('.btn-edit')?.addEventListener('click', () => {
+          document.getElementById('noteId').value = note.id || '';
+          document.getElementById('noteTitle').value = note.title || '';
+          document.getElementById('noteContent').value = note.content || '';
+          getModalInstance(noteModalEl)?.show();
+        });
 
-        if (btnDelete) {
-          btnDelete.onclick = async () => {
-            const result = await showConfirm({ text: '¿Eliminar esta nota?' });
-            if (result.isConfirmed) {
-              try {
-                const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/notes/${note.id}`, { method: 'DELETE' });
-                if (!res.ok) {
-                  const txt = await res.text();
-                  throw new Error(`Status ${res.status}: ${txt}`);
-                }
-                const j = await res.json();
-                if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
-                showSuccess('Nota eliminada');
-                await loadNotes();
-              } catch (err) {
-                showError('Error al eliminar nota: ' + err.message);
-              }
-            }
-          };
-        }
+        div.querySelector('.btn-delete')?.addEventListener('click', async () => {
+          const result = await showConfirm({ text: '¿Eliminar esta nota?' });
+          if (!result.isConfirmed) return;
+          try {
+            const res = await authedFetch(`/extras/notes/${note.id}`, { method: 'DELETE' });
+            const j = await res.json();
+            if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
+            showSuccess('Nota eliminada');
+            await loadNotes();
+          } catch (err) {
+            showError('Error al eliminar nota: ' + err.message);
+          }
+        });
 
         container.appendChild(div);
       });
@@ -400,11 +351,7 @@ export default async function renderExtrasView() {
 
   async function loadTasks() {
     try {
-      const res = await fetch('https://fantasy-nfl-backend.onrender.com/extras/tasks');
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Status ${res.status}: ${txt}`);
-      }
+      const res = await authedFetch('/extras/tasks');
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : [];
       const list = document.getElementById('taskList');
@@ -427,59 +374,38 @@ export default async function renderExtrasView() {
           </div>
         `;
 
-        const checkbox = li.querySelector('input[type="checkbox"]');
-        const btnEdit = li.querySelector('.btn-edit');
-        const btnDelete = li.querySelector('.btn-delete');
+        li.querySelector('input[type="checkbox"]')?.addEventListener('change', async (e) => {
+          const completed = e.target.checked;
+          try {
+            await authedFetch(`/extras/tasks/${task.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ task: task.task, completed })
+            });
+            await loadTasks();
+          } catch (err) {
+            showError('Error actualizando tarea: ' + err.message);
+          }
+        });
 
-        if (checkbox) {
-          checkbox.onchange = async (e) => {
-            const completed = e.target.checked;
-            try {
-              const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/tasks/${task.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ task: task.task, completed })
-              });
-              if (!res.ok) {
-                const txt = await res.text();
-                throw new Error(`Status ${res.status}: ${txt}`);
-              }
-              await loadTasks();
-            } catch (err) {
-              showError('Error actualizando tarea: ' + err.message);
-            }
-          };
-        }
+        li.querySelector('.btn-edit')?.addEventListener('click', () => {
+          document.getElementById('taskId').value = task.id || '';
+          document.getElementById('taskContent').value = task.task || '';
+          getModalInstance(taskModalEl)?.show();
+        });
 
-        if (btnEdit) {
-          btnEdit.onclick = () => {
-            (document.getElementById('taskId') || {}).value = task.id || '';
-            (document.getElementById('taskContent') || {}).value = task.task || '';
-            const inst = getModalInstance(taskModalEl);
-            if (inst) inst.show();
-          };
-        }
-
-        if (btnDelete) {
-          btnDelete.onclick = async () => {
-            const result = await showConfirm({ text: '¿Eliminar esta tarea?' });
-            if (result.isConfirmed) {
-              try {
-                const res = await fetch(`https://fantasy-nfl-backend.onrender.com/extras/tasks/${task.id}`, { method: 'DELETE' });
-                if (!res.ok) {
-                  const txt = await res.text();
-                  throw new Error(`Status ${res.status}: ${txt}`);
-                }
-                const j = await res.json();
-                if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
-                showSuccess('Tarea eliminada');
-                await loadTasks();
-              } catch (err) {
-                showError('Error al eliminar tarea: ' + err.message);
-              }
-            }
-          };
-        }
+        li.querySelector('.btn-delete')?.addEventListener('click', async () => {
+          const result = await showConfirm({ text: '¿Eliminar esta tarea?' });
+          if (!result.isConfirmed) return;
+          try {
+            const res = await authedFetch(`/extras/tasks/${task.id}`, { method: 'DELETE' });
+            const j = await res.json();
+            if (!j.success) throw new Error(j.error || 'No se pudo eliminar');
+            showSuccess('Tarea eliminado');
+            await loadTasks();
+          } catch (err) {
+            showError('Error al eliminar tarea: ' + err.message);
+          }
+        });
 
         list.appendChild(li);
       });
@@ -488,9 +414,7 @@ export default async function renderExtrasView() {
     }
   }
 
-  // ---------------------------
   // Helpers
-  // ---------------------------
   function escapeHtml(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -501,7 +425,6 @@ export default async function renderExtrasView() {
       .replace(/'/g, '&#039;');
   }
 
-  // Renders (ya definidas arriba)
   function renderLinkModal() {
     return `
     <div class="modal fade" id="linkModal" tabindex="-1">
