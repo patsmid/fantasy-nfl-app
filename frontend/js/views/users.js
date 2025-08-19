@@ -12,50 +12,59 @@ export default async function () {
 
 function renderTemplate() {
   return `
-    <h2>Administración de Usuarios</h2>
-    <button class="btn btn-accent mb-3" id="addUserBtn">
-      <i class="bi bi-plus-circle me-1"></i> Agregar Usuario
-    </button>
-    <table class="table table-striped align-middle">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Usuario</th>
-          <th>Rol</th>
-          <th style="width:180px">Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="userTableBody"></tbody>
-    </table>
-    ${renderModal()}
+  <div class="card border-0 shadow-sm rounded flock-card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0 d-flex align-items-center gap-2">
+          <i class="bi bi-people-fill text-primary"></i> Administración de Usuarios
+        </h5>
+        <button class="btn btn-sm btn-primary" id="addUserBtn">
+          <i class="bi bi-plus-circle me-1"></i> Agregar
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table id="usersTable" class="table table-dark table-hover align-middle w-100">
+          <thead class="table-dark">
+            <tr>
+              <th>Email</th>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  ${renderModal()}
   `;
 }
 
 function renderModal() {
   return `
-    <div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="userModalLabel">Editar Usuario</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <form id="userForm">
-              <input type="hidden" name="user_id" />
-              ${renderInput('Usuario', 'username')}
-              ${renderInput('Email', 'email', 'usuario@ejemplo.com', 'email')}
-              ${renderInput('Contraseña (opcional)', 'password', '', 'password', false)}
-              ${renderRoleSelect()}
-              <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-success">Guardar</button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              </div>
-            </form>
-          </div>
+  <div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+      <form class="modal-content bg-dark text-white border border-secondary rounded" id="userForm">
+        <div class="modal-header border-bottom border-secondary">
+          <h5 class="modal-title" id="userModalLabel">Usuario</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-      </div>
+        <div class="modal-body">
+          <input type="hidden" name="user_id" />
+          ${renderInput('Usuario', 'username')}
+          ${renderInput('Email', 'email', 'usuario@ejemplo.com', 'email')}
+          ${renderInput('Contraseña (opcional)', 'password', '', 'password', false)}
+          ${renderRoleSelect()}
+        </div>
+        <div class="modal-footer border-top border-secondary">
+          <button type="submit" class="btn btn-success">Guardar</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        </div>
+      </form>
     </div>
+  </div>
   `;
 }
 
@@ -144,17 +153,39 @@ function renderUserList() {
       <td>${user.username ?? ''}</td>
       <td><span class="badge ${user.role === 'admin' ? 'bg-primary' : 'bg-secondary'}">${user.role}</span></td>
       <td>
-        <button class="btn btn-sm btn-accent me-2"><i class="bi bi-pencil-fill"></i></button>
-        <button class="btn btn-sm btn-warning me-2"><i class="bi bi-key-fill"></i></button>
-        <button class="btn btn-sm btn-danger"><i class="bi bi-trash-fill"></i></button>
+        <button class="btn btn-sm btn-outline-info me-1" title="Editar"><i class="bi bi-pencil-square"></i></button>
+        <button class="btn btn-sm btn-outline-warning me-1" title="Reset Pass"><i class="bi bi-key-fill"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash-fill"></i></button>
       </td>
     `;
 
-    tr.querySelector('.btn-accent').onclick = () => editUser(user);
-    tr.querySelector('.btn-warning').onclick = () => resetPassword(user.email);
-    tr.querySelector('.btn-danger').onclick = () => deleteUser(user.id);
+    tr.querySelector('.btn-outline-info').onclick = () => editUser(user);
+    tr.querySelector('.btn-outline-warning').onclick = () => resetPassword(user.email);
+    tr.querySelector('.btn-outline-danger').onclick = () => deleteUser(user.id);
 
     tbody.appendChild(tr);
+  }
+
+  // inicializar/reiniciar DataTable
+  if (!$.fn.DataTable.isDataTable('#usersTable')) {
+    $('#usersTable').DataTable({
+      responsive: true,
+      pageLength: 10,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+      },
+      dom: 'tip'
+    });
+  } else {
+    $('#usersTable').DataTable().clear().destroy();
+    $('#usersTable').DataTable({
+      responsive: true,
+      pageLength: 10,
+      language: {
+        url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
+      },
+      dom: 'tip'
+    });
   }
 }
 
