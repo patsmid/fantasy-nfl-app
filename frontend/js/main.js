@@ -8,6 +8,11 @@ function getUsernameFromURL() {
   return path.split('/')[0] || '';
 }
 
+function showError(message) {
+  console.error(message);
+  alert(message);
+}
+
 // ==========================
 // sidebar
 // ==========================
@@ -17,25 +22,90 @@ async function loadSidebar(username) {
 
   try {
     const response = await fetch(`https://fantasy-nfl-backend.onrender.com/api/admin/menu/${username}`);
-    if (!response.ok) throw new Error('No se pudo obtener el menú');
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        // Usuario no existe en backend -> volvemos al login
+        showError('Usuario no encontrado. Por favor ingresa un usuario válido.');
+        localStorage.removeItem('fantasyUser');
+        window.location.href = '/login.html';
+        return;
+      }
+      throw new Error(`No se pudo obtener el menú (status: ${response.status})`);
+    }
 
     const menuTree = await response.json();
 
     const sidebarHTML = renderSidebar(menuTree);
-    sidebar.innerHTML = `<div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>${sidebarHTML}`;
-    sidebarMobile.innerHTML = `<div class="flock-logo">🏈 Fantasy NFL</div>${sidebarHTML}`;
+    // Creamos la estructura del sidebar + bloque de usuario y logout
+    sidebar.innerHTML = `
+      <div class="flock-logo d-none d-lg-block">🏈 Fantasy NFL</div>
+      ${sidebarHTML}
+      <div id="sidebar-user-block" class="mt-auto" style="margin-top: 1rem;">
+        <div style="padding:0.75rem 0.5rem;border-top:1px solid rgba(255,255,255,0.03);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem">
+            <div>
+              <div style="font-weight:600">${username}</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
+            </div>
+            <button id="logoutBtn" class="btn btn-accent" style="white-space:nowrap">Cerrar sesión</button>
+          </div>
+        </div>
+      </div>
+    `;
 
+    // Mobile: añadimos logout al content del offcanvas (si existe)
+    if (sidebarMobile) {
+      sidebarMobile.innerHTML = `
+        <div class="flock-logo">🏈 Fantasy NFL</div>
+        ${sidebarHTML}
+        <div style="padding:0.75rem;border-top:1px solid rgba(255,255,255,0.03);margin-top:1rem">
+          <div style="display:flex;gap:0.75rem;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-weight:600">${username}</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary)">Conectado</div>
+            </div>
+            <button id="logoutBtnMobile" class="btn btn-accent">Cerrar sesión</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Activamos links y listeners
     activateSidebarLinks();
 
+    // Logout handlers
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('fantasyUser');
+        window.location.href = '/login.html';
+      });
+    }
+    const logoutBtnMobile = document.getElementById('logoutBtnMobile');
+    if (logoutBtnMobile) {
+      logoutBtnMobile.addEventListener('click', () => {
+        localStorage.removeItem('fantasyUser');
+        window.location.href = '/login.html';
+      });
+    }
+
     // Cargar la primera vista disponible
-    if (menuTree.length > 0) {
+    if (Array.isArray(menuTree) && menuTree.length > 0) {
       const firstView = menuTree[0].view || (menuTree[0].children?.[0]?.view) || 'config';
       await loadView(firstView);
       setActiveSidebarItem(firstView);
+    } else {
+      // Si no hay items, mostramos una vista por defecto o mensaje
+      console.warn('Menu vacío o no válido recibido del backend.');
+      // Opcional: limpiar contenido
+      const content = document.getElementById('content-container');
+      if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No hay elementos de menú para este usuario.</div></div>`;
     }
 
   } catch (error) {
     console.error('Error cargando sidebar:', error);
+    showError('Error cargando menú. Revisa la consola para más detalles.');
   }
 }
 
@@ -85,6 +155,13 @@ function activateSidebarLinks() {
   // Seleccionamos los links del sidebar desktop y mobile
   const links = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
   links.forEach(link => {
+    // quitamos listeners previos por si se vuelve a renderizar
+    link.replaceWith(link.cloneNode(true));
+  });
+
+  // re-query para los clones
+  const freshLinks = document.querySelectorAll('#sidebar [data-view], #sidebarMobileContent [data-view]');
+  freshLinks.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       const view = link.getAttribute('data-view');
@@ -112,12 +189,19 @@ function activateSidebarLinks() {
 // views
 // ==========================
 async function loadView(viewName) {
+  if (!viewName) return;
   try {
     const viewModule = await import(`./views/${viewName}.js`);
-    await viewModule.default();
+    if (viewModule && typeof viewModule.default === 'function') {
+      await viewModule.default();
+    } else {
+      console.warn(`Módulo de vista "${viewName}" sin export default() válido.`);
+    }
   } catch (error) {
     console.error(`Error cargando vista ${viewName}:`, error);
     // Opcional: mostrar alerta o contenido fallback
+    const content = document.getElementById('content-container');
+    if (content) content.innerHTML = `<div class="container py-4"><div class="card p-3">No se pudo cargar la vista "${viewName}". Revisa la consola.</div></div>`;
   }
 }
 
@@ -132,15 +216,19 @@ function setActiveSidebarItem(viewName) {
 // init
 // ==========================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Obtenemos el usuario guardado
+  // Intentamos obtener usuario de localStorage
   const username = localStorage.getItem('fantasyUser');
 
   if (!username) {
     // Si no hay usuario → mandamos al login
-    window.location.href = "/login.html";
+    // Si ya estás en login.html no redirigimos para evitar bucle
+    if (!window.location.pathname.endsWith('/login.html')) {
+      window.location.href = '/login.html';
+    }
     return;
   }
 
+  // Cargamos sidebar con el usuario
   await loadSidebar(username);
 
   // Botón de toggle para escritorio
@@ -159,16 +247,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         content.style.marginLeft = '0';
         topbar.style.left = '0';
 
-        sidebarIcon.classList.remove('bi-arrow-left');
-        sidebarIcon.classList.add('bi-list');
+        if (sidebarIcon) {
+          sidebarIcon.classList.remove('bi-arrow-left');
+          sidebarIcon.classList.add('bi-list');
+        }
 
         toggleDesktopBtn.classList.remove('sidebar-open');
       } else {
         content.style.marginLeft = '250px';
         topbar.style.left = '250px';
 
-        sidebarIcon.classList.remove('bi-list');
-        sidebarIcon.classList.add('bi-arrow-left');
+        if (sidebarIcon) {
+          sidebarIcon.classList.remove('bi-list');
+          sidebarIcon.classList.add('bi-arrow-left');
+        }
 
         toggleDesktopBtn.classList.add('sidebar-open');
       }

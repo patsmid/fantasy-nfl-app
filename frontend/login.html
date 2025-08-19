@@ -1,61 +1,55 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fantasy NFL - Login</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fantasy NFL - Iniciar sesión</title>
+
+  <!-- Tu nueva hoja de estilos para el login -->
+  <link rel="stylesheet" href=".css/login.css" />
+
+  <!-- Bootstrap JS (si lo necesitas para otros componentes) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background: linear-gradient(135deg, #0d6efd, #6610f2);
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    .card {
-      background: rgba(0,0,0,0.7);
-      padding: 2rem;
-      border-radius: 15px;
-      width: 100%;
-      max-width: 400px;
-    }
-    input {
-      border-radius: 10px;
-    }
-    .btn {
-      border-radius: 25px;
-      font-weight: bold;
-    }
-  </style>
 </head>
 <body>
-  <div class="card text-center">
-    <h2 class="mb-4">🏈 Fantasy NFL</h2>
-    <p class="mb-3">Ingresa tu usuario</p>
-    <form id="loginForm">
-      <input type="text" id="username" class="form-control mb-3" placeholder="Ejemplo: admin o demo1" required>
-      <button type="submit" class="btn btn-primary w-100">Entrar</button>
-    </form>
-  </div>
+  <main class="login-root">
+    <div class="login-card">
+      <div class="login-brand">🏈 <span class="brand-text">Fantasy NFL</span></div>
+
+      <h1 class="login-title">Bienvenido</h1>
+      <p class="login-sub">Introduce tu usuario para continuar</p>
+
+      <form id="loginForm" class="login-form" autocomplete="off">
+        <label for="username" class="visually-hidden">Usuario</label>
+        <input id="username" name="username" type="text" placeholder="Ej: admin o demo1" required autocomplete="username" />
+        <button type="submit" class="btn login-btn">Entrar</button>
+      </form>
+
+      <p class="login-foot">¿No tienes usuario? Pide acceso al administrador.</p>
+    </div>
+  </main>
 
   <script>
+    // Submit del login
     document.getElementById('loginForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const username = document.getElementById('username').value.trim();
-
       if (!username) {
-        alert('Debes ingresar un usuario válido');
+        alert('Ingresa un usuario válido');
         return;
       }
-
-      // Guardamos usuario en localStorage
+      // Guardamos en localStorage y llevamos al index
       localStorage.setItem('fantasyUser', username);
-
-      // Redirigimos a index.html
-      window.location.href = "/index.html";
+      window.location.href = '/index.html';
     });
+
+    // Si ya hay usuario, redirigimos automáticamente
+    (function autoRedirectIfLogged() {
+      const u = localStorage.getItem('fantasyUser');
+      if (u) {
+        window.location.href = '/index.html';
+      }
+    })();
   </script>
 </body>
 </html>
