@@ -6,6 +6,7 @@ import { renderLeagueSelect } from '../../components/selectLeagues.js';
 
 export default async function renderDraftView() {
   const content = document.getElementById('content-container');
+
   content.innerHTML = `
     <style>
       /* Cards */
@@ -26,65 +27,34 @@ export default async function renderDraftView() {
       #draft-cards .progress { height:10px; background: rgba(255,255,255,.08); }
       #draft-cards .progress-bar { background-color:#0dcaf0; }
 
-      /* Tabla escritorio: look original */
-      #draftTable td, #draftTable th { vertical-align: middle; }
-      #draftTable .badge { white-space: nowrap; }
-      #draftTable .progress { height:12px; min-width:120px; }
+      /* Controls row */
+      #cards-controls { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
+      #cards-controls .flex-right { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
 
-      /* Contenedores de controles de DataTables reubicados */
-      #dt-controls-top { margin-bottom: .75rem; }
-      #dt-controls-top .dataTables_length label,
-      #dt-controls-top .dataTables_filter label { margin-bottom: 0; }
-      #dt-controls-top .dataTables_filter input { margin-left: .5rem; }
-      #dt-pagination-bottom .dataTables_info { padding-top: .5rem; }
+      .pagination-controls { display:flex; gap:.4rem; align-items:center; }
+      .page-btn { min-width:36px; text-align:center; padding:.2rem .5rem; cursor:pointer; border-radius:.35rem; border:1px solid rgba(255,255,255,.06); background:transparent; color:inherit; }
+      .page-btn[disabled] { opacity:.45; cursor:not-allowed; }
 
-      /* Clase para ocultar wrapper de DataTables sin romper layout */
-      .dt-wrapper-hidden { display: none !important; }
-
-      /* Ensure controls area doesn't get pushed below cards due to flex wrapping */
-      @media(min-width:768px) {
-        #dt-controls-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:.5rem; }
-        #dt-pagination-bottom { display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:.5rem; }
-      }
-
-      /* Small tweak so our injected controls mimic DataTables spacing */
-      #dt-controls-top .dt-left-group, #dt-controls-top .dt-right-group { display:flex; align-items:center; gap:.5rem; }
-      #dt-controls-top .form-select-sm { height: calc(1.5rem + 0.6rem); padding: .2rem .55rem; }
-
-      /* FORCE: asegurar que thead (incl. clones de DataTables con scrollX) siempre esté visible */
-      #draftTable thead,
-      .dataTables_scrollHead thead {
-        display: table-header-group !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+      /* Responsive grid tweaks */
+      @media(min-width:1200px) {
+        #draft-cards .col-lg-3 { max-width: 23%; flex: 0 0 23%; }
       }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="m-0 d-flex align-items-center gap-2">
             <i class="bi bi-clipboard-data text-info"></i> Draft Inteligente
           </h4>
           <div class="d-flex align-items-center gap-2">
-            <!-- Toggle solo en desktop -->
-            <div class="d-none d-md-block">
-              <div class="btn-group btn-group-sm" role="group" aria-label="Vista">
-                <button id="btn-view-cards" class="btn btn-outline-info active">
-                  <i class="bi bi-grid-3x3-gap"></i> Cards
-                </button>
-                <button id="btn-view-table" class="btn btn-outline-info">
-                  <i class="bi bi-table"></i> Tabla
-                </button>
-              </div>
-            </div>
             <button class="btn btn-sm btn-primary" id="btn-update-draft">
               <i class="bi bi-arrow-clockwise"></i> Actualizar Draft
             </button>
           </div>
         </div>
 
-        <form class="row g-3 mb-4">
+        <form class="row g-3 mb-3">
           <div class="col-md-3">
             <label for="select-league" class="form-label">Liga</label>
             <select id="select-league" class="form-select"></select>
@@ -92,6 +62,7 @@ export default async function renderDraftView() {
           <div class="col-md-2">
             <label for="select-position" class="form-label">Posición</label>
             <select id="select-position" class="form-select">
+              <option value="TODAS">TODAS</option>
               ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
             </select>
           </div>
@@ -110,67 +81,51 @@ export default async function renderDraftView() {
             <label for="input-bye" class="form-label">Bye condición</label>
             <input type="number" class="form-control" id="input-bye" placeholder="0">
           </div>
-          <!-- Checkbox Sleeper ADP -->
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
-              <label class="form-check-label" for="chk-sleeperADP">
-                Sleeper ADP
-              </label>
+              <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
             </div>
           </div>
         </form>
 
-        <div class="d-flex flex-wrap gap-3 mb-3">
+        <div class="d-flex flex-wrap gap-3 mb-2">
           <div id="ranks-updated-label" class="text-start"></div>
           <div id="adp-updated-label" class="text-start"></div>
         </div>
 
-        <div class="mb-3" id="draft-summary"></div>
+        <!-- Controls para cards (búsqueda + paginado) -->
+        <div id="cards-controls" class="mb-2">
+          <input id="search-input" class="form-control form-control-sm" placeholder="Buscar jugador, equipo, posición..." style="min-width:220px;">
+          <div class="flex-right">
+            <label class="m-0">Mostrar
+              <select id="page-size" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
+                <option value="8">8</option>
+                <option value="12" selected>12</option>
+                <option value="20">20</option>
+                <option value="40">40</option>
+              </select>
+            registros
+            </label>
 
-        <!-- Controles de DT reubicados: arriba de las cards (solo desktop) -->
-        <div id="dt-controls-top" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"></div>
-
-        <!-- Cards visibles en móvil y desktop (se ocultan sólo si se elige tabla en desktop) -->
-        <div id="draft-cards" class="mb-2"></div>
-
-        <!-- Contenedor para info + paginación reubicados (abajo de las cards, solo desktop) -->
-        <div id="dt-pagination-bottom" class="d-none d-md-flex justify-content-between align-items-center flex-wrap gap-2 mt-2"></div>
-
-        <!-- Tabla (solo desktop); en vista Cards se oculta la envoltura de DT para preservar encabezados -->
-        <div class="d-none d-md-block">
-          <div class="table-responsive">
-            <table id="draftTable" class="table table-dark table-hover align-middle w-100">
-              <thead class="table-dark">
-                <tr>
-                  <th>Priority</th>
-                  <th>ADP</th>
-                  <th>Jugador</th>
-                  <th>Posición</th>
-                  <th>Equipo</th>
-                  <th>Bye</th>
-                  <th>Ranking</th>
-                  <th>Status</th>
-                  <th>Ronda</th>
-                  <th>Proyección</th>
-                  <th>VOR</th>
-                  <th>VOR Ajustado</th>
-                  <th>Dropoff</th>
-                  <th>Value/ADP</th>
-                  <th>Steal Score</th>
-                  <th>Risk Tags</th>
-                  <th>Value Tags</th>
-                  <th>Tier Global</th>
-                  <th>Tier Posición</th>
-                  <!-- índice oculto para mapear a cards -->
-                  <th data-hidden-idx>_idx</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+            <label class="m-0 ms-2">Ordenar
+              <select id="sort-by" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
+                <option value="rank">Rank ↑</option>
+                <option value="priorityScore">Priority Score ↓</option>
+                <option value="projection">Proyección ↓</option>
+								<option value="shark">SharkScore 🦈</option>
+              </select>
+            </label>
           </div>
         </div>
 
+        <div class="mb-3" id="draft-summary"></div>
+        <div id="draft-cards" class="mb-2"></div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div id="cards-info" class="text-muted small"></div>
+          <div id="pagination" class="pagination-controls"></div>
+        </div>
       </div>
     </div>
   `;
@@ -185,23 +140,23 @@ export default async function renderDraftView() {
   const byeInput = document.getElementById('input-bye');
   const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
   const cardsContainer = document.getElementById('draft-cards');
-  const btnViewCards = document.getElementById('btn-view-cards');
-  const btnViewTable = document.getElementById('btn-view-table');
-  const dtControlsTop = document.getElementById('dt-controls-top');
-  const dtPagBottom = document.getElementById('dt-pagination-bottom');
+  const btnUpdate = document.getElementById('btn-update-draft');
 
-  // Estado de vista (desktop)
-  let desktopView = 'cards'; // 'cards' | 'table'
+  const searchInput = document.getElementById('search-input');
+  const pageSizeSel = document.getElementById('page-size');
+  const sortBySel = document.getElementById('sort-by');
+  const paginationEl = document.getElementById('pagination');
+  const cardsInfo = document.getElementById('cards-info');
+
+  // Estado
   let draftData = [];
-  let lastFiltered = []; // arreglo de jugadores que alimenta la tabla
+  let filtered = [];
+  let currentPage = 1;
+  let pageSize = Number(pageSizeSel.value) || 12;
+  let searchQuery = '';
+  let sortBy = sortBySel.value;
 
-  // DataTables wrapper element (lo usaremos para ocultar/mostrar sin romper encabezados)
-  let dtWrapperEl = null;
-  let currentTable = null; // referencia a DataTable instance
-
-  // =============================
-  // Restaurar valores guardados
-  // =============================
+  // Restaurar filtros guardados
   const savedStatus = localStorage.getItem('draftStatusFilter');
   const savedLeague = localStorage.getItem('draftLeague');
   const savedExpert = localStorage.getItem('draftExpert');
@@ -213,145 +168,9 @@ export default async function renderDraftView() {
   if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
 
   // =============================
-  // Helper: colores de posición (Bootstrap classes)
+  // Utilities
   // =============================
-  function getPositionColor(position) {
-    switch ((position || '').toUpperCase()) {
-      case 'RB': return 'bg-success text-white';
-      case 'WR': return 'bg-primary text-white';
-      case 'TE': return 'bg-warning text-dark';
-      case 'QB': return 'bg-danger text-white';
-      default: return 'bg-secondary text-white';
-    }
-  }
-
-  function getPositionBadge(position) {
-    return `<span class="badge ${getPositionColor(position)}">${position ?? ''}</span>`;
-  }
-
-  // =============================
-  // Inicializar selects con TomSelect (intentamos obtener la instancia devuelta)
-  // =============================
-  // Opciones solicitadas: persist:false y onChange -> blur()
-  let expertTS = null;
-  let leagueTS = null;
-  try {
-    expertTS = await renderExpertSelect('#select-expert', {
-      plugins: ['dropdown_input'],
-      dropdownInput: false,
-      create: false,
-      persist: false,
-      onChange(value) {
-        try { localStorage.setItem('draftExpert', value || (this && this.getValue ? this.getValue() : '')); } catch(e) {}
-        if (this && typeof this.blur === 'function') this.blur();
-        // recargar datos (si ya hay liga seleccionada)
-        if (leagueSelect.value) loadDraftData();
-      }
-    });
-  } catch (e) {
-    // fallback: renderExpertSelect no devolvió instancia
-    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
-
-  try {
-    leagueTS = await renderLeagueSelect('#select-league', {
-      plugins: ['dropdown_input'],
-      dropdownInput: false,
-      create: false,
-      persist: false,
-      onChange(value) {
-        try { localStorage.setItem('draftLeague', value || (this && this.getValue ? this.getValue() : '')); } catch(e) {}
-        if (this && typeof this.blur === 'function') this.blur();
-        // recargar datos si ya hay experto seleccionado
-        if (expertSelect.value) loadDraftData();
-      }
-    });
-  } catch (e) {
-    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
-
-  // si render... no devolvió instancia directa, intentar obtener via DOM tomselect
-  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
-  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
-
-  // Aplicar valores guardados (fallback robusto)
-  function applySavedValue(selectEl, tsInstance, savedValue) {
-    if (!savedValue) return;
-    try {
-      if (tsInstance && typeof tsInstance.setValue === 'function') {
-        tsInstance.setValue(savedValue);
-        if (typeof tsInstance.blur === 'function') tsInstance.blur();
-      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
-        selectEl.tomselect.setValue(savedValue);
-        if (typeof selectEl.tomselect.blur === 'function') selectEl.tomselect.blur();
-      } else if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        try { selectEl.blur(); } catch (e) {}
-      }
-    } catch (err) {
-      if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  }
-
-  applySavedValue(expertSelect, expertTS, savedExpert);
-  applySavedValue(leagueSelect, leagueTS, savedLeague);
-
-  // Además, escuchar cambios nativos y guardar en localStorage (fallback)
-  expertSelect.addEventListener('change', () => {
-    try { localStorage.setItem('draftExpert', expertSelect.value); } catch (e) {}
-    // recargar datos
-    loadDraftData();
-  });
-  leagueSelect.addEventListener('change', () => {
-    try { localStorage.setItem('draftLeague', leagueSelect.value); } catch (e) {}
-    loadDraftData();
-  });
-
-  // =============================
-  // EVENTOS DE FILTROS
-  // =============================
-  statusSelect.addEventListener('change', () => {
-    localStorage.setItem('draftStatusFilter', statusSelect.value);
-    if (draftData.length) refreshUI(draftData);
-  });
-
-  sleeperADPCheckbox.addEventListener('change', () => {
-    localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked);
-    loadDraftData(); // afecta backend
-  });
-
-  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); loadDraftData(); });
-  document.getElementById('btn-update-draft').addEventListener('click', loadDraftData);
-
-  // Toggle de vista (solo desktop)
-  btnViewCards?.addEventListener('click', () => setDesktopView('cards'));
-  btnViewTable?.addEventListener('click', () => setDesktopView('table'));
-
-  // ================================
-  // UTILIDADES
-  // ================================
-  const getHeatColor = (value, min, max) => {
-    if (value == null || isNaN(value) || max === min) return '#888';
-    const ratio = (value - min) / (max - min);
-    const r = Math.floor(255 * (1 - ratio));
-    const g = Math.floor(255 * ratio);
-    return `rgb(${r},${g},0)`;
-  };
-
-  const safeNum = (v, decimals = 2) =>
-    (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : '';
-
-  const getRankNum = (p) => {
-    const n = Number(p?.rank);
-    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
-  };
-
-  // Debounce util para input de búsqueda
-  function debounce(fn, wait) {
+  function debounce(fn, wait = 200) {
     let t;
     return function (...args) {
       clearTimeout(t);
@@ -359,6 +178,149 @@ export default async function renderDraftView() {
     };
   }
 
+  const safeNum = (v, decimals = 2) =>
+    (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
+
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function getHeatColor(value, min, max) {
+    const v = Number(value);
+    if (!Number.isFinite(v) || max === min) return '#888';
+    const ratio = clamp((v - min) / (max - min), 0, 1);
+    const r = Math.floor(255 * (1 - ratio));
+    const g = Math.floor(255 * ratio);
+    return `rgb(${r},${g},0)`;
+  }
+
+	function getPositionColor(position) {
+	  switch ((position || '').toUpperCase()) {
+	    case 'QB': return '#ff2a6d';  // rosa fuerte
+	    case 'RB': return '#00ceb8';  // turquesa
+	    case 'WR': return '#58a7ff';  // azul claro
+	    case 'TE': return '#ffae58';  // naranja claro
+	    default:   return '#6c757d';  // gris neutral (como secondary)
+	  }
+	}
+
+	// Utilidad: calcular color de texto según luminosidad
+	function getContrastTextColor(hex) {
+	  hex = hex.replace('#', '');
+	  if (hex.length === 3) {
+	    hex = hex.split('').map(c => c + c).join('');
+	  }
+	  const r = parseInt(hex.substr(0, 2), 16);
+	  const g = parseInt(hex.substr(2, 2), 16);
+	  const b = parseInt(hex.substr(4, 2), 16);
+	  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	  return luminance > 0.6 ? '#000' : '#fff';
+	}
+
+	function getPositionBadge(pos) {
+	  const bg = getPositionColor(pos);
+	  const textColor = getContrastTextColor(bg);
+	  return `<span class="badge" style="background:${bg};color:${textColor};">${pos ?? ''}</span>`;
+	}
+
+  function comparePlayers(a, b) {
+    if (sortBy === 'rank') {
+      const ra = Number(a.rank);
+      const rb = Number(b.rank);
+      return (Number.isFinite(ra) ? ra : Number.MAX_SAFE_INTEGER) - (Number.isFinite(rb) ? rb : Number.MAX_SAFE_INTEGER);
+    } else if (sortBy === 'priorityScore') {
+      const pa = Number(a.priorityScore);
+      const pb = Number(b.priorityScore);
+      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity); // desc
+    } else if (sortBy === 'projection') {
+      const pa = Number(a.projection);
+      const pb = Number(b.projection);
+      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity); // desc
+    }
+    return 0;
+  }
+
+  // Normaliza números de los jugadores (para sort/metricas)
+  function normalizePlayers(arr) {
+    const toNum = (v) => (Number.isFinite(+v) ? +v : null);
+    return arr.map(p => ({
+      ...p,
+      rank: toNum(p.rank),
+      projection: toNum(p.projection),
+      vor: toNum(p.vor),
+      adjustedVOR: toNum(p.adjustedVOR),
+      dropoff: toNum(p.dropoff),
+      priorityScore: toNum(p.priorityScore),
+      boomRate: toNum(p.boomRate),
+      bustRate: toNum(p.bustRate),
+      adpValue: toNum(p.adpValue),
+      valueOverADP: toNum(p.valueOverADP),
+    }));
+  }
+
+	function _rangeFrom(arr, pick) {
+	  const vals = arr.map(pick).map(Number).filter(Number.isFinite);
+	  if (!vals.length) return [0, 1];
+	  return [Math.min(...vals), Math.max(...vals)];
+	}
+	function _scale01(v, [min, max], def = 0) {
+	  const x = Number(v);
+	  if (!Number.isFinite(x)) return def;
+	  if (max <= min) return 0.5; // neutral si no hay rango
+	  return (x - min) / (max - min);
+	}
+	function _buildSharkRanges(source) {
+	  const arr = source && source.length ? source : [];
+	  return {
+	    rank:         _rangeFrom(arr, p => p.rank),
+	    adjustedVOR:  _rangeFrom(arr, p => p.adjustedVOR),
+	    projection:   _rangeFrom(arr, p => p.projection),
+	    valueOverADP: _rangeFrom(arr, p => p.valueOverADP),
+	    stealScore:   _rangeFrom(arr, p => p.stealScore),
+	    volatility:   _rangeFrom(arr, p => p.volatility),
+	    tier_global:  _rangeFrom(arr, p => p.tier_global),
+	  };
+	}
+	function computeSharkScore(p, R) {
+	  // Normalizaciones [0..1]
+	  const rnkN   = _scale01(p.rank,         R.rank,         1);     // si no hay rank => 1 (peor)
+	  const adjVN  = _scale01(p.adjustedVOR,  R.adjustedVOR,  0);
+	  const projN  = _scale01(p.projection,   R.projection,   0);
+	  const voaN   = _scale01(p.valueOverADP, R.valueOverADP, 0);
+	  const stealN = _scale01(p.stealScore,   R.stealScore,   0);
+	  const boomN  = Math.max(0, Math.min(1, Number(p.boomRate) / 100));
+	  const bustN  = Math.max(0, Math.min(1, Number(p.bustRate) / 100));
+	  const consN  = Math.max(0, Math.min(1, Number(p.consistency) / 100));
+	  const volN   = _scale01(p.volatility,   R.volatility,   0.5);
+	  const tierInvN = 1 - _scale01(p.tier_global, R.tier_global, 1); // menor tier_global = mejor
+
+	  // Ancla de rank (cuanto menor rank, mayor anchor)
+	  const anchor = (1 - rnkN);
+
+	  // Value edge reducido si el rank es tardío (multiplicamos por 0.4..1.0 según anchor)
+	  const valueEdge = voaN * (0.4 + 0.6 * anchor);
+
+	  let score =
+	      0.45 * anchor +       // ancla fuerte a tu board
+	      0.20 * adjVN +        // valor posicional
+	      0.10 * projN +        // proyección pura
+	      0.08 * valueEdge +    // value Over ADP, atenuado por rank
+	      0.07 * boomN +        // upside
+	      0.05 * consN +        // consistencia
+	      0.03 * tierInvN +     // mejor tier_global suma
+	      0.02 * stealN         // stealScore normalizado, poco peso
+	      - 0.10 * bustN        // penaliza riesgo de bust
+	      - 0.05 * volN;        // y volatilidad
+
+	  // Penalización suave extra si el rank es muy tardío
+	  if (Number.isFinite(p.rank) && p.rank > 100) {
+	    score -= 0.0025 * (p.rank - 100);
+	  }
+
+	  return score; // ~ rango 0..1 (puede ser negativo con muchas penalizaciones)
+	}
+
+  // =============================
+  // Render summary & cards & paging
+  // =============================
   function renderSummary(players) {
     const summary = { tiers: {}, steals: 0, risks: 0 };
     players.forEach(p => {
@@ -378,485 +340,343 @@ export default async function renderDraftView() {
     `;
   }
 
-  // ================================
-  // TABLA (ESCRITORIO)
-  // ================================
-  function mountDtControls($wrapper) {
-    if (!$wrapper || !$wrapper.length) return;
+  function updateCardsForPage(pageIndex = 1) {
+    currentPage = Math.max(1, Math.min(pageIndex, Math.ceil(filtered.length / pageSize) || 1));
+    const start = (currentPage - 1) * pageSize;
+    const pagePlayers = filtered.slice(start, start + pageSize);
 
-    // guardar wrapper para poder ocultarlo sin romper encabezados
-    dtWrapperEl = $wrapper.get(0);
+    const prios = filtered.map(p => Number(p.priorityScore)).filter(Number.isFinite);
+    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0), 0) || 1;
+    const minPrio = prios.length ? Math.min(...prios) : 0;
+    const maxPrio = prios.length ? Math.max(...prios) : 1;
 
-    const $info = $wrapper.find('div.dataTables_info');
-    const $paginate = $wrapper.find('div.dataTables_paginate');
-
-    // mover (no clonar) los controles de info/paginación al área inferior personalizada
-    if ($info.length) $(dtPagBottom).append($info);
-    if ($paginate.length) $(dtPagBottom).append($paginate);
-
-    // Asegurar que los contenedores personalizados estén justo encima/debajo de las cards
-    try {
-      if (cardsContainer && dtControlsTop && cardsContainer.parentNode) {
-        cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer);
-      }
-      if (cardsContainer && dtPagBottom && cardsContainer.parentNode) {
-        cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling);
-      }
-    } catch (e) {
-      console.warn('No fue posible reordenar contenedores DT:', e);
-    }
-
-    dtControlsTop.classList.remove('d-none');
-    dtPagBottom.classList.remove('d-none');
-  }
-
-  function setupCustomTopControls(table) {
-    // Construir controles manualmente (search + length) dentro de dtControlsTop para evitar problemas de posicionamiento
-    if (!dtControlsTop) return;
-
-    // Build HTML only once
-    dtControlsTop.innerHTML = `
-      <div class="dt-left-group">
-        <label class="m-0">Mostrar
-          <select id="dt-page-length" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        registros</label>
-      </div>
-      <div class="dt-right-group ms-auto">
-        <input id="dt-search" class="form-control form-control-sm" placeholder="Buscar...">
-      </div>
-    `;
-
-    // Length select
-    const lengthSel = document.getElementById('dt-page-length');
-    lengthSel.value = table.page.len();
-    lengthSel.addEventListener('change', (e) => {
-      const val = Number(e.target.value);
-      table.page.len(val).draw(false);
-    });
-
-    // Search input with debounce
-    const searchInput = document.getElementById('dt-search');
-    searchInput.value = table.search() || '';
-    searchInput.addEventListener('input', debounce(function (e) {
-      table.search(this.value).draw();
-    }, 250));
-
-    dtControlsTop.classList.remove('d-none');
-  }
-
-  function updateTable(filtered) {
-    lastFiltered = filtered.slice();
-
-    if (!filtered.length) {
-      if ($.fn.dataTable.isDataTable('#draftTable')) {
-        const t = $('#draftTable').DataTable();
-        t.clear().draw();
-      }
-      updateCards([]);
-      return;
-    }
-
-    const minPriority = Math.min(...filtered.map(p => Number(p.priorityScore) || 0));
-    const maxPriority = Math.max(...filtered.map(p => Number(p.priorityScore) || 0));
-
-    // FIX: Rango correcto para VOR vs VOR Ajustado
-    const minVorRaw = Math.min(...filtered.map(p => Number(p.vor) || 0));
-    const maxVorRaw = Math.max(...filtered.map(p => Number(p.vor) || 0));
-    const minAdjVor = Math.min(...filtered.map(p => Number(p.adjustedVOR) || 0));
-    const maxAdjVor = Math.max(...filtered.map(p => Number(p.adjustedVOR) || 0));
-
-    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0)) || 1;
-
-    const dataSet = filtered.map((p, idx) => [
-      `<span data-order="${Number(p.priorityScore) || 0}" style="background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};padding:0 6px;border-radius:4px;color:white;font-weight:bold;display:inline-block;">${p.priorityScore ?? ''}</span>`,
-      p.adpValue ?? '', // ADP VISIBLE
-      p.nombre ?? '',
-      // posición renderizada como badge para mantener colores
-      `<span class="badge ${getPositionColor(p.position)}">${p.position ?? ''}</span>`,
-      p.team ?? '',
-      p.bye ?? '',
-      p.rank ?? '',
-      p.status ?? '',
-      p.adpRound ?? '',
-      `<div class="progress" data-order="${Number(p.projection) || 0}"><div class="progress-bar" role="progressbar" style="width:${Math.min(100,(Number(p.projection||0)/maxProj)*100)}%"></div></div>`,
-      `<span data-order="${Number(p.vor) || 0}" style="background-color:${getHeatColor(p.vor, minVorRaw, maxVorRaw)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.vor)}</span>`,
-      `<span data-order="${Number(p.adjustedVOR) || 0}" style="background-color:${getHeatColor(p.adjustedVOR, minAdjVor, maxAdjVor)};padding:0 4px;border-radius:4px;color:white;font-weight:bold;">${safeNum(p.adjustedVOR)}</span>`,
-      p.dropoff ?? '',
-      safeNum(p.valueOverADP),
-      safeNum(p.stealScore), // oculto en DT (colDefs)
-      (p.riskTags || []).join(', '),
-      p.valueTag ?? '',
-      `<span class="badge bg-danger text-light">${p.tier_global ?? ''} ${p.tier_global_label ?? ''}</span>`,
-      `<span class="badge bg-primary text-light">${p.tier_pos ?? ''} ${p.tier_pos_label ?? ''}</span>`,
-      String(idx) // índice oculto para mapear a cards
-    ]);
-
-    if ($.fn.dataTable.isDataTable('#draftTable')) {
-      const table = $('#draftTable').DataTable();
-      table.clear();
-      table.rows.add(dataSet);
-      table.draw(false);
-      currentTable = table;
-      // Re-setup custom controls values
-      try {
-        const sel = document.getElementById('dt-page-length');
-        if (sel) sel.value = table.page.len();
-        const searchInput = document.getElementById('dt-search');
-        if (searchInput) searchInput.value = table.search();
-      } catch (e) {}
+    if (!pagePlayers.length) {
+      cardsContainer.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
     } else {
-      // NOTE: removemos 'l' y 'f' del dom para evitar que DataTables cree sus propios controles y los coloque incorrectamente.
-      const table = $('#draftTable').DataTable({
-        data: dataSet,
-        scrollX: true,
-        autoWidth: false,
-        destroy: true,
-        pageLength: 25,
-        deferRender: true,
-        // Orden inicial por rank (columna 6)
-        order: [[6, 'asc']],
-        // dom: sólo tabla + info/paginate (los controles top los hacemos nosotros)
-        dom: 't<"dt-bottom"ip>',
-        language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
-        columnDefs: [
-          { targets: [9, 16, 17, 18], orderable: false },
-          { targets: [9, 16, 17, 18], className: 'text-nowrap text-center' },
-          { targets: [1, 5, 6, 8, 10, 11, 12, 13, 14], type: 'num' },
-          { targets: [19], visible: false, searchable: false },
-          { targets: [14], visible: false, searchable: false }
-        ],
-        rowCallback: function (row, data) {
-          const tier = $(data[17]).text().toLowerCase();
-          $(row).removeClass('tier-elite tier-starter tier-bench tier-steal');
-          if (tier.includes('elite')) $(row).addClass('tier-elite');
-          else if (tier.includes('starter')) $(row).addClass('tier-starter');
-          else if (tier.includes('bench')) $(row).addClass('tier-bench');
-          if ($(data[16]).text().includes('💎 Steal')) $(row).addClass('tier-steal');
-        },
-        initComplete: function () {
-          // cuando DataTables termina, mover info/paginación y guardar wrapper
-          const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
-          mountDtControls($wrapper);
-
-          // crear controles top custom en nuestro contenedor
-          setupCustomTopControls(this.api());
-
-          // guardar referencia
-          currentTable = this.api();
-
-          // Si estamos en vista cards al iniciar, ocultamos la envoltura de DataTables y pintamos cards
-          if (isDesktop() && desktopView === 'cards') {
-            if (dtWrapperEl) dtWrapperEl.classList.add('dt-wrapper-hidden');
-            try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
-            renderCardsFromDataTable();
-          }
-
-          // Asegurar que el header de scrollX esté visible (caso en que DataTables use scroll wrapper)
-          try {
-            const container = $(this.table().container());
-            container.find('.dataTables_scrollHead').css('display', '');
-            container.find('.dataTables_scrollHeadInner').css('display', '');
-            container.find('.dataTables_scrollBody').css('display', '');
-            $(this.table().header()).css('display', 'table-header-group');
-            container.find('.dataTables_scrollHead thead').css({ 'display': 'table-header-group', 'visibility': 'visible', 'opacity': 1 });
-            this.columns.adjust();
-          } catch (e) {
-            // no bloquear si falla
-          }
-        }
-      });
-
-      // Cuando DataTables cambie búsqueda/orden/página, refrescamos las cards si la vista activa es "cards"
-      $('#draftTable').off('draw.dt').on('draw.dt', () => {
-        if (isDesktop() && desktopView === 'cards') {
-          renderCardsFromDataTable();
-        }
-        // mover paginación cada redraw por si DataTables la re-crea
-        try {
-          const $wrapper = $('#draftTable').closest('.dataTables_wrapper');
-          mountDtControls($wrapper);
-        } catch (e) {}
-      });
-
-      currentTable = table;
-    }
-
-    // Si estamos en desktop + cards, renderizar cards con el estado de DT
-    if (isDesktop() && desktopView === 'cards') {
-      renderCardsFromDataTable();
-    }
-  }
-
-  // ================================
-  // CARDS (Móvil + Desktop)
-  // ================================
-  function updateCards(players) {
-    const cont = cardsContainer;
-    if (!players.length) {
-      cont.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
-      return;
-    }
-
-    const maxProj = Math.max(...players.map(p => Number(p.projection) || 0)) || 1;
-
-    // Para badges de priority dinámicos
-    const minPriority = Math.min(...players.map(p => Number(p.priorityScore) || 0));
-    const maxPriority = Math.max(...players.map(p => Number(p.priorityScore) || 0));
-
-    cont.innerHTML = `
-      <div class="row g-2">
-        ${players.map(p => {
-          const risk = (p.riskTags || []).join(', ');
-          const prio = (p.priorityScore ?? '') + '';
-          const projPct = Math.min(100, (Number(p.projection||0)/maxProj)*100);
-          // badge de prioridad inline para asegurar que el color venga del heatmap
-          const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPriority, maxPriority)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
-          return `
-            <div class="col-12 col-md-4 col-lg-3">
-              <div class="draft-card">
-                <div class="title-row">
-                  <div class="player">${p.nombre ?? ''}</div>
-                  <span class="badge" style="${prioStyle}">Prio: ${prio}</span>
-                </div>
-                <div class="meta mb-2">
-                  <span class="kv">${getPositionBadge(p.position)}</span>
-                  <span class="kv"><i class="bi bi-shield"></i> ${p.team ?? ''}</span>
-                  <span class="kv"><i class="bi bi-calendar2-x"></i> Bye ${p.bye ?? ''}</span>
-                  <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
-                  <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
-                  <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
-                  <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span>
-                </div>
-                <div class="mb-2">
-                  <div class="small mb-1">Proyección</div>
-                  <div class="progress"><div class="progress-bar" style="width:${projPct}%"></div></div>
-                </div>
-                <div class="meta">
-                  <span class="kv"><strong>VOR:</strong> ${safeNum(p.vor)}</span>
-                  <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
-                  <span class="kv"><strong>Drop:</strong> ${p.dropoff ?? ''}</span>
-                  <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
-                </div>
-                <div class="mt-2 d-flex flex-wrap gap-2">
-                  ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
-                  ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
-                  ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global} ${p.tier_global_label}</span>` : ''}
-                  ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos} ${p.tier_pos_label}</span>` : ''}
+      cardsContainer.innerHTML = `
+        <div class="row g-2">
+          ${pagePlayers.map(p => {
+            const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
+            const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
+            const risk = (p.riskTags || []).join(', ');
+            return `
+              <div class="col-12 col-md-4 col-lg-3">
+                <div class="draft-card">
+                  <div class="title-row">
+                    <div class="player">${p.nombre ?? ''}</div>
+                    <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
+                  </div>
+                  <div class="meta mb-2">
+                    <span class="kv">${getPositionBadge(p.position)}</span>
+                    <span class="kv"><i class="bi bi-shield"></i> ${p.team ?? ''}</span>
+                    <span class="kv"><i class="bi bi-calendar2-x"></i> Bye ${p.bye ?? ''}</span>
+                    <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
+                    <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
+                    <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
+                    <span class="kv"><i class="bi bi-bar-chart"></i> ADP ${p.adpValue ?? ''}</span>
+                  </div>
+                  <div class="mb-2">
+                    <div class="small mb-1">Proyección</div>
+                    <div class="progress"><div class="progress-bar" style="width:${projPct}%"></div></div>
+                  </div>
+                  <div class="meta">
+                    <span class="kv"><strong>VOR:</strong> ${safeNum(p.vor)}</span>
+                    <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
+                    <span class="kv"><strong>Drop:</strong> ${safeNum(p.dropoff)}</span>
+                    <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
+                  </div>
+                  <div class="mt-2 d-flex flex-wrap gap-2">
+                    ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
+                    ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
+                    ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global ?? ''} ${p.tier_global_label}</span>` : ''}
+                    ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos ?? ''} ${p.tier_pos_label}</span>` : ''}
+                  </div>
                 </div>
               </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }
-
-  // Renderizar cards desde el estado actual de DataTables (página/búsqueda/orden aplicados)
-  function renderCardsFromDataTable() {
-    if (!$.fn.dataTable.isDataTable('#draftTable')) return;
-    const t = $('#draftTable').DataTable();
-    const rows = t.rows({ page: 'current', search: 'applied', order: 'applied' }).data().toArray();
-    const idxCol = 19; // última columna es el índice oculto
-    const pagePlayers = rows
-      .map(r => lastFiltered[Number(r[idxCol])])
-      .filter(Boolean);
-
-    updateCards(pagePlayers);
-    renderSummary(pagePlayers);
-  }
-
-  // ================================
-  // REFRESH (aplica filtro y pinta según vista)
-  // ================================
-  function refreshUI(data) {
-    const statusFilter = statusSelect.value;
-    const filtered = data.filter(p => statusFilter === 'TODOS' || (p.status || '').toLowerCase().trim() === 'libre');
-
-    // ✅ Orden unificado por RANK para móvil y desktop (fuente de verdad)
-    const sortedByRank = filtered.slice().sort((a, b) => getRankNum(a) - getRankNum(b));
-
-    if (isDesktop()) {
-      updateTable(sortedByRank); // DT controla búsqueda/orden/página
-      if (desktopView === 'table') {
-        renderSummary(sortedByRank);
-      }
-    } else {
-      renderSummary(sortedByRank);
-      updateCards(sortedByRank);
+            `;
+          }).join('')}
+        </div>
+      `;
     }
+
+    renderSummary(filtered);
+    renderPagination();
+    cardsInfo.textContent = `Mostrando ${filtered.length ? (start + 1) : 0}-${Math.min(start + pageSize, filtered.length)} de ${filtered.length} jugadores`;
   }
 
-  // ================================
-  // CARGA DE DATOS
-  // ================================
+  function renderPagination() {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const firstDisabled = currentPage === 1 ? 'disabled' : '';
+    const lastDisabled = currentPage === totalPages ? 'disabled' : '';
+
+    paginationEl.innerHTML = `
+      <button class="page-btn" id="btn-first" ${firstDisabled} title="Primera">«</button>
+      <button class="page-btn" id="btn-prev" ${firstDisabled} title="Anterior">‹</button>
+      <div style="padding:0 .6rem">Página <strong>${currentPage}</strong> / ${totalPages}</div>
+      <button class="page-btn" id="btn-next" ${lastDisabled} title="Siguiente">›</button>
+      <button class="page-btn" id="btn-last" ${lastDisabled} title="Última">»</button>
+    `;
+
+    const btnFirst = document.getElementById('btn-first');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const btnLast = document.getElementById('btn-last');
+
+    btnFirst?.addEventListener('click', () => { if (currentPage !== 1) updateCardsForPage(1); });
+    btnPrev?.addEventListener('click', () => { if (currentPage > 1) updateCardsForPage(currentPage - 1); });
+    btnNext?.addEventListener('click', () => { if (currentPage < totalPages) updateCardsForPage(currentPage + 1); });
+    btnLast?.addEventListener('click', () => { if (currentPage !== totalPages) updateCardsForPage(totalPages); });
+  }
+
+  // =============================
+  // Filtrado local
+  // =============================
+  function isFreeStatus(s) {
+    const t = (s ?? '').toString().trim().toLowerCase();
+    if (!t) return true;
+    return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
+  }
+
+	function applyFiltersAndSort() {
+	  const statusFilter = statusSelect.value || '';
+	  const posFilter = positionSelect.value;
+	  const byeCondition = Number(byeInput.value) || 0;
+	  const q = (searchQuery || '').trim().toLowerCase();
+
+	  filtered = draftData.filter(p => {
+	    // === STATUS FILTER ===
+	    if (statusFilter && statusFilter !== 'TODOS') {
+	      if (statusFilter === 'LIBRE') {
+	        if (p.status !== 'LIBRE') return false;
+	      } else {
+	        if ((p.status || '').toUpperCase() !== statusFilter.toUpperCase()) return false;
+	      }
+	    }
+
+	    // === POSITION FILTER ===
+	    if (posFilter && posFilter !== '' && posFilter !== 'TODAS') {
+	      if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
+	    }
+
+	    // === BYE FILTER ===
+	    if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
+
+	    // === SEARCH FILTER ===
+	    if (q) {
+	      const haystack = [
+	        p.nombre, p.team, p.position,
+	        p.valueTag, p.tier_global_label, p.tier_pos_label,
+	        ...(p.riskTags || [])
+	      ].filter(Boolean).join(' ').toLowerCase();
+	      if (!haystack.includes(q)) return false;
+	    }
+
+	    return true;
+	  });
+
+	  // === ORDENAMIENTO ===
+		if (sortBy === 'shark') {
+		  // Construimos rangos con el conjunto filtrado (o draftData si no hay suficientes)
+		  const base = filtered.length ? filtered : draftData;
+		  const R = _buildSharkRanges(base);
+
+		  // Calcula y cachea puntuación para mostrarla en la card
+		  filtered.forEach(p => { p._shark = computeSharkScore(p, R); });
+
+		  // Orden descendente por SharkScore
+		  filtered.sort((a, b) => (b._shark ?? -Infinity) - (a._shark ?? -Infinity));
+		} else {
+		  filtered.sort(comparePlayers);
+		}
+
+	  // === PAGINACIÓN ===
+	  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+	  if (currentPage > totalPages) currentPage = 1;
+
+	  updateCardsForPage(currentPage);
+	}
+
+  // =============================
+  // Carga de datos
+  // =============================
   async function loadDraftData() {
     try {
-      const leagueId = leagueSelect.value;
-      const position = positionSelect.value;
-      const byeCondition = byeInput.value || 0;
-      const selectedOption = expertSelect.selectedOptions[0];
-      const idExpert = selectedOption?.dataset.id || selectedOption?.value || '';
-      const sleeperADP = sleeperADPCheckbox.checked;
+      // Lee valores con soporte a TomSelect y fallback
+      const leagueId =
+        (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
+
+      const posRaw = (positionSelect.value || 'TODAS').toString().trim();
+      const position = posRaw === '' ? 'TODAS' : posRaw;
+
+      const byeCondition = Number(byeInput.value || 0);
+
+      const expertVal = (document.querySelector('#select-expert')?.tomselect?.getValue?.() ?? expertSelect.value ?? '');
+      let idExpert = (Array.isArray(expertVal) ? expertVal[0] : expertVal || '').toString().trim();
+      // dataset id prioritario si existe
+      const selectedOption = expertSelect.selectedOptions?.[0];
+      if (selectedOption?.dataset?.id) {
+        idExpert = selectedOption.dataset.id.toString().trim();
+      }
+
+      const sleeperADP = !!sleeperADPCheckbox.checked;
 
       if (!leagueId || !idExpert) {
-        return showError('Selecciona una liga y un experto');
+        showError('Selecciona una liga y un experto');
+        return;
       }
 
       showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-
-      // PASAMOS sleeperADP al fetchDraftData (bool)
       const { players, params } = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
-
       Swal.close();
 
-      if (!players.length) {
-        updateCards([]);
-        if ($.fn.dataTable.isDataTable('#draftTable')) {
-          $('#draftTable').DataTable().clear().draw();
-        }
-        return showError('No se encontraron jugadores.');
+      if (!players || !players.length) {
+        draftData = [];
+        filtered = [];
+        updateCardsForPage(1);
+        showError('No se encontraron jugadores.');
+        return;
       }
 
-      draftData = players;
-      refreshUI(draftData);
+      draftData = normalizePlayers(players);
+      currentPage = 1;
+      applyFiltersAndSort();
 
-      // Fechas
-      const ranksLabel = document.getElementById('ranks-updated-label');
-      if (ranksLabel && params?.ranks_published) {
+      if (params?.ranks_published) {
         const fecha = new Date(params.ranks_published);
-        ranksLabel.innerHTML = `
+        document.getElementById('ranks-updated-label').innerHTML = `
           <div class="px-3 py-1 small rounded-pill shadow-sm"
                style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
             <i class="bi bi-calendar-check-fill text-success"></i>
             Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
           </div>`;
+      } else {
+        document.getElementById('ranks-updated-label').innerHTML = '';
       }
 
-      const adpLabel = document.getElementById('adp-updated-label');
-      if (adpLabel && params?.ADPdate) {
+      if (params?.ADPdate) {
         const adpDate = new Date(params.ADPdate);
-        adpLabel.innerHTML = `
+        document.getElementById('adp-updated-label').innerHTML = `
           <div class="px-3 py-1 small rounded-pill shadow-sm"
                style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
             <i class="bi bi-clock-history text-warning"></i>
             ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
           </div>`;
+      } else {
+        document.getElementById('adp-updated-label').innerHTML = '';
       }
-
     } catch (err) {
       Swal.close();
       console.error('Error en loadDraftData:', err);
-      showError('Error al actualizar draft: ' + err.message);
+      showError('Error al actualizar draft: ' + (err?.message || err));
     }
   }
 
-  // ================================
-  // Helpers de vista
-  // ================================
-  function isDesktop() {
-    return window.matchMedia('(min-width: 768px)').matches;
-  }
-
-  function setDesktopView(view) {
-    if (!isDesktop()) return; // en móvil siempre cards
-    desktopView = view;
-
-    // Toggle botones
-    if (btnViewCards && btnViewTable) {
-      btnViewCards.classList.toggle('active', view === 'cards');
-      btnViewTable.classList.toggle('active', view === 'table');
-    }
-
-    // Mostrar / ocultar wrapper
-    if (dtWrapperEl) {
-      const $wrapper = $(dtWrapperEl);
-      if (view === 'cards') {
-        // ocultar wrapper pero dejar controles visibles
-        $wrapper.addClass('dt-wrapper-hidden');
-
-        // asegurar controles arriba
-        try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
-
-        renderCardsFromDataTable();
-
-        dtControlsTop.classList.remove('d-none');
-        dtPagBottom.classList.remove('d-none');
-      } else {
-        // mostrar wrapper y forzar recalculo de header/columnas
-        $wrapper.removeClass('dt-wrapper-hidden');
-        try { $wrapper.show(); } catch (e) {}
-
-        if ($.fn.dataTable.isDataTable('#draftTable')) {
-          const t = $('#draftTable').DataTable();
-          try {
-            const container = $(t.table().container());
-            // mostrar elementos de scroll head (si existen)
-            container.find('.dataTables_scrollHead').css('display', '');
-            container.find('.dataTables_scrollHeadInner').css('display', '');
-            container.find('.dataTables_scrollBody').css('display', '');
-            // forzar que el header clone y th sean visibles
-            $(t.table().header()).css('display', 'table-header-group');
-            container.find('thead').css('display', 'table-header-group');
-            container.find('.dataTables_scrollHead thead').css({ 'display': 'table-header-group', 'visibility': 'visible', 'opacity': 1 });
-          } catch (e) {
-            // no bloquear
-          }
-
-          requestAnimationFrame(() => { t.columns.adjust(); requestAnimationFrame(() => t.draw(false)); });
-        }
-
-        try { if (cardsContainer && dtControlsTop && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtControlsTop, cardsContainer); } catch (e) {}
-        try { if (cardsContainer && dtPagBottom && cardsContainer.parentNode) cardsContainer.parentNode.insertBefore(dtPagBottom, cardsContainer.nextSibling); } catch (e) {}
-
-        if (lastFiltered.length) renderSummary(lastFiltered);
+  // =============================
+  // Init selects (TomSelect y fallback)
+  // =============================
+  let expertTS = null, leagueTS = null;
+  try {
+    expertTS = await renderExpertSelect('#select-expert', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange() {
+        try { localStorage.setItem('draftExpert', this.getValue?.() || ''); } catch(e) {}
+				if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos (si ya hay liga seleccionada)
+        if (leagueSelect.value) loadDraftData();
       }
-    } else {
-      // fallback
-      const tableEl = document.getElementById('draftTable');
-      if (view === 'cards') {
-        cardsContainer.classList.remove('d-none');
-        if (tableEl) tableEl.classList.add('d-none');
-        if ($.fn.dataTable.isDataTable('#draftTable')) renderCardsFromDataTable();
-        dtControlsTop.classList.remove('d-none');
-        dtPagBottom.classList.remove('d-none');
-      } else {
-        cardsContainer.classList.add('d-none');
-        if (tableEl) {
-          tableEl.classList.remove('d-none');
-          if ($.fn.dataTable.isDataTable('#draftTable')) {
-            const t = $('#draftTable').DataTable();
-            $(t.table().header()).css('display', 'table-header-group');
-            $(t.table().header()).css({'visibility':'visible','opacity':1});
-            setTimeout(() => t.columns.adjust().draw(false), 0);
-          }
-        }
+    });
+  } catch (e) {
+    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
+
+  try {
+    leagueTS = await renderLeagueSelect('#select-league', {
+      plugins: ['dropdown_input'],
+      dropdownInput: false,
+      create: false,
+      persist: false,
+      onChange() {
+        try { localStorage.setItem('draftLeague', this.getValue?.() || ''); } catch(e) {}
+				if (this && typeof this.blur === 'function') this.blur();
+        // recargar datos si ya hay experto seleccionado
+        if (expertSelect.value) loadDraftData();
+      }
+    });
+  } catch (e) {
+    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
+  }
+
+  // Fallback si tomselect no fue devuelto por la función
+  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
+  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
+
+  function applySavedValue(selectEl, tsInstance, savedValue) {
+    if (!savedValue) return;
+    try {
+      if (tsInstance && typeof tsInstance.setValue === 'function') {
+        tsInstance.setValue(savedValue);
+        tsInstance.blur?.();
+      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
+        selectEl.tomselect.setValue(savedValue);
+        selectEl.tomselect.blur?.();
+      } else if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        selectEl.blur?.();
+      }
+    } catch {
+      if (selectEl) {
+        selectEl.value = savedValue;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
   }
 
-  // ================================
-  // Bootstrap inicial
-  // ================================
-  // Si hay liga y experto guardados, cargamos automáticamente
+  applySavedValue(expertSelect, expertTS, savedExpert);
+  applySavedValue(leagueSelect, leagueTS, savedLeague);
+
+  // =============================
+  // Eventos UI
+  // =============================
+  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); applyFiltersAndSort(); });
+  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); applyFiltersAndSort(); });
+  byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
+  sleeperADPCheckbox.addEventListener('change', () => { localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked); loadDraftData(); });
+
+  pageSizeSel.addEventListener('change', () => {
+    pageSize = Number(pageSizeSel.value) || 12;
+    currentPage = 1;
+    updateCardsForPage(currentPage);
+  });
+
+  sortBySel.addEventListener('change', () => {
+    sortBy = sortBySel.value;
+    applyFiltersAndSort();
+  });
+
+  searchInput.addEventListener('input', debounce((e) => {
+    searchQuery = e.target.value || '';
+    currentPage = 1;
+    applyFiltersAndSort();
+  }, 250));
+
+  btnUpdate.addEventListener('click', loadDraftData);
+
+  // expert/league fallback native change -> load
+  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
+  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); });
+
+  // Init: si hay liga y experto guardados, cargar
   if (savedLeague && savedExpert) loadDraftData();
 
-  // Al cargar, forzamos vista cards en desktop por defecto
-  setTimeout(() => setDesktopView('cards'), 0);
+  // Render inicial vacío
+  filtered = [];
+  updateCardsForPage(1);
 
-  // Reaccionar a cambios de tamaño (si cambia entre móvil/desktop)
   window.addEventListener('resize', () => {
-    if (!isDesktop()) {
-      // móvil: mostrar cards siempre
-      cardsContainer.classList.remove('d-none');
-      if (dtWrapperEl) dtWrapperEl.classList.remove('dt-wrapper-hidden'); // evitar wrapper escondido al volver a móvil
-    } else {
-      // desktop: aplicar el modo actual
-      setDesktopView(desktopView);
-    }
+    // Hook responsive si lo necesitas
   });
 }

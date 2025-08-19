@@ -30,6 +30,7 @@ import {
   getFantasyProsADPData
 } from './lib/fantasyprosService.js';
 import draftRouter from './draft.js';
+import manualRouter from './manualRoutes.js';
 import lineupRouter from './lineup.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
@@ -186,6 +187,7 @@ app.use('/projections', projectionsRouter);
 app.use('/extras', extrasRouter);
 app.use('/rankings', rankingsRouter);
 app.use('/admin', adminRouter);
+app.use('/manual', manualRouter);
 
 // 🌐 Default
 app.get('/', (req, res) => {
