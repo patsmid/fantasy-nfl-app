@@ -1,61 +1,9 @@
-// extras.routes.js
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from './auth/authMiddleware.js';
 
 const router = express.Router();
 
-const { SUPABASE_URL, SUPABASE_ANON_KEY, DEBUG_AUTH } = process.env;
-
-/**
- * Cliente SOLO para validar tokens (ANON KEY, sin JWT de usuario).
- * No usar este cliente para queries con RLS, solo para auth.getUser(token).
- */
-const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-/**
- * Middleware de autenticación
- * - Valida el Bearer token
- * - Crea un cliente de BD por-request (req.db) con Authorization: Bearer <user_token>
- *   para que RLS (auth.uid(), auth.jwt()) funcione.
- */
-async function requireAuth(req, res, next) {
-  try {
-    const authHeader = req.headers['authorization'] || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return res.status(401).json({ error: 'Missing bearer token' });
-
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-    if (error || !data?.user) return res.status(401).json({ error: 'Invalid token' });
-
-    req.user = data.user;
-
-    // Cliente de BD por-request “impersonando” al usuario:
-    req.db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    });
-
-    // Debug opcional del contexto que verá RLS en Postgres
-    if (DEBUG_AUTH === '1') {
-      try {
-        const dbg = await req.db.rpc('debug_ctx');
-        console.log('🔎 RLS ctx:', dbg.data);
-      } catch (e) {
-        console.log('ℹ️ debug_ctx no disponible:', e.message);
-      }
-    }
-
-    return next();
-  } catch (err) {
-    console.error('Auth error:', err);
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-}
-
-// Aplica auth a todo
+// Aplica auth a todo el router
 router.use(requireAuth);
 
 // ------------------ LINKS ------------------
