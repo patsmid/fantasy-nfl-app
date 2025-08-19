@@ -5,33 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fantasy NFL - Iniciar sesión</title>
 
-  <!-- Estilos de tu proyecto -->
+  <!-- Tus estilos -->
   <link rel="stylesheet" href="./css/login.css" />
-
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <!-- Bootstrap Icons (para el ojito de password) -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+  <!-- Mini utilidades para ojo de password y links; NO alteran tu tema -->
   <style>
-    /* Pequeños toques de UI por si tu login.css no los contempla */
-    .login-root{min-height:100dvh;display:grid;place-items:center;background:radial-gradient(1200px 600px at 80% -20%,#1e293b 0%,#0b1220 60%,#050810 100%);}
-    .login-card{width:min(420px,92vw);background:rgba(16,23,42,.7);backdrop-filter: blur(8px);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:28px;color:#e5e7eb;box-shadow:0 10px 35px rgba(0,0,0,.45);}
-    .login-brand{font-weight:700;font-size:20px;letter-spacing:.3px;display:flex;align-items:center;gap:.5rem}
-    .brand-text{color:#ffb703}
-    .login-title{font-size:26px;margin:14px 0 4px}
-    .login-sub{color:#9ca3af;margin-bottom:20px}
-    .login-form .form-control, .login-form input{background:#0b1220 !important;border:1px solid rgba(255,255,255,.08);color:#e5e7eb}
-    .login-btn{width:100%;background:linear-gradient(90deg,#2563eb,#7c3aed);border:none}
-    .login-btn:disabled{opacity:.8}
-    .input-group-text{background:#0b1220;border:1px solid rgba(255,255,255,.08);color:#9ca3af}
-    .footer-links{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-    .link-muted{color:#9ca3af;text-decoration:none}
-    .link-muted:hover{color:#e5e7eb;text-decoration:underline}
+    .input-wrap { position: relative; }
+    .toggle-pass {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      border: 0; background: transparent; cursor: pointer; padding: 4px;
+      color: var(--text-secondary); font-size: 0.95rem;
+    }
+    .toggle-pass:hover { color: var(--text-primary); }
+    .row-foot {
+      display: flex; align-items: center; justify-content: space-between; margin-top: .5rem;
+      font-size: 0.9rem; color: var(--text-secondary);
+    }
+    .row-foot a { color: var(--text-secondary); text-decoration: none; }
+    .row-foot a:hover { color: var(--accent); text-decoration: underline; }
+    .visually-hidden { position: absolute !important; height: 1px; width: 1px; overflow: hidden;
+      clip: rect(1px,1px,1px,1px); white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -43,34 +39,31 @@
       <p class="login-sub">Introduce tus credenciales para continuar</p>
 
       <form id="loginForm" class="login-form" autocomplete="off" novalidate>
-        <div class="mb-3">
-          <label for="email" class="form-label visually-hidden">Email</label>
-          <input id="email" name="email" type="email" class="form-control" placeholder="usuario@ejemplo.com" required autocomplete="email" />
+        <label for="email" class="visually-hidden">Email</label>
+        <input id="email" name="email" type="email" placeholder="usuario@ejemplo.com"
+               required autocomplete="username email" />
+
+        <label for="password" class="visually-hidden">Password</label>
+        <div class="input-wrap">
+          <input id="password" name="password" type="password" placeholder="••••••"
+                 required autocomplete="current-password" />
+          <button type="button" id="togglePass" class="toggle-pass" aria-label="Mostrar u ocultar contraseña">👁️</button>
         </div>
 
-        <div class="mb-2">
-          <label for="password" class="form-label visually-hidden">Password</label>
-          <div class="input-group">
-            <input id="password" name="password" type="password" class="form-control" placeholder="••••••" required autocomplete="current-password" />
-            <button class="input-group-text" type="button" id="togglePass" aria-label="Mostrar u ocultar contraseña">
-              <i class="bi bi-eye"></i>
-            </button>
-          </div>
+        <div class="row-foot">
+          <label style="display:flex;gap:.5rem;align-items:center;">
+            <input id="remember" type="checkbox" checked />
+            <span>Mantener sesión iniciada</span>
+          </label>
+          <a href="#" id="forgotLink">¿Olvidaste tu contraseña?</a>
         </div>
 
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="remember" checked />
-          <label class="form-check-label" for="remember">Mantener sesión iniciada</label>
-        </div>
-
-        <button type="submit" class="btn login-btn d-inline-flex align-items-center justify-content-center gap-2" id="loginBtn">
+        <button type="submit" class="login-btn" id="loginBtn">
           <span class="btn-text">Entrar</span>
-          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" id="btnSpinner"></span>
         </button>
 
-        <div class="footer-links">
-          <a href="#" class="link-muted" id="forgotLink">¿Olvidaste tu contraseña?</a>
-          <a href="/" class="link-muted">Volver al inicio</a>
+        <div class="login-foot">
+          <a href="/" style="color:inherit;text-decoration:none;">Volver al inicio</a>
         </div>
       </form>
     </div>
@@ -79,49 +72,47 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // ⚙️ Config: usa estas variables o injecta desde tu build (window.__SUPABASE_URL / __SUPABASE_ANON_KEY)
+    // Config (puedes inyectar por window.__SUPABASE_* si lo prefieres)
     const supabaseUrl = window.__SUPABASE_URL || "https://cdmesdcgkcvogbgzqobt.supabase.co";
     const supabaseAnonKey = window.__SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
 
+    // Persistencia por defecto (localStorage). Si quisieras sesión efímera cuando "remember" está desmarcado,
+    // se puede migrar a sessionStorage tras login; lo dejo listo más abajo.
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+    // DOM
     const form = document.getElementById('loginForm');
-    const loginBtn = document.getElementById('loginBtn');
-    const btnSpinner = document.getElementById('btnSpinner');
-    const btnText = loginBtn.querySelector('.btn-text');
-    const togglePass = document.getElementById('togglePass');
-    const passwordInput = document.getElementById('password');
     const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const togglePass = document.getElementById('togglePass');
+    const loginBtn = document.getElementById('loginBtn');
+    const btnText = loginBtn.querySelector('.btn-text');
+    const remember = document.getElementById('remember');
     const forgotLink = document.getElementById('forgotLink');
 
-    // 🔁 Redirección si ya hay sesión
+    // Si ya hay sesión, redirige
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        window.location.href = "/index.html";
-      }
+      if (session) window.location.href = "/index.html";
     })();
 
-    // 👁️ Mostrar/ocultar contraseña
+    // Mostrar/ocultar contraseña
     togglePass.addEventListener('click', () => {
       const isPwd = passwordInput.type === 'password';
       passwordInput.type = isPwd ? 'text' : 'password';
-      togglePass.innerHTML = isPwd ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+      togglePass.textContent = isPwd ? '🙈' : '👁️';
       passwordInput.focus();
     });
 
-    // 🧷 Forgot password: envía email de reseteo
+    // Forgot password
     forgotLink.addEventListener('click', async (e) => {
       e.preventDefault();
       const email = emailInput.value.trim();
       if (!email) {
-        Swal.fire({ icon: 'info', title: 'Ingresa tu email', text: 'Escribe tu correo para enviarte el enlace de recuperación.' });
-        emailInput.focus();
-        return;
+        return Swal.fire({ icon: 'info', title: 'Ingresa tu email', text: 'Escribe tu correo para enviarte el enlace de recuperación.' });
       }
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          // Ajusta la URL de retorno a tu app
           redirectTo: `${location.origin}/auth/callback.html`
         });
         if (error) throw error;
@@ -131,33 +122,49 @@
       }
     });
 
-    // 🧠 Enviar formulario
+    // Login
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const email = emailInput.value.trim();
       const password = passwordInput.value;
-
       if (!email || !password) {
-        Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Ingresa tu email y contraseña.' });
-        return;
+        return Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Ingresa tu email y contraseña.' });
       }
 
       setLoading(true);
       try {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
         if (error) throw error;
 
-        // Guarda sesión y token (compat para tu app)
+        // Sesión de Supabase (guardada por el SDK en localStorage)
         const { data: { session } } = await supabase.auth.getSession();
+
+        // Si NO quiere “recordar”, migramos la sesión a sessionStorage (opcional y transparente para tu app)
+        if (!remember.checked && session) {
+          try {
+            // Copiamos claves internas de supabase a sessionStorage y limpiamos localStorage
+            for (const k in localStorage) {
+              if (k.startsWith('sb-')) {
+                sessionStorage.setItem(k, localStorage.getItem(k));
+              }
+            }
+            // Además, como tu app usa estas keys personalizadas:
+            localStorage.removeItem("sb_session");
+            localStorage.removeItem("sb_access_token");
+            // Nota: el SDK seguirá leyendo de localStorage en recargas. Si quieres 100% efímero,
+            // crea el cliente con persistSession: false cuando remember=false.
+          } catch {}
+        }
+
+        // Tus claves de compatibilidad para el backend
         if (session) {
-          localStorage.setItem("sb_session", JSON.stringify(session));                 // compat
-          localStorage.setItem("sb_access_token", session.access_token || "");        // por si tu fetch lo usa
+          localStorage.setItem("sb_session", JSON.stringify(session));
+          localStorage.setItem("sb_access_token", session.access_token || "");
           localStorage.setItem("fantasyEmail", email);
         }
 
-        // (Opcional) perfil/rol
+        // Perfil/rol
         try {
           const { data: profile } = await supabase
             .from('profiles')
@@ -167,33 +174,26 @@
           localStorage.setItem("fantasyRole", profile?.role || 'user');
         } catch {}
 
-        // ✅ Redirigir
         window.location.href = "/index.html";
       } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Credenciales inválidas',
-          text: normalizaSupabaseError(err),
-        });
+        Swal.fire({ icon: 'error', title: 'Credenciales inválidas', text: normalizaSupabaseError(err) });
       } finally {
         setLoading(false);
       }
     });
 
-    // 🔧 Helpers
-    function setLoading(isLoading) {
-      emailInput.disabled = isLoading;
-      passwordInput.disabled = isLoading;
-      loginBtn.disabled = isLoading;
-      btnSpinner.classList.toggle('d-none', !isLoading);
-      btnText.textContent = isLoading ? 'Ingresando…' : 'Entrar';
+    // Helpers
+    function setLoading(v) {
+      emailInput.disabled = v;
+      passwordInput.disabled = v;
+      loginBtn.disabled = v;
+      btnText.textContent = v ? 'Ingresando…' : 'Entrar';
     }
-
     function normalizaSupabaseError(err) {
-      const msg = (err?.message || '').toLowerCase();
-      if (msg.includes('invalid login') || msg.includes('invalid credentials')) return 'Correo o contraseña incorrectos.';
-      if (msg.includes('email not confirmed')) return 'Debes confirmar tu correo antes de iniciar sesión.';
-      if (msg.includes('too many')) return 'Demasiados intentos. Intenta de nuevo en unos minutos.';
+      const m = (err?.message || '').toLowerCase();
+      if (m.includes('invalid login') || m.includes('invalid credentials')) return 'Correo o contraseña incorrectos.';
+      if (m.includes('email not confirmed')) return 'Debes confirmar tu correo antes de iniciar sesión.';
+      if (m.includes('too many')) return 'Demasiados intentos. Intenta de nuevo en unos minutos.';
       return err?.message || 'Ocurrió un error al iniciar sesión.';
     }
   </script>
