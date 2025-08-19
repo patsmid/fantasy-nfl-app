@@ -19,7 +19,7 @@ export default async function renderExtrasView() {
   async function getAccessToken() {
     try {
       // Intenta importar tu cliente de supabase del frontend
-      const mod = await import('../components/supabaseClient.js').catch(() => null);
+      const mod = await import('../../components/supabaseClient.js').catch(() => null);
       const supa = mod?.supabase || window?.supabase;
       if (!supa) return null;
       const { data: { session } } = await supa.auth.getSession();
