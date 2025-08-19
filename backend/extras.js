@@ -45,9 +45,22 @@ router.use(requireAuth);
 // ------------------ LINKS ------------------
 // GET: solo del usuario (o todos si admin y así lo decides)
 router.get('/links', async (req, res) => {
-  const q = supabase.from('links').select('*').order('updated_at', { ascending: false });
-  const { data, error } = await (isAdmin(req.user) ? q : q.eq('user_id', req.user.id));
-  if (error) return res.status(500).json({ error: error.message || error });
+  console.log('👉 req.user', req.user);
+
+  let q = supabase.from('links').select('*').order('updated_at', { ascending: false });
+  if (!isAdmin(req.user)) {
+    console.log('Filtrando por user_id:', req.user.id);
+    q = q.eq('user_id', req.user.id);
+  } else {
+    console.log('Usuario admin, sin filtro user_id');
+  }
+
+  const { data, error } = await q;
+  if (error) {
+    console.error('❌ Supabase error:', error);
+    return res.status(500).json({ error: error.message || error });
+  }
+  console.log('✅ Query result:', data);
   res.json({ success: true, data });
 });
 
