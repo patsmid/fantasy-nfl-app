@@ -77,6 +77,7 @@ router.post("/users/upsert", async (req, res) => {
   try {
     const { id, email, password, username, role } = req.body;
 
+    // Validaciones básicas
     if (!email) return res.status(400).json({ error: "Email requerido" });
     if (username && !isValidUsername(username)) {
       return res.status(400).json({ error: "USERNAME_INVALID" });
@@ -88,31 +89,31 @@ router.post("/users/upsert", async (req, res) => {
     let authUser;
 
     if (id) {
-      // actualizar auth
+      // Actualizar usuario existente
       const { data, error } = await supabaseAdmin.auth.admin.updateUserById(id, {
         email,
         ...(password ? { password } : {}),
+        email_confirmed: true, // 🔹 Asegura que el email quede confirmado
       });
       if (error) throw error;
       authUser = data.user;
     } else {
-      // crear auth
-			const { data, error } = await supabaseAdmin.auth.admin.createUser({
-			  email,
-			  password: password || strongRandomPassword(),
-			  email_confirmed: true,
-			});
-
+      // Crear nuevo usuario
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: password || strongRandomPassword(),
+        email_confirmed: true, // 🔹 Nuevo usuario confirmado
+      });
       if (error) throw error;
       authUser = data.user;
     }
 
-    // upsert profiles
-		const profileRow = {
-		  id: authUser.id,
-		  ...(username ? { username } : {}),
-		  ...(role ? { role } : {}),
-		};
+    // Upsert en profiles (sin campo email)
+    const profileRow = {
+      id: authUser.id,
+      ...(username ? { username } : {}),
+      ...(role ? { role } : {}),
+    };
 
     const { data: prof, error: pErr } = await supabase
       .from('profiles')
@@ -134,7 +135,6 @@ router.post("/users/upsert", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-
 
 // === ELIMINAR USUARIO ===
 router.delete("/users/:id", async (req, res) => {
