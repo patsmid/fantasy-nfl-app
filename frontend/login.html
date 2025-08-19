@@ -27,21 +27,26 @@
         <button type="submit" class="btn login-btn">Entrar</button>
       </form>
 
+      <!-- BOTÓN TEMPORAL DE PRUEBA -->
+      <button id="btnCreateTestUsers" class="btn btn-warning w-100 mt-2">Crear usuarios de prueba</button>
+
       <p class="login-foot">¿No tienes usuario? Pide acceso al administrador.</p>
     </div>
   </main>
 
-	<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
     import { showSuccess, showError } from "../components/alerts.js";
 
-		const supabaseUrl = "https://cdmesdcgkcvogbgzqobt.supabase.co";
-	  const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
-	  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabaseUrl = "https://cdmesdcgkcvogbgzqobt.supabase.co";
+    const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbWVzZGNna2N2b2diZ3pxb2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1NjM3ODIsImV4cCI6MjA2NzEzOTc4Mn0.QODh_sgbLeqNzYkXp8Ng3HflGaqBw5rf_sZHxanpZH8";
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     const form = document.getElementById('loginForm');
+    const btnCreateTestUsers = document.getElementById('btnCreateTestUsers');
 
+    // FUNCIONES DE LOGIN
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -64,13 +69,47 @@
       });
     });
 
-    // Si ya hay sesión -> redirigir
+    // REDIRECCIÓN AUTOMÁTICA SI YA HAY SESIÓN
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         window.location.href = "/index.html";
       }
     })();
+
+    // BOTÓN TEMPORAL: CREAR USUARIOS DE PRUEBA
+    btnCreateTestUsers.addEventListener('click', async () => {
+      try {
+        const testUsers = [
+          { email: "admin@test.com", password: "123456", rol: "admin", full_name: "Admin Test" },
+          { email: "user@test.com", password: "123456", rol: "user", full_name: "User Test" }
+        ];
+
+        for (const u of testUsers) {
+          // Registramos en Auth
+          const { data, error } = await supabase.auth.signUp({
+            email: u.email,
+            password: u.password
+          });
+          if (error) {
+            console.warn(`Usuario ${u.email} ya existe:`, error.message);
+            continue;
+          }
+
+          // Creamos perfil vinculado al ID de Auth
+          await supabase.from('profiles').insert({
+            id: data.user.id,
+            full_name: u.full_name,
+            rol: u.rol
+          });
+        }
+
+        showSuccess("Usuarios creados", "Se han creado dos usuarios de prueba: admin y user", null);
+      } catch (err) {
+        console.error(err);
+        showError("Error creando usuarios", err.message || err);
+      }
+    });
   </script>
 </body>
 </html>
