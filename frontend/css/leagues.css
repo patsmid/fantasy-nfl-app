@@ -151,3 +151,60 @@
   .preset-chip { font-size: 0.9rem; padding: 0.25rem 0.5rem; }
   .league-card { margin-bottom: 0.6rem; }
 }
+
+/* ====== MANUAL LEAGUES – Alineación Titulares (responsive + bootstrap friendly) ====== */
+
+/* ...tus reglas existentes... */
+
+/* --- Viewport del DataTable: scroll interno y altura dinámica --- */
+#dt-viewport {
+  /* el alto real lo controla DataTables con scrollY; este wrapper evita que crezca la tarjeta */
+  max-height: 80vh;
+  overflow: hidden; /* DataTables ya genera su área scrolleable interna */
+  background: var(--bg-secondary);
+  border-radius: 12px;
+}
+
+/* DataTables: asegurar que el contenedor de scroll ocupe lo esperado */
+.dataTables_scrollBody {
+  background: var(--bg-secondary);
+}
+
+/* Mejora responsive child-row en tema oscuro */
+table.dataTable>tbody>tr.child ul.dtr-details {
+  color: var(--text-primary);
+}
+table.dataTable>tbody>tr.child {
+  background-color: rgba(255,255,255,0.02);
+}
+
+/* Evitar desbordes y mantener legibilidad */
+#manualLeaguesTable th,
+#manualLeaguesTable td {
+  vertical-align: middle;
+  padding: 0.55rem 0.75rem;
+  white-space: normal;
+  word-break: break-word;
+}
+#manualLeaguesTable .btn { white-space: nowrap; }
+
+/* Offcanvas móvil */
+@media (max-width: 576px) {
+  .flock-offcanvas.offcanvas { width: 100vw !important; max-width: 100vw; border-left: none; }
+  .pos-control { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .pos-control .form-control { min-width: 100%; }
+  .preset-chip { font-size: 0.9rem; padding: 0.25rem 0.5rem; }
+  .league-card { margin-bottom: 0.6rem; }
+}
+
+/* Cards: viewport con scroll interno (cuando la vista activa es cards) */
+#wrap-cards {
+  /* el alto se setea desde JS para ajustarse al viewport */
+  overflow: auto;
+}
+
+/* Opcional: quita el wrapper .table-responsive si existiera para evitar doble scroll */
+#wrap-table,
+.table-responsive {
+  overflow: visible;
+}
