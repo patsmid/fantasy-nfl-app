@@ -3,7 +3,7 @@ import {
   insertManualLeague,
   deleteManualLeague,
   setLeagueUser, // disponible si en el futuro asignas usuario
-} from '../../../apiUsers.js';
+} from '../../apiUsers.js';
 
 import { showSuccess, showError, showConfirm } from '../../../components/alerts.js';
 
