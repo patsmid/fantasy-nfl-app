@@ -49,29 +49,15 @@ async function upsertLeagueSettings(league_id, payload) {
    Presets / Plantillas
    =============================== */
 const LINEUP_PRESETS = {
-  STANDARD: {
-    label: 'Standard',
-    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-  },
-  HALF_PPR: {
-    label: 'Half-PPR',
-    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-  },
-  PPR: {
-    label: 'PPR',
-    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-  },
-  SUPERFLEX: {
-    label: 'Superflex',
-    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 },
-  },
-  TE_PREMIUM: {
-    label: 'TE-Premium',
-    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-  },
+  STANDARD: { label: 'Standard', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  HALF_PPR: { label: 'Half-PPR', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  PPR: { label: 'PPR', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  SUPERFLEX: { label: 'Superflex', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 } },
+  TE_PREMIUM: { label: 'TE-Premium', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
-const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'K', 'DST', 'DL', 'LB', 'DB'];
+// Eliminadas DL, LB, DB según tu pedido
+const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'K', 'DST'];
 
 let STATE = {
   leagues: [],
@@ -79,27 +65,22 @@ let STATE = {
   currentLeague: null,
   currentSettings: null,
   dirty: false,
+  editingLeague: null,
 };
 
 /* ===============================
-   Pequeños helpers UI / UX
+   UI Helpers
    =============================== */
 function booleanBadge(val) {
   if (val === true) return '<span class="badge bg-success">Sí</span>';
   if (val === false) return '<span class="badge bg-danger">No</span>';
   return '<span class="badge bg-secondary">--</span>';
 }
-
 function escapeHtml(str) {
   return String(str || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
-
-/* Normaliza distintos shapes de showConfirm */
 async function confirmDialog(message) {
   try {
     const result = await showConfirm(typeof message === 'string' ? { text: message } : message);
@@ -107,26 +88,26 @@ async function confirmDialog(message) {
     if (result && (result.isConfirmed !== undefined)) return result.isConfirmed;
     if (result && (result.confirmed !== undefined)) return result.confirmed;
     return Boolean(result);
-  } catch (err) {
+  } catch {
     return confirm(typeof message === 'string' ? message : (message?.text || '¿Confirmar?'));
   }
 }
 
 /* ===============================
-   Cargar estilos exclusivos para esta vista
+   Cargar styles desde css/leagues.css
    =============================== */
 function loadLeagueStyles() {
   if (!document.querySelector('link[data-style="leagues"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '../../css/leagues.css'; // ajusta ruta si es necesario
+    link.href = '../../css/leagues.css'; // ajusta ruta si tu estructura es diferente
     link.dataset.style = 'leagues';
     document.head.appendChild(link);
   }
 }
 
 /* ===============================
-   Export default: renderiza la vista
+   Render principal
    =============================== */
 export default async function renderManualLeagues() {
   loadLeagueStyles();
@@ -178,7 +159,7 @@ export default async function renderManualLeagues() {
                 <th>Dynasty</th>
                 <th>BestBall</th>
                 <th>Draft ID</th>
-                <th>Rosters</th>
+                <th>Equipos</th>
                 <th>Status</th>
                 <th class="text-center">Acciones</th>
               </tr>
@@ -193,12 +174,12 @@ export default async function renderManualLeagues() {
       </div>
     </div>
 
-    <!-- Modal: Nueva Liga -->
+    <!-- Modal: Nueva / Editar Liga -->
     <div class="modal fade" id="modalAddLeague" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark text-white">
           <div class="modal-header border-secondary">
-            <h5 class="modal-title">Agregar Liga Manual</h5>
+            <h5 class="modal-title" id="modalAddLeagueTitle">Agregar Liga Manual</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
@@ -212,7 +193,7 @@ export default async function renderManualLeagues() {
                 <input type="text" class="form-control" name="draft_id">
               </div>
               <div class="col-6">
-                <label class="form-label">Rosters</label>
+                <label class="form-label">Equipos</label>
                 <input type="number" min="0" class="form-control" name="total_rosters">
               </div>
               <div class="col-6">
@@ -280,17 +261,9 @@ export default async function renderManualLeagues() {
               <span id="summary-starters" class="badge bg-primary ms-1">0</span>
             </div>
             <div>
-              <span class="text-secondary small">Rosters declarados:</span>
+              <span class="text-secondary small">Equipos declarados:</span>
               <span id="summary-rosters" class="badge bg-info ms-1">0</span>
             </div>
-            <div id="summary-diff-wrap">
-              <span class="text-secondary small">Diferencia:</span>
-              <span id="summary-diff" class="badge bg-secondary ms-1">0</span>
-            </div>
-          </div>
-          <div id="summary-warning" class="mt-2 small text-warning d-none">
-            <i class="bi bi-exclamation-triangle"></i>
-            La suma de titulares excede los rosters. Ajusta los contadores o actualiza "Rosters" en la liga.
           </div>
         </div>
       </div>
@@ -303,35 +276,98 @@ export default async function renderManualLeagues() {
     </div>
   `;
 
-  // Bind global UI controls
+  // Element references + instances
+  const modalAddEl = document.getElementById('modalAddLeague');
+  const modalAddInstance = new bootstrap.Modal(modalAddEl);
+  const offcanvasEl = document.getElementById('offcanvasStarters');
+  const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
+
+  // Bind UI controls (delegated where convenient)
   document.getElementById('btn-view-table').addEventListener('click', () => switchView('table'));
   document.getElementById('btn-view-cards').addEventListener('click', () => switchView('cards'));
 
-  // Modal "Nueva Liga"
-  const modalAdd = new bootstrap.Modal(document.getElementById('modalAddLeague'));
   document.getElementById('btn-add-league').addEventListener('click', () => {
+    STATE.editingLeague = null;
+    document.getElementById('modalAddLeagueTitle').textContent = 'Agregar Liga Manual';
     document.getElementById('formAddLeague').reset();
-    modalAdd.show();
+    modalAddInstance.show();
   });
-  document.getElementById('formAddLeague').addEventListener('submit', onSubmitAddLeague(modalAdd));
 
-  // Offcanvas titulares
-  const offcanvasEl = document.getElementById('offcanvasStarters');
-  const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
+  // Submit (alta / edición)
+  document.getElementById('formAddLeague').addEventListener('submit', onSubmitAddLeague(modalAddInstance));
+
+  // Offcanvas save
   document.getElementById('btn-save-starters').addEventListener('click', () => onSaveStarters(ocInstance));
 
-  // Buscador local
+  // Search
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
+
+  // Delegated clicks for table rows and card grid (reduce re-binds)
+  document.querySelector('#manualLeaguesTable tbody').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('btn-starters')) {
+      const leagueId = btn.dataset.lid || btn.dataset.id;
+      const leagueName = decodeURIComponent(btn.dataset.name || '');
+      const league = STATE.leagues.find(x =>
+        String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
+      ) || null;
+      await openStartersDrawer(league, leagueName);
+    } else if (btn.classList.contains('delete-league')) {
+      const id = btn.dataset.id;
+      const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
+      if (!ok) return;
+      try {
+        await deleteManualLeague(id);
+        showSuccess('Liga eliminada correctamente');
+        const userId = await getUserIdFromClient();
+        const token = await getAccessTokenFromClient().catch(() => null);
+        await loadManualLeagues(userId, token);
+      } catch (err) {
+        showError('Error al eliminar liga: ' + (err.message || err));
+      }
+    } else if (btn.classList.contains('btn-edit-league')) {
+      openEditLeague(btn.dataset.id, modalAddInstance);
+    }
+  });
+
+  document.getElementById('cards-grid').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('btn-starters')) {
+      const leagueId = btn.dataset.lid || btn.dataset.id;
+      const leagueName = decodeURIComponent(btn.dataset.name || '');
+      const league = STATE.leagues.find(x =>
+        String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
+      ) || null;
+      await openStartersDrawer(league, leagueName);
+    } else if (btn.classList.contains('btn-delete-card')) {
+      const id = btn.dataset.id;
+      const ok = await confirmDialog('¿Eliminar esta liga?');
+      if (!ok) return;
+      try {
+        await deleteManualLeague(id);
+        showSuccess('Liga eliminada correctamente');
+        const userId = await getUserIdFromClient();
+        const token = await getAccessTokenFromClient().catch(() => null);
+        await loadManualLeagues(userId, token);
+      } catch (err) {
+        showError('Error al eliminar liga: ' + (err.message || err));
+      }
+    } else if (btn.classList.contains('btn-edit-card')) {
+      openEditLeague(btn.dataset.id, modalAddInstance);
+    }
+  });
 
   // Inicialización: obtener userId y token y cargar ligas
   await initAndLoad();
 
-  // Cuando se cierra offcanvas limpiamos dirty flag
+  // Limpiar dirty flag al cerrar offcanvas
   offcanvasEl.addEventListener('hidden.bs.offcanvas', () => (STATE.dirty = false));
 }
 
 /* ===============================
-   Init + carga ligas (obteniendo userId desde Supabase client)
+   Init + carga ligas
    =============================== */
 async function initAndLoad() {
   try {
@@ -343,7 +379,6 @@ async function initAndLoad() {
       window.location.hash = '#/login';
       return;
     }
-    // Llamamos al helper de API que acepta userId y token
     await loadManualLeagues(userId, token);
   } catch (err) {
     showError('Error inicializando ligas: ' + (err.message || err));
@@ -352,7 +387,6 @@ async function initAndLoad() {
 
 async function loadManualLeagues(userId = null, accessToken = null) {
   try {
-    // fetchManualLeaguesByUser acepta accessToken como 2do parámetro (si tu apiUsers lo implementó)
     const leagues = await fetchManualLeaguesByUser(userId, accessToken);
     leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
     STATE.leagues = leagues;
@@ -373,10 +407,13 @@ function renderLeaguesTable(leagues) {
   const rows = leagues.map(l => {
     const actions = `
       <div class="d-flex gap-2 justify-content-center">
-        <button class="btn btn-sm btn-outline-warning btn-starters" data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id))}" data-name="${encodeURIComponent(l.name || '')}" title="Configurar titulares">
+        <button class="btn btn-sm btn-outline-warning btn-starters" data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id || ''))}" data-name="${encodeURIComponent(l.name || '')}" title="Configurar titulares">
           <i class="bi bi-people-fill"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger delete-league" data-id="${escapeHtml(String(l.id))}">
+        <button class="btn btn-sm btn-outline-info btn-edit-league" data-id="${escapeHtml(String(l.id))}" title="Editar liga">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger delete-league" data-id="${escapeHtml(String(l.id))}" title="Eliminar liga">
           <i class="bi bi-trash"></i>
         </button>
       </div>
@@ -407,35 +444,6 @@ function renderLeaguesTable(leagues) {
       dom: 'tip'
     });
   }
-
-  // Eventos (con pequeño delay para asegurar DataTable DOM)
-  setTimeout(() => {
-    document.querySelectorAll('.delete-league').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
-        if (!ok) return;
-        try {
-          await deleteManualLeague(id);
-          showSuccess('Liga eliminada correctamente');
-          const userId = await getUserIdFromClient();
-          const token = await getAccessTokenFromClient().catch(() => null);
-          await loadManualLeagues(userId, token);
-        } catch (err) {
-          showError('Error al eliminar liga: ' + (err.message || err));
-        }
-      });
-    });
-
-    document.querySelectorAll('.btn-starters').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const leagueId = btn.dataset.lid;
-        const leagueName = decodeURIComponent(btn.dataset.name || '');
-        const league = STATE.leagues.find(x => String(x.league_id) === String(leagueId)) || null;
-        await openStartersDrawer(league, leagueName);
-      });
-    });
-  }, 120);
 }
 
 /* ===============================
@@ -466,6 +474,9 @@ function renderLeaguesCards(leagues) {
               data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id || ''))}" data-name="${encodeURIComponent(l.name || '')}">
               <i class="bi bi-people-fill"></i> Titulares
             </button>
+            <button class="btn btn-sm btn-outline-info btn-edit-card" data-id="${escapeHtml(String(l.id))}" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
             <button class="btn btn-sm btn-outline-danger btn-delete-card" data-id="${escapeHtml(String(l.id))}">
               <i class="bi bi-trash"></i>
             </button>
@@ -473,38 +484,11 @@ function renderLeaguesCards(leagues) {
         </div>
         <div class="card-footer small text-secondary d-flex justify-content-between">
           <span>Draft: <span class="text-white">${escapeHtml(l.draft_id || '-')}</span></span>
-          <span>Rosters: <span class="text-white">${l.total_rosters ?? '-'}</span></span>
+          <span>Equipos: <span class="text-white">${l.total_rosters ?? '-'}</span></span>
         </div>
       </div>
     </div>
   `).join('');
-
-  // Bind actions
-  grid.querySelectorAll('.btn-starters').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const leagueId = btn.dataset.lid;
-      const leagueName = decodeURIComponent(btn.dataset.name || '');
-      const league = STATE.leagues.find(x => String(x.league_id) === String(leagueId)) || null;
-      await openStartersDrawer(league, leagueName);
-    });
-  });
-
-  grid.querySelectorAll('.btn-delete-card').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const ok = await confirmDialog('¿Eliminar esta liga?');
-      if (!ok) return;
-      try {
-        await deleteManualLeague(id);
-        showSuccess('Liga eliminada correctamente');
-        const userId = await getUserIdFromClient();
-        const token = await getAccessTokenFromClient().catch(() => null);
-        await loadManualLeagues(userId, token);
-      } catch (err) {
-        showError('Error al eliminar liga: ' + (err.message || err));
-      }
-    });
-  });
 }
 
 /* ===============================
@@ -534,9 +518,9 @@ function onLocalSearch(e) {
 }
 
 /* ===============================
-   Alta de liga
+   Alta / edición de liga
    =============================== */
-function onSubmitAddLeague(modalAdd) {
+function onSubmitAddLeague(modalInstance) {
   return async (e) => {
     e.preventDefault();
     const form = e.target;
@@ -551,7 +535,6 @@ function onSubmitAddLeague(modalAdd) {
     };
 
     try {
-      // Tomamos token igual que en extras.js para que backend pueda inferir user_id
       const accessToken = await getAccessTokenFromClient();
       if (!accessToken) {
         showError('Debes iniciar sesión.');
@@ -559,19 +542,43 @@ function onSubmitAddLeague(modalAdd) {
         return;
       }
 
-      // insertManualLeague acepta (payload, accessToken) si actualizaste apiUsers.js
+      // Si estamos editando, añadimos id y backend debe manejarlo como upsert
+      if (STATE.editingLeague) {
+        payload.id = STATE.editingLeague;
+      }
+
+      // insertManualLeague se asume que acepta upsert si payload incluye id
       await insertManualLeague(payload, accessToken);
 
-      showSuccess('Liga agregada correctamente');
-      modalAdd.hide();
+      showSuccess(STATE.editingLeague ? 'Liga actualizada correctamente' : 'Liga agregada correctamente');
+      STATE.editingLeague = null;
+      modalInstance.hide();
 
       const userId = await getUserIdFromClient();
       const token = await getAccessTokenFromClient().catch(() => null);
       await loadManualLeagues(userId, token);
     } catch (err) {
-      showError('Error al insertar liga: ' + (err.message || err));
+      showError('Error al insertar/actualizar liga: ' + (err.message || err));
     }
   };
+}
+
+function openEditLeague(id, modalInstance) {
+  const league = STATE.leagues.find(l => String(l.id) === String(id));
+  if (!league) {
+    showError('Liga no encontrada para editar.');
+    return;
+  }
+  STATE.editingLeague = league.id;
+  const form = document.getElementById('formAddLeague');
+  form.name.value = league.name || '';
+  form.draft_id.value = league.draft_id || '';
+  form.total_rosters.value = league.total_rosters ?? '';
+  form.dynasty.value = league.dynasty === true ? 'true' : (league.dynasty === false ? 'false' : '');
+  form.bestball.value = league.bestball === true ? 'true' : (league.bestball === false ? 'false' : '');
+  form.status.value = league.status || '';
+  document.getElementById('modalAddLeagueTitle').textContent = 'Editar Liga';
+  modalInstance.show();
 }
 
 /* ===============================
@@ -586,7 +593,7 @@ async function openStartersDrawer(league, fallbackName = '') {
   const ocNameEl = document.getElementById('oc-league-name');
   const ocMetaEl = document.getElementById('oc-league-meta');
   ocNameEl.textContent = `Titulares – ${league.name || fallbackName}`;
-  ocMetaEl.textContent = `League ID: ${league.league_id || '-'} · Rosters: ${league.total_rosters || '-'}`;
+  ocMetaEl.textContent = `League ID: ${league.league_id || '-'} · Equipos: ${league.total_rosters || '-'}`;
 
   // Carga settings existentes
   const settings = await fetchLeagueSettings(league.league_id);
@@ -598,7 +605,7 @@ async function openStartersDrawer(league, fallbackName = '') {
   const oc = new bootstrap.Offcanvas(document.getElementById('offcanvasStarters'));
   oc.show();
 
-  // Presets binding (rebind safe)
+  // Presets binding
   document.querySelectorAll('.preset-chip').forEach(btn => {
     btn.onclick = () => {
       const key = btn.dataset.preset;
@@ -630,7 +637,7 @@ function renderPositionControls(currentSP) {
           <div class="pos-label">
             <span class="pos-chip pos-${pos.toLowerCase()}">${pos.replace('_', ' ')}</span>
           </div>
-          <div class="input-group input-group-sm">
+          <div class="input-group">
             <button class="btn btn-outline-light btn-step" data-pos="${pos}" data-step="-1" type="button" aria-label="Restar ${pos}">−</button>
             <input class="form-control pos-input" data-pos="${pos}" type="number" min="0" step="1" value="${value}">
             <button class="btn btn-outline-light btn-step" data-pos="${pos}" data-step="1" type="button" aria-label="Sumar ${pos}">+</button>
@@ -640,6 +647,7 @@ function renderPositionControls(currentSP) {
     `;
   }).join('');
 
+  // Delegado dentro del wrap
   wrap.querySelectorAll('.btn-step').forEach(btn => {
     btn.addEventListener('click', () => {
       const pos = btn.dataset.pos;
@@ -674,28 +682,8 @@ function calcStartersTotal(sp) {
 function updateSummary() {
   const starters = calcStartersTotal(STATE.currentSettings?.starter_positions || {});
   const rosters = Number(STATE.currentLeague?.total_rosters || 0);
-  const diff = rosters ? (rosters - starters) : 0;
-  const diffEl = document.getElementById('summary-diff');
-  const warnEl = document.getElementById('summary-warning');
-
   document.getElementById('summary-starters').textContent = String(starters);
   document.getElementById('summary-rosters').textContent = String(rosters || 0);
-  diffEl.textContent = String(diff);
-
-  diffEl.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
-  if (!rosters) {
-    diffEl.classList.add('bg-secondary');
-    warnEl.classList.add('d-none');
-  } else if (diff === 0) {
-    diffEl.classList.add('bg-success');
-    warnEl.classList.add('d-none');
-  } else if (diff > 0) {
-    diffEl.classList.add('bg-warning');
-    warnEl.classList.add('d-none');
-  } else {
-    diffEl.classList.add('bg-danger');
-    warnEl.classList.remove('d-none');
-  }
 }
 
 /* ===============================
@@ -705,8 +693,6 @@ async function onSaveStarters(offcanvas) {
   try {
     if (!STATE.currentLeague) return;
     const sp = STATE.currentSettings?.starter_positions || {};
-
-    // Si tienes RLS que requiera token, upsertLeagueSettings usa token en fetch
     await upsertLeagueSettings(STATE.currentLeague.league_id, { starter_positions: sp });
     STATE.dirty = false;
     showSuccess('Titulares guardados correctamente');
