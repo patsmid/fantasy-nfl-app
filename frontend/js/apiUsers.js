@@ -6,9 +6,6 @@ const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 // 🔹 Helper para peticiones
 async function apiFetch(endpoint, options = {}) {
   try {
-    // pequeño log opcional (desactiva en producción)
-    // console.debug('[apiFetch] ', endpoint, options && options.method ? options.method : 'GET');
-
     const body = await fetchWithTimeout(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {

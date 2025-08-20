@@ -408,34 +408,37 @@ export async function getLeaguesByUser(req, res) {
    league_settings CRUD (JSONB)
    ===================================================== */
 
-export async function upsertLeagueSettings(req, res) {
-  try {
-    const payload = {
-      league_id: req.params.league_id ?? req.body.league_id,
-      scoring_type: req.body.scoring_type ?? null,
-      num_teams: req.body.num_teams ?? null,
-      superflex: req.body.superflex ?? null,
-      dynasty: req.body.dynasty ?? null,
-      bestball: req.body.bestball ?? null,
-      playoff_weeks: req.body.playoff_weeks ?? null,
-      playoff_weight_factor: req.body.playoff_weight_factor ?? null,
-      starter_positions: req.body.starter_positions ?? null,
-      updated_at: new Date().toISOString()
-    };
+ export async function upsertLeagueSettings(req, res) {
+   try {
+     const payload = {
+       league_id: req.params.league_id ?? req.body.league_id,
+       scoring_type: req.body.scoring_type ?? null,
+       num_teams: req.body.num_teams ?? null,
+       superflex: req.body.superflex ?? null,
+       dynasty: req.body.dynasty ?? null,
+       bestball: req.body.bestball ?? null,
+       playoff_weeks: req.body.playoff_weeks ?? null,
+       playoff_weight_factor: req.body.playoff_weight_factor ?? null,
+       starter_positions: req.body.starter_positions ?? null,
+       updated_at: new Date().toISOString()
+     };
 
-    const { data, error } = await supabase
-      .from('league_settings')
-      .upsert(payload)
-      .select()
-      .single();
+     // Logging útil para debug (muestra league_id y resumen de starter_positions)
+     console.info(`[upsertLeagueSettings] league_id=${payload.league_id} starter_positions_keys=${Object.keys(payload.starter_positions || {}).length}`);
 
-    if (error) throw error;
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en upsertLeagueSettings:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+     const { data, error } = await supabase
+       .from('league_settings')
+       .upsert(payload)
+       .select()
+       .single();
+
+     if (error) throw error;
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en upsertLeagueSettings:', err);
+     res.status(500).json({ success: false, error: err.message || err });
+   }
+ }
 
 export async function getLeagueSettings(req, res) {
   try {

@@ -32,7 +32,7 @@ async function fetchLeagueSettings(league_id) {
 async function upsertLeagueSettings(league_id, payload) {
   const token = await getAccessTokenFromClient().catch(() => null);
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-  const res = await fetch(`${API_BASE}/manual/league-settings/${encodeURIComponent(league_id)}`, {
+  const res = await fetch(`${API_BASE}/manual/leagues/${encodeURIComponent(league_id)}/settings`, {
     method: 'PUT',
     headers,
     body: JSON.stringify(payload),
