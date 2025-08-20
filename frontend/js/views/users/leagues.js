@@ -94,7 +94,7 @@ async function confirmDialog(message) {
 }
 
 /* ===============================
-   Cargar styles desde css/leagues.css
+   Cargar styles desde css/leagues.css (Bootstrap ya presente)
    =============================== */
 function loadLeagueStyles() {
   if (!document.querySelector('link[data-style="leagues"]')) {
@@ -149,20 +149,20 @@ export default async function renderManualLeagues() {
           </div>
         </div>
 
-        <!-- envuelta en table-responsive -->
+        <!-- Bootstrap responsive wrapper -->
         <div class="table-responsive" id="wrap-table">
           <table id="manualLeaguesTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark text-uppercase text-secondary small">
               <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>League ID</th>
-                <th>Dynasty</th>
-                <th>BestBall</th>
-                <th>Draft ID</th>
-                <th>Equipos</th>
-                <th>Status</th>
-                <th class="text-center">Acciones</th>
+                <th style="width:6%;">ID</th>
+                <th style="width:28%;">Nombre</th>
+                <th style="width:18%;">League ID</th>
+                <th style="width:6%;">Dynasty</th>
+                <th style="width:6%;">BestBall</th>
+                <th style="width:12%;">Draft ID</th>
+                <th style="width:8%;">Equipos</th>
+                <th style="width:8%;">Status</th>
+                <th style="width:8%;" class="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -283,7 +283,7 @@ export default async function renderManualLeagues() {
   const offcanvasEl = document.getElementById('offcanvasStarters');
   const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
 
-  // Bind UI controls
+  // Bind UI controls (delegated where convenient)
   document.getElementById('btn-view-table').addEventListener('click', () => switchView('table'));
   document.getElementById('btn-view-cards').addEventListener('click', () => switchView('cards'));
 
@@ -303,7 +303,7 @@ export default async function renderManualLeagues() {
   // Search
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
 
-  // Delegated clicks for table rows and card grid
+  // Delegated clicks for table rows and card grid (reduce re-binds)
   document.querySelector('#manualLeaguesTable tbody').addEventListener('click', async (ev) => {
     const btn = ev.target.closest('button');
     if (!btn) return;
@@ -317,10 +317,16 @@ export default async function renderManualLeagues() {
       await openStartersDrawer(league, leagueName);
 
     } else if (btn.classList.contains('delete-league')) {
-      // extracción robusta del id
-      const rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? btn.closest('tr')?.dataset.id ?? null;
-      const id = rawId !== null && rawId !== undefined ? (rawId === '' ? null : rawId) : null;
-      if (!id) {
+      // extracción robusta del id: intentamos varios orígenes y convertimos a entero
+      let rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? null;
+      const tr = btn.closest('tr');
+      if ((!rawId || rawId === 'undefined') && tr) {
+        const firstTd = tr.querySelector('td');
+        rawId = firstTd ? firstTd.innerText?.trim() : rawId;
+      }
+
+      const parsedId = Number.isFinite(Number(rawId)) ? Number(rawId) : NaN;
+      if (Number.isNaN(parsedId)) {
         console.error('delete: id inválido', { rawId, btn });
         showError('ID de liga inválido. Reintenta y revisa la consola.');
         return;
@@ -331,7 +337,7 @@ export default async function renderManualLeagues() {
 
       try {
         const token = await getAccessTokenFromClient().catch(() => null);
-        await deleteManualLeague(id, token); // id interno (num) o UUID según tu API
+        await deleteManualLeague(parsedId, token); // <-- paso id como número
         showSuccess('Liga eliminada correctamente');
         const userId = await getUserIdFromClient();
         const token2 = await getAccessTokenFromClient().catch(() => null);
@@ -359,9 +365,12 @@ export default async function renderManualLeagues() {
       await openStartersDrawer(league, leagueName);
 
     } else if (btn.classList.contains('btn-delete-card')) {
-      const rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? btn.closest('[data-id]')?.dataset.id ?? null;
-      const id = rawId !== null && rawId !== undefined ? (rawId === '' ? null : rawId) : null;
-      if (!id) {
+      let rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? null;
+      const container = btn.closest('[data-id]');
+      if ((!rawId || rawId === 'undefined') && container) rawId = container.dataset.id;
+
+      const parsedId = Number.isFinite(Number(rawId)) ? Number(rawId) : NaN;
+      if (Number.isNaN(parsedId)) {
         console.error('delete-card: id inválido', { rawId, btn });
         showError('ID de liga inválido. Reintenta y revisa la consola.');
         return;
@@ -372,7 +381,7 @@ export default async function renderManualLeagues() {
 
       try {
         const token = await getAccessTokenFromClient().catch(() => null);
-        await deleteManualLeague(id, token);
+        await deleteManualLeague(parsedId, token);
         showSuccess('Liga eliminada correctamente');
         const userId = await getUserIdFromClient();
         const token2 = await getAccessTokenFromClient().catch(() => null);
@@ -449,12 +458,12 @@ function renderLeaguesTable(leagues) {
 
     return [
       `<div class="text-white text-center">${l.id}</div>`,
-      `<span class="fw-semibold text-truncate">${escapeHtml(l.name)}</span>`,
-      `<span class="fw-semibold text-truncate">${escapeHtml(l.league_id || '-')}</span>`,
+      `<div class="text-truncate fw-semibold">${escapeHtml(l.name)}</div>`,
+      `<div class="text-truncate fw-semibold">${escapeHtml(l.league_id || '-')}</div>`,
       `<div class="text-center">${booleanBadge(l.dynasty)}</div>`,
       `<div class="text-center">${booleanBadge(l.bestball)}</div>`,
-      `<div class="text-white text-truncate">${escapeHtml(l.draft_id || '')}</div>`,
-      `<div class="text-white text-center">${l.total_rosters ?? ''}</div>`,
+      `<div class="text-truncate text-white">${escapeHtml(l.draft_id || '')}</div>`,
+      `<div class="text-center text-white">${l.total_rosters ?? ''}</div>`,
       `<div class="text-center"><span class="badge bg-success text-uppercase">${escapeHtml(l.status || '')}</span></div>`,
       actions
     ];
@@ -467,7 +476,7 @@ function renderLeaguesTable(leagues) {
     $('#manualLeaguesTable').DataTable({
       data: rows,
       responsive: true,
-      autoWidth: false,
+      autoWidth: true,
       paging: false,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
       dom: 'tip'
@@ -483,7 +492,7 @@ function renderLeaguesCards(leagues) {
   if (!grid) return;
 
   grid.innerHTML = leagues.map(l => `
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12 col-md-6 col-lg-4" data-id="${escapeHtml(String(l.id))}">
       <div class="card league-card h-100">
         <div class="card-body d-flex flex-column">
           <div class="d-flex align-items-start justify-content-between mb-2">
