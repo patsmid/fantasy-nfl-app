@@ -29,7 +29,6 @@ async function apiFetch(endpoint, options = {}) {
    📌 Ligas Manuales
 ============================= */
 
-// obtener todas las ligas manuales por usuario (o todas si user_id=null)
 export async function fetchManualLeaguesByUser(user_id = null, accessToken = null) {
   const endpoint = user_id
     ? `/manual/leagues/user/${user_id}`
@@ -42,7 +41,6 @@ export async function fetchManualLeaguesByUser(user_id = null, accessToken = nul
   return body?.data || [];
 }
 
-// insertar o actualizar liga manual
 export async function insertManualLeague(payload, accessToken = null) {
   const headers = {};
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
@@ -55,15 +53,18 @@ export async function insertManualLeague(payload, accessToken = null) {
   return body?.data;
 }
 
-// eliminar liga manual
-export async function deleteManualLeague(league_id) {
+// eliminar liga manual — ahora acepta accessToken opcional
+export async function deleteManualLeague(league_id, accessToken = null) {
+  const headers = {};
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
   const body = await apiFetch(`/manual/leagues/${league_id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers
   });
-  return body?.success ?? true; // si no manda nada, devolvemos true
+  return body?.success ?? true;
 }
 
-// asignar/desasignar usuario a liga
 export async function setLeagueUser(league_id, user_id) {
   const body = await apiFetch(`/manual/leagues/${league_id}/user`, {
     method: 'PATCH',

@@ -65,7 +65,7 @@ let STATE = {
   currentLeague: null,
   currentSettings: null,
   dirty: false,
-  editingLeague: null,
+  editingLeague: null, // ahora contendrá league_id (UUID) cuando editemos
 };
 
 /* ===============================
@@ -318,11 +318,12 @@ export default async function renderManualLeagues() {
       const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
       if (!ok) return;
       try {
-        await deleteManualLeague(id);
+        const token = await getAccessTokenFromClient().catch(() => null);
+        await deleteManualLeague(id, token); // <-- pasamos token por si tu backend lo requiere
         showSuccess('Liga eliminada correctamente');
         const userId = await getUserIdFromClient();
-        const token = await getAccessTokenFromClient().catch(() => null);
-        await loadManualLeagues(userId, token);
+        const token2 = await getAccessTokenFromClient().catch(() => null);
+        await loadManualLeagues(userId, token2);
       } catch (err) {
         showError('Error al eliminar liga: ' + (err.message || err));
       }
@@ -346,11 +347,12 @@ export default async function renderManualLeagues() {
       const ok = await confirmDialog('¿Eliminar esta liga?');
       if (!ok) return;
       try {
-        await deleteManualLeague(id);
+        const token = await getAccessTokenFromClient().catch(() => null);
+        await deleteManualLeague(id, token);
         showSuccess('Liga eliminada correctamente');
         const userId = await getUserIdFromClient();
-        const token = await getAccessTokenFromClient().catch(() => null);
-        await loadManualLeagues(userId, token);
+        const token2 = await getAccessTokenFromClient().catch(() => null);
+        await loadManualLeagues(userId, token2);
       } catch (err) {
         showError('Error al eliminar liga: ' + (err.message || err));
       }
@@ -542,12 +544,12 @@ function onSubmitAddLeague(modalInstance) {
         return;
       }
 
-      // Si estamos editando, añadimos id y backend debe manejarlo como upsert
+      // Si estamos editando, añadimos league_id (NO el id interno)
       if (STATE.editingLeague) {
-        payload.id = STATE.editingLeague;
+        payload.league_id = STATE.editingLeague;
       }
 
-      // insertManualLeague se asume que acepta upsert si payload incluye id
+      // insertManualLeague se asume que hace upsert cuando le envías league_id
       await insertManualLeague(payload, accessToken);
 
       showSuccess(STATE.editingLeague ? 'Liga actualizada correctamente' : 'Liga agregada correctamente');
@@ -555,8 +557,8 @@ function onSubmitAddLeague(modalInstance) {
       modalInstance.hide();
 
       const userId = await getUserIdFromClient();
-      const token = await getAccessTokenFromClient().catch(() => null);
-      await loadManualLeagues(userId, token);
+      const token2 = await getAccessTokenFromClient().catch(() => null);
+      await loadManualLeagues(userId, token2);
     } catch (err) {
       showError('Error al insertar/actualizar liga: ' + (err.message || err));
     }
@@ -569,7 +571,8 @@ function openEditLeague(id, modalInstance) {
     showError('Liga no encontrada para editar.');
     return;
   }
-  STATE.editingLeague = league.id;
+  // importante: guardamos league_id (UUID) para que el backend haga upsert por league_id
+  STATE.editingLeague = league.league_id || null;
   const form = document.getElementById('formAddLeague');
   form.name.value = league.name || '';
   form.draft_id.value = league.draft_id || '';

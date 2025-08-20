@@ -150,3 +150,40 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25);
 }
+
+/* ==============================
+   Responsive / Mobile tweaks
+   ============================== */
+@media (max-width: 576px) {
+  .flock-offcanvas.offcanvas {
+    width: 100vw !important;
+    max-width: 100vw;
+    border-left: none;
+  }
+  .flock-offcanvas .offcanvas-header {
+    padding: 0.6rem;
+  }
+  .flock-offcanvas .offcanvas-body {
+    padding: 0.6rem;
+  }
+  .pos-control {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .pos-control .pos-label {
+    justify-content: flex-start;
+  }
+  .pos-control .input-group {
+    width: 100%;
+  }
+  .pos-control .form-control {
+    min-width: 100%;
+  }
+  .preset-chip {
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+  }
+  /* Mejor separación en cards móviles */
+  .league-card { margin-bottom: 0.6rem; }
+}
