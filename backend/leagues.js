@@ -325,42 +325,84 @@ export async function getLeaguesByUser(req, res) {
 /**
  * deleteLeagueById
  */
-export async function deleteLeagueById(req, res) {
-  try {
-    const { id } = req.params;
-    // Considera validar que el request.user sea owner/admin
-    const { error } = await supabase.from('leagues').delete().eq('id', id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('❌ Error en deleteLeagueById:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+ // ---------------------- PATCH: deleteLeagueById ----------------------
+ export async function deleteLeagueById(req, res) {
+   try {
+     const { league_id } = req.params;
 
-/**
- * setLeagueUser
- */
-export async function setLeagueUser(req, res) {
-  try {
-    const { id } = req.params;
-    const { user_id = null } = req.body;
-    const userIdNormalized = user_id && String(user_id).trim() !== '' ? user_id : null;
+     if (!league_id || String(league_id).trim() === '') {
+       return res.status(400).json({ success: false, error: 'Parámetro league_id vacío o faltante' });
+     }
 
-    const { data, error } = await supabase
-      .from('leagues')
-      .update({ user_id: userIdNormalized, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+     const raw = String(league_id).trim();
 
-    if (error) throw error;
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en setLeagueUser:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+     // Determinar si es id numérico (internal id) o uuid/string (league_id)
+     let filterColumn;
+     let filterValue;
+     if (/^\d+$/.test(raw)) {
+       filterColumn = 'id';
+       filterValue = Number(raw);
+     } else {
+       filterColumn = 'league_id';
+       filterValue = raw;
+     }
+
+     console.info(`[deleteLeagueById] borrando por ${filterColumn} = ${filterValue}`);
+
+     const { data, error } = await supabase
+       .from('leagues')
+       .delete()
+       .eq(filterColumn, filterValue)
+       .select();
+
+     if (error) throw error;
+
+     if (!data || data.length === 0) {
+       return res.status(404).json({ success: false, error: 'Liga no encontrada' });
+     }
+
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en deleteLeagueById:', err);
+     res.status(500).json({ success: false, error: err.message || err });
+   }
+ }
+
+ // ---------------------- PATCH: setLeagueUser ----------------------
+ export async function setLeagueUser(req, res) {
+   try {
+     const { league_id } = req.params;
+     const { user_id = null } = req.body;
+
+     if (!league_id || String(league_id).trim() === '') {
+       return res.status(400).json({ success: false, error: 'Parámetro league_id vacío o faltante' });
+     }
+
+     const raw = String(league_id).trim();
+     const userIdNormalized = user_id && String(user_id).trim() !== '' ? user_id : null;
+
+     const isNumericId = /^\d+$/.test(raw);
+     const filterColumn = isNumericId ? 'id' : 'league_id';
+     const filterValue = isNumericId ? Number(raw) : raw;
+
+     console.info(`[setLeagueUser] actualizando user_id=${userIdNormalized} para ${filterColumn}=${filterValue}`);
+
+     const { data, error } = await supabase
+       .from('leagues')
+       .update({ user_id: userIdNormalized, updated_at: new Date().toISOString() })
+       .eq(filterColumn, filterValue)
+       .select()
+       .single();
+
+     if (error) throw error;
+
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en setLeagueUser:', err);
+     res.status(500).json({ success: false, error: err.message || err });
+   }
+ }
+
 
 /* =====================================================
    league_settings CRUD (JSONB)
