@@ -12,7 +12,7 @@ import {
   addDraftedPlayer,
   getDraftedPlayers,
   resetDraftedPlayers
-} from '../leagues.js'; // ruta relativa según tu estructura
+} from './leagues.js';
 
 const router = express.Router();
 
