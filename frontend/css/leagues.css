@@ -1,0 +1,135 @@
+/* ====== MANUAL LEAGUES – Alineación Titulares ====== */
+
+.flock-offcanvas.offcanvas {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-left: 1px solid var(--border);
+  width: min(520px, 100vw);
+}
+
+.flock-offcanvas .offcanvas-header,
+.flock-offcanvas .offcanvas-footer {
+  background-color: rgba(255,255,255,0.05);
+}
+
+.pos-control {
+  background-color: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pos-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pos-chip {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  background-color: #2b2f38;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+/* Color sutil por tipo */
+.pos-qb     { background-color: rgba(0, 123, 255, 0.15); }
+.pos-rb     { background-color: rgba(40, 167, 69, 0.15); }
+.pos-wr     { background-color: rgba(255, 193, 7, 0.15); color: #ffd36b; }
+.pos-te     { background-color: rgba(111, 66, 193, 0.18); }
+.pos-flex   { background-color: rgba(108, 117, 125, 0.18); }
+.pos-super_flex { background-color: rgba(255, 69, 0, 0.18); }
+.pos-k      { background-color: rgba(23, 162, 184, 0.18); }
+.pos-dst    { background-color: rgba(173, 181, 189, 0.18); color: #cbd3da; }
+.pos-dl, .pos-lb, .pos-db { background-color: rgba(255,255,255,0.08); }
+
+.btn-step {
+  min-width: 36px;
+  font-weight: 700;
+}
+
+.preset-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+}
+.preset-chip:hover {
+  color: #fff;
+  border-color: var(--accent);
+}
+.preset-chip.active {
+  background-color: var(--accent);
+  color: #000;
+}
+
+/* Tarjetas de liga */
+.league-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.league-card .card-footer {
+  background-color: rgba(255,255,255,0.04);
+  border-top: 1px solid var(--border);
+}
+
+/* Botones outline en tema oscuro */
+.btn-outline-warning {
+  color: #ffc107;
+  border-color: #ffc10733;
+}
+.btn-outline-warning:hover {
+  background-color: #ffc107;
+  color: #000;
+}
+.btn-outline-danger {
+  color: #ff6b6b;
+  border-color: #ff6b6b33;
+}
+.btn-outline-danger:hover {
+  background-color: #ff6b6b;
+  color: #000;
+}
+.btn-outline-light {
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+.btn-outline-light:hover {
+  color: #000;
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Input group en tema oscuro */
+.input-group .form-control {
+  background-color: var(--bg-secondary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+.input-group .form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25);
+}
+
+/* Buscador */
+#league-search {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+#league-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25);
+}
