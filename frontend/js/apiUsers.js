@@ -1,43 +1,67 @@
-import { showSuccess, showError, showConfirm } from '../components/alerts.js';
 import { fetchWithTimeout } from '../components/utils.js';
+
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
-//FUNCIONES PARA USUARIOS
-// 🔹 obtener todas las ligas manuales por usuario (si no pasas user_id trae todas)
-export async function fetchManualLeaguesByUser(user_id = null) {
-  const url = user_id ? `${API_BASE}/manual/leagues/user/${user_id}` : `${API_BASE}/leagues/user/null`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Error al obtener ligas manuales');
-  const { data } = await res.json();
+// Helper para peticiones
+async function apiFetch(endpoint, options = {}) {
+  const res = await fetchWithTimeout(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+
+  let body = null;
+  try {
+    body = await res.json();
+  } catch (_) {
+    body = null;
+  }
+
+  if (!res.ok) {
+    const msg = (body && body.error) || res.statusText || 'Error en la petición';
+    throw new Error(msg);
+  }
+
+  return body;
+}
+
+// 🔹 obtener todas las ligas manuales por usuario (o todas si user_id=null)
+export async function fetchManualLeaguesByUser(user_id = null, accessToken = null) {
+  const endpoint = user_id
+    ? `/manual/leagues/user/${user_id}`
+    : `/manual/leagues`;
+
+  const headers = {};
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+  const { data } = await apiFetch(endpoint, { headers });
   return data || [];
 }
 
 // 🔹 insertar o actualizar liga manual
 export async function insertManualLeague(payload) {
-  const res = await fetch(`${API_BASE}/manual/leagues/insert`, {
+  const body = await apiFetch(`/manual/leagues/insert`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error('Error al insertar liga');
-  const { data } = await res.json();
-  return data;
+  return body.data;
 }
 
 // 🔹 eliminar liga manual
 export async function deleteManualLeague(id) {
-  const res = await fetch(`${API_BASE}/manual/leagues/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Error al eliminar liga');
-  return true;
+  const body = await apiFetch(`/manual/leagues/${id}`, {
+    method: 'DELETE'
+  });
+  return body;
 }
 
 // 🔹 asignar/desasignar usuario a liga
 export async function setLeagueUser(id, user_id) {
-  const res = await fetch(`${API_BASE}/manual/leagues/${id}/user`, {
+  const body = await apiFetch(`/manual/leagues/${id}/user`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id })
   });
-  if (!res.ok) throw new Error('Error al asignar usuario');
-  return true;
+  return body;
 }

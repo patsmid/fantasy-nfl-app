@@ -2,21 +2,23 @@ import {
   fetchManualLeaguesByUser,
   insertManualLeague,
   deleteManualLeague,
-  setLeagueUser, // disponible si en el futuro asignas usuario
+  setLeagueUser, // opcional
 } from '../../apiUsers.js';
 
 import { showSuccess, showError, showConfirm } from '../../../components/alerts.js';
+import { getAccessTokenFromClient, getUserIdFromClient } from '../../../components/authHelpers.js';
 
-// ⚠️ Solo para endpoints de settings. Usamos el mismo host del backend.
-// Si ya exportas API_BASE en otro sitio, puedes importarlo; aquí lo definimos localmente:
+// Host backend (ajusta si tu variable global es otra)
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
 /* ===============================
-   Helpers para league_settings
+   Helpers para league_settings (con token si está disponible)
    =============================== */
 async function fetchLeagueSettings(league_id) {
   try {
-    const res = await fetch(`${API_BASE}/manual/league-settings/${encodeURIComponent(league_id)}`);
+    const token = await getAccessTokenFromClient().catch(() => null);
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${API_BASE}/manual/league-settings/${encodeURIComponent(league_id)}`, { headers });
     if (!res.ok) throw new Error('No se pudo obtener league_settings');
     const { data } = await res.json();
     return data || null;
@@ -27,10 +29,11 @@ async function fetchLeagueSettings(league_id) {
 }
 
 async function upsertLeagueSettings(league_id, payload) {
-  // payload esperado (mínimo): { starter_positions: { QB:1, RB:2, ... } }
+  const token = await getAccessTokenFromClient().catch(() => null);
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const res = await fetch(`${API_BASE}/manual/league-settings/${encodeURIComponent(league_id)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -42,13 +45,7 @@ async function upsertLeagueSettings(league_id, payload) {
 }
 
 /* ===============================
-   Presets / Plantillas de titulares
-   Basadas en convenciones comunes de FF:
-   - Standard (1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX, 1 K, 1 DST)
-   - Half‑PPR (igual baseline; scoring lo manejas en backend si quieres)
-   - Superflex (+ SUPER_FLEX, baja presión sobre K/DST)
-   - TE Premium (mismo layout; la premiumización se maneja en scoring, pero dejamos visible)
-   Nota: BENCH no se guarda en starter_positions; lo mostramos informativo.
+   Presets / Plantillas
    =============================== */
 const LINEUP_PRESETS = {
   STANDARD: {
@@ -56,7 +53,11 @@ const LINEUP_PRESETS = {
     sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
   },
   HALF_PPR: {
-    label: 'Half‑PPR',
+    label: 'Half-PPR',
+    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
+  },
+  PPR: {
+    label: 'PPR',
     sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
   },
   SUPERFLEX: {
@@ -64,45 +65,79 @@ const LINEUP_PRESETS = {
     sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 },
   },
   TE_PREMIUM: {
-    label: 'TE‑Premium',
+    label: 'TE-Premium',
     sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
   },
 };
 
-// Posiciones soportadas visualmente
-const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'K', 'DST', 'DL', 'LB', 'DB']; // IDPs opcionales
+const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'K', 'DST', 'DL', 'LB', 'DB'];
 
-// Estado local (se restablece al cargar la vista)
 let STATE = {
   leagues: [],
-  viewMode: 'table', // 'table' | 'cards'
-  currentLeague: null, // liga seleccionada para editar titulares
-  currentSettings: null, // settings cargados
-  dirty: false, // si hay cambios no guardados en offcanvas
+  viewMode: 'table',
+  currentLeague: null,
+  currentSettings: null,
+  dirty: false,
 };
 
-// Utilidad para formatear badge de sí/no con tu paleta
+/* ===============================
+   Pequeños helpers UI / UX
+   =============================== */
 function booleanBadge(val) {
   if (val === true) return '<span class="badge bg-success">Sí</span>';
   if (val === false) return '<span class="badge bg-danger">No</span>';
   return '<span class="badge bg-secondary">--</span>';
 }
 
+function escapeHtml(str) {
+  return String(str || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+/* Normaliza distintos shapes de showConfirm */
+async function confirmDialog(message) {
+  try {
+    const result = await showConfirm(typeof message === 'string' ? { text: message } : message);
+    if (typeof result === 'boolean') return result;
+    if (result && (result.isConfirmed !== undefined)) return result.isConfirmed;
+    // some implementations return { confirmed: true }
+    if (result && (result.confirmed !== undefined)) return result.confirmed;
+    return Boolean(result);
+  } catch (err) {
+    // fallback to window.confirm
+    return confirm(typeof message === 'string' ? message : (message?.text || '¿Confirmar?'));
+  }
+}
+
+/* ===============================
+   Cargar estilos exclusivos para esta vista
+   =============================== */
 function loadLeagueStyles() {
-  // Evita duplicados
   if (!document.querySelector('link[data-style="leagues"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '../../css/leagues.css'; // ruta según tu estructura
+    link.href = '../../css/leagues.css'; // ajusta ruta si es necesario
     link.dataset.style = 'leagues';
     document.head.appendChild(link);
   }
 }
 
+/* ===============================
+   Export default: renderiza la vista
+   =============================== */
 export default async function renderManualLeagues() {
   loadLeagueStyles();
 
   const content = document.getElementById('content-container');
+  if (!content) {
+    showError('No se encontró el contenedor de contenido.');
+    return;
+  }
+
   content.innerHTML = `
     <div class="card border-0 shadow-sm rounded flock-card">
       <div class="card-body">
@@ -128,14 +163,12 @@ export default async function renderManualLeagues() {
           </div>
         </div>
 
-        <!-- Buscador local -->
         <div class="row g-2 mb-3">
           <div class="col-12 col-md-6">
             <input id="league-search" class="form-control" placeholder="Buscar liga por nombre o ID..." />
           </div>
         </div>
 
-        <!-- Contenedor de tabla -->
         <div class="table-responsive ${STATE.viewMode === 'table' ? '' : 'd-none'}" id="wrap-table">
           <table id="manualLeaguesTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark text-uppercase text-secondary small">
@@ -155,7 +188,6 @@ export default async function renderManualLeagues() {
           </table>
         </div>
 
-        <!-- Contenedor de tarjetas -->
         <div id="wrap-cards" class="${STATE.viewMode === 'cards' ? '' : 'd-none'}">
           <div id="cards-grid" class="row g-3"></div>
         </div>
@@ -227,8 +259,6 @@ export default async function renderManualLeagues() {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body">
-
-        <!-- Presets -->
         <div class="mb-3">
           <div class="d-flex flex-wrap gap-2">
             ${Object.entries(LINEUP_PRESETS).map(([key, p]) => `
@@ -242,10 +272,8 @@ export default async function renderManualLeagues() {
           </div>
         </div>
 
-        <!-- Controles por posición -->
         <div id="pos-controls" class="row g-2"></div>
 
-        <!-- Resumen -->
         <div class="mt-3 p-2 rounded bg-dark-subtle border border-secondary">
           <div class="d-flex flex-wrap align-items-center justify-content-between">
             <div>
@@ -266,7 +294,6 @@ export default async function renderManualLeagues() {
             La suma de titulares excede los rosters. Ajusta los contadores o actualiza "Rosters" en la liga.
           </div>
         </div>
-
       </div>
       <div class="offcanvas-footer p-3 border-top border-secondary d-flex gap-2 justify-content-end">
         <button class="btn btn-outline-light" data-bs-dismiss="offcanvas">Cerrar</button>
@@ -277,7 +304,7 @@ export default async function renderManualLeagues() {
     </div>
   `;
 
-  // Toggle de vista
+  // Bind global UI controls
   document.getElementById('btn-view-table').addEventListener('click', () => switchView('table'));
   document.getElementById('btn-view-cards').addEventListener('click', () => switchView('cards'));
 
@@ -287,52 +314,67 @@ export default async function renderManualLeagues() {
     document.getElementById('formAddLeague').reset();
     modalAdd.show();
   });
-
   document.getElementById('formAddLeague').addEventListener('submit', onSubmitAddLeague(modalAdd));
 
   // Offcanvas titulares
   const offcanvasEl = document.getElementById('offcanvasStarters');
-  const oc = new bootstrap.Offcanvas(offcanvasEl);
-  document.getElementById('btn-save-starters').addEventListener('click', () => onSaveStarters(oc));
+  const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
+  document.getElementById('btn-save-starters').addEventListener('click', () => onSaveStarters(ocInstance));
 
   // Buscador local
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
 
-  // Cargar data
-  await loadManualLeagues();
+  // Inicialización: obtener userId y cargar ligas
+  await initAndLoad();
 
-  // Si cambias inputs dentro del offcanvas, marcamos dirty y refrescamos resumen
+  // Cuando se cierra offcanvas limpiamos dirty flag
   offcanvasEl.addEventListener('hidden.bs.offcanvas', () => (STATE.dirty = false));
 }
 
 /* ===============================
-   Lógica de carga / render
+   Init + carga ligas (obteniendo userId desde Supabase client)
    =============================== */
-
-async function loadManualLeagues() {
+async function initAndLoad() {
   try {
-    // Trae todas las ligas (puedes pasar user_id si quieres filtrar)
-    const leagues = await fetchManualLeaguesByUser();
-    // Ordenar por display_order ASC
-    leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-    STATE.leagues = leagues;
-
-    renderLeaguesTable(leagues);
-    renderLeaguesCards(leagues);
+    const userId = await getUserIdFromClient();
+    if (!userId) {
+      showError('Debes iniciar sesión para ver tus ligas manuales.');
+      window.location.hash = '#/login';
+      return;
+    }
+    // Llamamos al helper de API que acepta userId
+    await loadManualLeagues(userId);
   } catch (err) {
-    showError('Error al cargar ligas: ' + err.message);
+    showError('Error inicializando ligas: ' + (err.message || err));
   }
 }
 
+async function loadManualLeagues(userId = null) {
+  try {
+    const leagues = await fetchManualLeaguesByUser(userId);
+    leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+    STATE.leagues = leagues;
+    renderLeaguesTable(leagues);
+    renderLeaguesCards(leagues);
+  } catch (err) {
+    showError('Error al cargar ligas: ' + (err.message || err));
+  }
+}
+
+/* ===============================
+   Render tabla
+   =============================== */
 function renderLeaguesTable(leagues) {
   const tbody = document.querySelector('#manualLeaguesTable tbody');
+  if (!tbody) return;
+
   const rows = leagues.map(l => {
     const actions = `
       <div class="d-flex gap-2 justify-content-center">
-        <button class="btn btn-sm btn-outline-warning btn-starters" data-id="${l.id}" data-lid="${l.league_id}" data-name="${encodeURIComponent(l.name)}" title="Configurar titulares">
+        <button class="btn btn-sm btn-outline-warning btn-starters" data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id))}" data-name="${encodeURIComponent(l.name || '')}" title="Configurar titulares">
           <i class="bi bi-people-fill"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger delete-league" data-id="${l.id}">
+        <button class="btn btn-sm btn-outline-danger delete-league" data-id="${escapeHtml(String(l.id))}">
           <i class="bi bi-trash"></i>
         </button>
       </div>
@@ -341,17 +383,16 @@ function renderLeaguesTable(leagues) {
     return [
       `<div class="text-white text-center">${l.id}</div>`,
       `<span class="fw-semibold">${escapeHtml(l.name)}</span>`,
-      `<span class="fw-semibold">${l.league_id || '-'}</span>`,
+      `<span class="fw-semibold">${escapeHtml(l.league_id || '-')}</span>`,
       `<div class="text-center">${booleanBadge(l.dynasty)}</div>`,
       `<div class="text-center">${booleanBadge(l.bestball)}</div>`,
-      `<div class="text-white text-center">${l.draft_id || ''}</div>`,
-      `<div class="text-white text-center">${l.total_rosters || ''}</div>`,
-      `<div class="text-center"><span class="badge bg-success text-uppercase">${l.status || ''}</span></div>`,
+      `<div class="text-white text-center">${escapeHtml(l.draft_id || '')}</div>`,
+      `<div class="text-white text-center">${l.total_rosters ?? ''}</div>`,
+      `<div class="text-center"><span class="badge bg-success text-uppercase">${escapeHtml(l.status || '')}</span></div>`,
       actions
     ];
   });
 
-  // Inicializa o reinicia DataTable
   if ($.fn.DataTable.isDataTable('#manualLeaguesTable')) {
     const table = $('#manualLeaguesTable').DataTable();
     table.clear().rows.add(rows).draw();
@@ -360,41 +401,44 @@ function renderLeaguesTable(leagues) {
       data: rows,
       responsive: true,
       paging: false,
-      language: {
-        url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json'
-      },
+      language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
       dom: 'tip'
     });
   }
 
-  // Listeners para acciones
+  // Eventos (con pequeño delay para asegurar DataTable DOM)
   setTimeout(() => {
     document.querySelectorAll('.delete-league').forEach(btn => {
+      btn.removeEventListener?.('click', null);
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
-        const ok = await showConfirm('¿Eliminar esta liga? Esta acción no se puede deshacer.');
+        const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
         if (!ok) return;
         try {
           await deleteManualLeague(id);
           showSuccess('Liga eliminada correctamente');
-          await loadManualLeagues();
+          await loadManualLeagues(await getUserIdFromClient());
         } catch (err) {
-          showError('Error al eliminar liga: ' + err.message);
+          showError('Error al eliminar liga: ' + (err.message || err));
         }
       });
     });
 
     document.querySelectorAll('.btn-starters').forEach(btn => {
+      btn.removeEventListener?.('click', null);
       btn.addEventListener('click', async () => {
         const leagueId = btn.dataset.lid;
-        const leagueName = decodeURIComponent(btn.dataset.name);
-        const league = STATE.leagues.find(x => x.league_id === leagueId) || null;
+        const leagueName = decodeURIComponent(btn.dataset.name || '');
+        const league = STATE.leagues.find(x => String(x.league_id) === String(leagueId)) || null;
         await openStartersDrawer(league, leagueName);
       });
     });
   }, 120);
 }
 
+/* ===============================
+   Render tarjetas
+   =============================== */
 function renderLeaguesCards(leagues) {
   const grid = document.getElementById('cards-grid');
   if (!grid) return;
@@ -405,9 +449,9 @@ function renderLeaguesCards(leagues) {
         <div class="card-body d-flex flex-column">
           <div class="d-flex align-items-start justify-content-between mb-2">
             <div>
-              <div class="small text-secondary">ID Interno #${l.id}</div>
+              <div class="small text-secondary">ID Interno #${escapeHtml(String(l.id))}</div>
               <h5 class="card-title m-0">${escapeHtml(l.name)}</h5>
-              <div class="small text-secondary">League ID: <span class="text-white">${l.league_id || '-'}</span></div>
+              <div class="small text-secondary">League ID: <span class="text-white">${escapeHtml(l.league_id || '-')}</span></div>
             </div>
             <div class="d-flex flex-column align-items-end gap-1">
               ${l.dynasty === true ? '<span class="badge bg-success">Dynasty</span>' : ''}
@@ -417,47 +461,51 @@ function renderLeaguesCards(leagues) {
 
           <div class="mt-auto d-flex gap-2">
             <button class="btn btn-sm btn-outline-warning flex-grow-1 btn-starters"
-              data-id="${l.id}" data-lid="${l.league_id}" data-name="${encodeURIComponent(l.name)}">
+              data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id || ''))}" data-name="${encodeURIComponent(l.name || '')}">
               <i class="bi bi-people-fill"></i> Titulares
             </button>
-            <button class="btn btn-sm btn-outline-danger" data-id="${l.id}" onclick="void(0)" data-action="delete">
+            <button class="btn btn-sm btn-outline-danger btn-delete-card" data-id="${escapeHtml(String(l.id))}">
               <i class="bi bi-trash"></i>
             </button>
           </div>
         </div>
         <div class="card-footer small text-secondary d-flex justify-content-between">
-          <span>Draft: <span class="text-white">${l.draft_id || '-'}</span></span>
-          <span>Rosters: <span class="text-white">${l.total_rosters || '-'}</span></span>
+          <span>Draft: <span class="text-white">${escapeHtml(l.draft_id || '-')}</span></span>
+          <span>Rosters: <span class="text-white">${l.total_rosters ?? '-'}</span></span>
         </div>
       </div>
     </div>
   `).join('');
 
-  // Bind de botones en cards
+  // Bind actions
   grid.querySelectorAll('.btn-starters').forEach(btn => {
     btn.addEventListener('click', async () => {
       const leagueId = btn.dataset.lid;
-      const leagueName = decodeURIComponent(btn.dataset.name);
-      const league = STATE.leagues.find(x => x.league_id === leagueId) || null;
+      const leagueName = decodeURIComponent(btn.dataset.name || '');
+      const league = STATE.leagues.find(x => String(x.league_id) === String(leagueId)) || null;
       await openStartersDrawer(league, leagueName);
     });
   });
-  grid.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+
+  grid.querySelectorAll('.btn-delete-card').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
-      const ok = await showConfirm('¿Eliminar esta liga?');
+      const ok = await confirmDialog('¿Eliminar esta liga?');
       if (!ok) return;
       try {
         await deleteManualLeague(id);
         showSuccess('Liga eliminada correctamente');
-        await loadManualLeagues();
+        await loadManualLeagues(await getUserIdFromClient());
       } catch (err) {
-        showError('Error al eliminar liga: ' + err.message);
+        showError('Error al eliminar liga: ' + (err.message || err));
       }
     });
   });
 }
 
+/* ===============================
+   Switch vista
+   =============================== */
 function switchView(mode) {
   if (STATE.viewMode === mode) return;
   STATE.viewMode = mode;
@@ -468,19 +516,12 @@ function switchView(mode) {
 }
 
 /* ===============================
-   Buscar en la tabla/tarjetas
+   Buscador local
    =============================== */
 function onLocalSearch(e) {
   const term = String(e.target.value || '').toLowerCase();
-
-  // Tabla (DataTables tiene su propio filtro, pero aplicamos manual para ambas vistas)
-  const dt = $.fn.DataTable.isDataTable('#manualLeaguesTable')
-    ? $('#manualLeaguesTable').DataTable()
-    : null;
-
+  const dt = $.fn.DataTable.isDataTable('#manualLeaguesTable') ? $('#manualLeaguesTable').DataTable() : null;
   if (dt) dt.search(term).draw();
-
-  // Cards
   const cards = document.querySelectorAll('#cards-grid .card');
   cards.forEach(card => {
     const text = card.innerText.toLowerCase();
@@ -496,8 +537,6 @@ function onSubmitAddLeague(modalAdd) {
     e.preventDefault();
     const form = e.target;
     const formData = Object.fromEntries(new FormData(form).entries());
-
-    // Limpia valores "vacíos" -> null
     const payload = {
       name: formData.name?.trim(),
       draft_id: formData.draft_id?.trim() || null,
@@ -505,16 +544,15 @@ function onSubmitAddLeague(modalAdd) {
       dynasty: formData.dynasty === '' ? null : formData.dynasty === 'true',
       bestball: formData.bestball === '' ? null : formData.bestball === 'true',
       status: formData.status?.trim() || null,
-      // user_id: lo dejamos a null como pediste (el backend puede insertarlo si quieres)
     };
 
     try {
       await insertManualLeague(payload);
       showSuccess('Liga agregada correctamente');
       modalAdd.hide();
-      await loadManualLeagues();
+      await loadManualLeagues(await getUserIdFromClient());
     } catch (err) {
-      showError('Error al insertar liga: ' + err.message);
+      showError('Error al insertar liga: ' + (err.message || err));
     }
   };
 }
@@ -537,15 +575,13 @@ async function openStartersDrawer(league, fallbackName = '') {
   const settings = await fetchLeagueSettings(league.league_id);
   STATE.currentSettings = settings || { league_id: league.league_id, starter_positions: {} };
 
-  // Renderiza controles
   renderPositionControls(STATE.currentSettings.starter_positions || {});
   updateSummary();
 
-  // Abre offcanvas
   const oc = new bootstrap.Offcanvas(document.getElementById('offcanvasStarters'));
   oc.show();
 
-  // Bind presets
+  // Presets binding (rebind safe)
   document.querySelectorAll('.preset-chip').forEach(btn => {
     btn.onclick = () => {
       const key = btn.dataset.preset;
@@ -559,12 +595,16 @@ async function openStartersDrawer(league, fallbackName = '') {
   });
 
   document.getElementById('btn-preset-custom').onclick = () => {
-    // No cambia nada; el usuario ajusta manualmente
+    // personalizado: el usuario ajusta manualmente
   };
 }
 
+/* ===============================
+   Controles de posición
+   =============================== */
 function renderPositionControls(currentSP) {
   const wrap = document.getElementById('pos-controls');
+  if (!wrap) return;
   wrap.innerHTML = POSITION_ORDER.map(pos => {
     const value = Number(currentSP?.[pos] ?? 0);
     return `
@@ -583,7 +623,6 @@ function renderPositionControls(currentSP) {
     `;
   }).join('');
 
-  // Bind de contadores
   wrap.querySelectorAll('.btn-step').forEach(btn => {
     btn.addEventListener('click', () => {
       const pos = btn.dataset.pos;
@@ -600,7 +639,6 @@ function renderPositionControls(currentSP) {
 }
 
 function onPosChange() {
-  // Leer todos los inputs y escribir en STATE.currentSettings.starter_positions
   const sp = {};
   document.querySelectorAll('.pos-input').forEach(inp => {
     const pos = inp.dataset.pos;
@@ -619,7 +657,6 @@ function calcStartersTotal(sp) {
 function updateSummary() {
   const starters = calcStartersTotal(STATE.currentSettings?.starter_positions || {});
   const rosters = Number(STATE.currentLeague?.total_rosters || 0);
-
   const diff = rosters ? (rosters - starters) : 0;
   const diffEl = document.getElementById('summary-diff');
   const warnEl = document.getElementById('summary-warning');
@@ -628,7 +665,6 @@ function updateSummary() {
   document.getElementById('summary-rosters').textContent = String(rosters || 0);
   diffEl.textContent = String(diff);
 
-  // Colorear diferencia
   diffEl.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
   if (!rosters) {
     diffEl.classList.add('bg-secondary');
@@ -645,28 +681,18 @@ function updateSummary() {
   }
 }
 
+/* ===============================
+   Guardar starters
+   =============================== */
 async function onSaveStarters(offcanvas) {
   try {
     if (!STATE.currentLeague) return;
     const sp = STATE.currentSettings?.starter_positions || {};
-    // Guardamos únicamente starter_positions (puedes extender payload con más settings si gustas)
     await upsertLeagueSettings(STATE.currentLeague.league_id, { starter_positions: sp });
     STATE.dirty = false;
     showSuccess('Titulares guardados correctamente');
     offcanvas.hide();
   } catch (err) {
-    showError('Error al guardar titulares: ' + err.message);
+    showError('Error al guardar titulares: ' + (err.message || err));
   }
-}
-
-/* ===============================
-   Utils
-   =============================== */
-function escapeHtml(str) {
-  return String(str || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }

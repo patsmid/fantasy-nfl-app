@@ -1,29 +1,36 @@
+// routes/manualRoutes.js
 import express from 'express';
 import {
   upsertLeagueManual,
+  getManualLeaguesForAuthUser,
   getLeaguesByUser,
   deleteLeagueById,
   setLeagueUser,
-  getLeaguesFromDB,
-  getLeagueById,
-  updateLeagueDynasty,
-  updateLeagues,
-  getLeagues
-} from './leagues.js';
+  upsertLeagueSettings,
+  getLeagueSettings,
+  deleteLeagueSettings,
+  addDraftedPlayer,
+  getDraftedPlayers,
+  resetDraftedPlayers
+} from '../leagues.js'; // ruta relativa según tu estructura
 
 const router = express.Router();
 
-// ✅ Nuevas rutas manuales
+// Ligas manuales (UI)
 router.post('/leagues/insert', upsertLeagueManual);              // crear/actualizar liga manual
-router.get('/leagues/user/:user_id', getLeaguesByUser);          // obtener ligas por usuario
-router.delete('/leagues/:id', deleteLeagueById);                 // eliminar liga por id
-router.patch('/leagues/:id/user', setLeagueUser);                // asignar/desasignar user_id
+router.get('/leagues', getManualLeaguesForAuthUser);            // obtener ligas del usuario autenticado
+router.get('/leagues/user/:user_id', getLeaguesByUser);         // legacy/admin: obtener ligas por user_id
+router.delete('/leagues/:id', deleteLeagueById);                // eliminar liga por id
+router.patch('/leagues/:id/user', setLeagueUser);               // asignar/desasignar user_id
 
-// ✅ Rutas existentes que ya tenías (no usar por ahora)
-// router.get('/', getLeaguesFromDB);                       // ligas desde BD
-// router.get('/sleeper', getLeagues);                      // ligas desde API Sleeper
-// router.get('/:id', getLeagueById);                       // obtener liga por id
-// router.patch('/:id/dynasty', updateLeagueDynasty);       // actualizar campo dynasty
-// router.post('/update', updateLeagues);                   // refrescar ligas desde Sleeper
+// League settings (config JSONB)
+router.put('/league-settings/:league_id', upsertLeagueSettings); // guardar settings (PUT)
+router.get('/league-settings/:league_id', getLeagueSettings);   // obtener settings
+router.delete('/league-settings/:league_id', deleteLeagueSettings); // borrar
+
+// Drafted players
+router.post('/drafted', addDraftedPlayer);                      // agregar drafted player
+router.get('/drafted/:league_id', getDraftedPlayers);           // obtener jugadores drafteados por liga
+router.delete('/drafted/:league_id', resetDraftedPlayers);      // reset players for league
 
 export default router;
