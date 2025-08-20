@@ -2,7 +2,7 @@ import { fetchWithTimeout } from '../components/utils.js';
 
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
-// 🔹 Helper para peticiones
+// 🔹 Helper para peticiones con validación y logs
 async function apiFetch(endpoint, options = {}) {
   const res = await fetchWithTimeout(`${API_BASE}${endpoint}`, {
     ...options,
@@ -20,6 +20,7 @@ async function apiFetch(endpoint, options = {}) {
   }
 
   if (!res.ok) {
+    console.error(`❌ API error ${res.status} (${endpoint}):`, body || await res.text().catch(() => null));
     const msg = (body && body.error) || res.statusText || 'Error en la petición';
     throw new Error(msg);
   }
