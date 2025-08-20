@@ -2,30 +2,27 @@ import { fetchWithTimeout } from '../components/utils.js';
 
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
-// 🔹 Helper para peticiones con validación y logs
+// 🔹 Helper para peticiones
 async function apiFetch(endpoint, options = {}) {
-  const res = await fetchWithTimeout(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
-
-  let body = null;
   try {
-    body = await res.json();
-  } catch {
-    body = null;
-  }
+    const body = await fetchWithTimeout(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
 
-  if (!res.ok) {
-    console.error(`❌ API error ${res.status} (${endpoint}):`, body || await res.text().catch(() => null));
-    const msg = (body && body.error) || res.statusText || 'Error en la petición';
-    throw new Error(msg);
-  }
+    // si la API manda un campo error
+    if (body?.error) {
+      throw new Error(body.error);
+    }
 
-  return body; // siempre retornamos el body completo
+    return body; // ya es JSON
+  } catch (err) {
+    console.error(`❌ Error en apiFetch (${endpoint}):`, err.message);
+    throw err;
+  }
 }
 
 /* =============================
