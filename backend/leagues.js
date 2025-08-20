@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient.js';
+import { supabase, supabaseAdmin  } from './supabaseClient.js';
 
 /* ---------------------------
    Util: obtener user desde token (server-side)
@@ -191,53 +191,79 @@ export async function updateLeagueDynasty(req, res) {
 /**
  * upsertLeagueManual
  */
-export async function upsertLeagueManual(req, res) {
-  try {
-    const {
-      league_id = null,
-      name,
-      draft_id = null,
-      total_rosters = null,
-      status = null,
-      dynasty = null,
-      bestball = null,
-      display_order = 0,
-      user_id = null
-    } = req.body;
+ export async function upsertLeagueManual(req, res) {
+   try {
+     // 🔹 1. Extraer token del header
+     const authHeader = req.headers['authorization'];
+     if (!authHeader?.startsWith('Bearer ')) {
+       return res.status(401).json({ success: false, error: 'No se proporcionó token válido' });
+     }
+     const token = authHeader.split(' ')[1];
 
-    if (!name) {
-      return res.status(400).json({ success: false, error: 'El campo name es obligatorio' });
-    }
+     // 🔹 2. Validar token y obtener el user_id desde Supabase
+     const {
+       data: { user },
+       error: userError
+     } = await supabaseAdmin.auth.getUser(token);
 
-    const finalLeagueId = league_id && String(league_id).trim() !== '' ? league_id : generateLeagueId();
-    const userIdNormalized = user_id && String(user_id).trim() !== '' ? user_id : null;
+     if (userError || !user) {
+       console.error('❌ Error validando token:', userError?.message);
+       return res.status(401).json({ success: false, error: 'Token inválido o expirado' });
+     }
 
-    const payload = {
-      league_id: finalLeagueId,
-      name,
-      draft_id,
-      total_rosters,
-      status,
-      dynasty,
-      bestball,
-      display_order,
-      user_id: userIdNormalized,
-      updated_at: new Date().toISOString()
-    };
+     const userId = user.id;
 
-    const { data, error } = await supabase
-      .from('leagues')
-      .upsert(payload, { onConflict: 'league_id' })
-      .select()
-      .single();
+     // 🔹 3. Tomar datos del body
+     const {
+       league_id = null,
+       name,
+       draft_id = null,
+       total_rosters = null,
+       status = null,
+       dynasty = null,
+       bestball = null,
+       display_order = 0
+     } = req.body;
 
-    if (error) throw error;
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en upsertLeagueManual:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+     if (!name) {
+       return res.status(400).json({ success: false, error: 'El campo name es obligatorio' });
+     }
+
+     // 🔹 4. Generar league_id si no existe
+     const finalLeagueId =
+       league_id && String(league_id).trim() !== '' ? league_id : generateLeagueId();
+
+     // 🔹 5. Payload para la tabla leagues
+     const payload = {
+       league_id: finalLeagueId,
+       name,
+       draft_id,
+       total_rosters,
+       status,
+       dynasty,
+       bestball,
+       display_order,
+       user_id: userId, // 🚀 SIEMPRE desde el token
+       updated_at: new Date().toISOString()
+     };
+
+     // 🔹 6. Upsert con supabaseAdmin
+     const { data, error } = await supabaseAdmin
+       .from('leagues')
+       .upsert(payload, { onConflict: 'league_id' })
+       .select()
+       .single();
+
+     if (error) throw error;
+
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en upsertLeagueManual:', err);
+     res
+       .status(500)
+       .json({ success: false, error: err.message || 'Error interno en el servidor' });
+   }
+ }
 
 /**
  * getManualLeaguesForAuthUser

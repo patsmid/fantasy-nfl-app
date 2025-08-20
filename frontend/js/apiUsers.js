@@ -43,13 +43,18 @@ export async function fetchManualLeaguesByUser(user_id = null, accessToken = nul
 }
 
 // insertar o actualizar liga manual
-export async function insertManualLeague(payload) {
+export async function insertManualLeague(payload, accessToken = null) {
+  const headers = {};
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
   const body = await apiFetch(`/manual/leagues`, {
     method: 'POST',
+    headers,
     body: JSON.stringify(payload)
   });
   return body?.data;
 }
+
 
 // eliminar liga manual
 export async function deleteManualLeague(league_id) {

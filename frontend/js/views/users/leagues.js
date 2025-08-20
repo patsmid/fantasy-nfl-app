@@ -1,3 +1,4 @@
+// frontend/src/views/manualLeagues.js
 import {
   fetchManualLeaguesByUser,
   insertManualLeague,
@@ -104,11 +105,9 @@ async function confirmDialog(message) {
     const result = await showConfirm(typeof message === 'string' ? { text: message } : message);
     if (typeof result === 'boolean') return result;
     if (result && (result.isConfirmed !== undefined)) return result.isConfirmed;
-    // some implementations return { confirmed: true }
     if (result && (result.confirmed !== undefined)) return result.confirmed;
     return Boolean(result);
   } catch (err) {
-    // fallback to window.confirm
     return confirm(typeof message === 'string' ? message : (message?.text || '¿Confirmar?'));
   }
 }
@@ -324,7 +323,7 @@ export default async function renderManualLeagues() {
   // Buscador local
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
 
-  // Inicialización: obtener userId y cargar ligas
+  // Inicialización: obtener userId y token y cargar ligas
   await initAndLoad();
 
   // Cuando se cierra offcanvas limpiamos dirty flag
@@ -337,21 +336,24 @@ export default async function renderManualLeagues() {
 async function initAndLoad() {
   try {
     const userId = await getUserIdFromClient();
+    const token = await getAccessTokenFromClient().catch(() => null);
+
     if (!userId) {
       showError('Debes iniciar sesión para ver tus ligas manuales.');
       window.location.hash = '#/login';
       return;
     }
-    // Llamamos al helper de API que acepta userId
-    await loadManualLeagues(userId);
+    // Llamamos al helper de API que acepta userId y token
+    await loadManualLeagues(userId, token);
   } catch (err) {
     showError('Error inicializando ligas: ' + (err.message || err));
   }
 }
 
-async function loadManualLeagues(userId = null) {
+async function loadManualLeagues(userId = null, accessToken = null) {
   try {
-    const leagues = await fetchManualLeaguesByUser(userId);
+    // fetchManualLeaguesByUser acepta accessToken como 2do parámetro (si tu apiUsers lo implementó)
+    const leagues = await fetchManualLeaguesByUser(userId, accessToken);
     leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
     STATE.leagues = leagues;
     renderLeaguesTable(leagues);
@@ -409,7 +411,6 @@ function renderLeaguesTable(leagues) {
   // Eventos (con pequeño delay para asegurar DataTable DOM)
   setTimeout(() => {
     document.querySelectorAll('.delete-league').forEach(btn => {
-      btn.removeEventListener?.('click', null);
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
         const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
@@ -417,7 +418,9 @@ function renderLeaguesTable(leagues) {
         try {
           await deleteManualLeague(id);
           showSuccess('Liga eliminada correctamente');
-          await loadManualLeagues(await getUserIdFromClient());
+          const userId = await getUserIdFromClient();
+          const token = await getAccessTokenFromClient().catch(() => null);
+          await loadManualLeagues(userId, token);
         } catch (err) {
           showError('Error al eliminar liga: ' + (err.message || err));
         }
@@ -425,7 +428,6 @@ function renderLeaguesTable(leagues) {
     });
 
     document.querySelectorAll('.btn-starters').forEach(btn => {
-      btn.removeEventListener?.('click', null);
       btn.addEventListener('click', async () => {
         const leagueId = btn.dataset.lid;
         const leagueName = decodeURIComponent(btn.dataset.name || '');
@@ -495,7 +497,9 @@ function renderLeaguesCards(leagues) {
       try {
         await deleteManualLeague(id);
         showSuccess('Liga eliminada correctamente');
-        await loadManualLeagues(await getUserIdFromClient());
+        const userId = await getUserIdFromClient();
+        const token = await getAccessTokenFromClient().catch(() => null);
+        await loadManualLeagues(userId, token);
       } catch (err) {
         showError('Error al eliminar liga: ' + (err.message || err));
       }
@@ -547,10 +551,23 @@ function onSubmitAddLeague(modalAdd) {
     };
 
     try {
-      await insertManualLeague(payload);
+      // Tomamos token igual que en extras.js para que backend pueda inferir user_id
+      const accessToken = await getAccessTokenFromClient();
+      if (!accessToken) {
+        showError('Debes iniciar sesión.');
+        window.location.hash = '#/login';
+        return;
+      }
+
+      // insertManualLeague acepta (payload, accessToken) si actualizaste apiUsers.js
+      await insertManualLeague(payload, accessToken);
+
       showSuccess('Liga agregada correctamente');
       modalAdd.hide();
-      await loadManualLeagues(await getUserIdFromClient());
+
+      const userId = await getUserIdFromClient();
+      const token = await getAccessTokenFromClient().catch(() => null);
+      await loadManualLeagues(userId, token);
     } catch (err) {
       showError('Error al insertar liga: ' + (err.message || err));
     }
@@ -688,6 +705,8 @@ async function onSaveStarters(offcanvas) {
   try {
     if (!STATE.currentLeague) return;
     const sp = STATE.currentSettings?.starter_positions || {};
+
+    // Si tienes RLS que requiera token, upsertLeagueSettings usa token en fetch
     await upsertLeagueSettings(STATE.currentLeague.league_id, { starter_positions: sp });
     STATE.dirty = false;
     showSuccess('Titulares guardados correctamente');
