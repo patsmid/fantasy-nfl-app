@@ -3,9 +3,9 @@ import {
   insertManualLeague,
   deleteManualLeague,
   setLeagueUser, // disponible si en el futuro asignas usuario
-} from '../../apiUsers.js';
+} from '../../../apiUsers.js';
 
-import { showSuccess, showError, showConfirm } from '../../components/alerts.js';
+import { showSuccess, showError, showConfirm } from '../../../components/alerts.js';
 
 // ⚠️ Solo para endpoints de settings. Usamos el mismo host del backend.
 // Si ya exportas API_BASE en otro sitio, puedes importarlo; aquí lo definimos localmente:
@@ -101,7 +101,7 @@ function loadLeagueStyles() {
 
 export default async function renderManualLeagues() {
   loadLeagueStyles();
-  
+
   const content = document.getElementById('content-container');
   content.innerHTML = `
     <div class="card border-0 shadow-sm rounded flock-card">
