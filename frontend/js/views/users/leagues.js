@@ -49,44 +49,33 @@ async function upsertLeagueSettings(league_id, payload) {
    Presets / Plantillas
    =============================== */
 const LINEUP_PRESETS = {
-  STANDARD: { label: 'Standard', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
-  HALF_PPR: { label: 'Half-PPR', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
-  PPR: { label: 'PPR', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
-  SUPERFLEX: { label: 'Superflex', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 } },
-  TE_PREMIUM: { label: 'TE-Premium', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  STANDARD:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  SUPERFLEX:   { label: 'Superflex',   sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 } },
+  TE_PREMIUM:  { label: 'TE-Premium',  sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
-// Eliminadas DL, LB, DB según tu pedido
+// Orden de posiciones (sin DL/LB/DB)
 const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'K', 'DST'];
-
-function getInitialViewMode() {
-  // En pantallas pequeñas inicia en cards; en desktop, tabla
-  return (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) ? 'cards' : 'table';
-}
 
 let STATE = {
   leagues: [],
-  viewMode: getInitialViewMode(),
   currentLeague: null,
   currentSettings: null,
   dirty: false,
   editingLeague: null, // guarda league_id (UUID) cuando editamos
-  dt: null,            // instancia DataTable
 };
 
 /* ===============================
-   UI Helpers
+   Utilidades UI
    =============================== */
-function booleanBadge(val) {
-  if (val === true) return '<span class="badge bg-success">Sí</span>';
-  if (val === false) return '<span class="badge bg-danger">No</span>';
-  return '<span class="badge bg-secondary">--</span>';
-}
 function escapeHtml(str) {
   return String(str ?? '')
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
 async function confirmDialog(message) {
   try {
     const result = await showConfirm(typeof message === 'string' ? { text: message } : message);
@@ -99,66 +88,18 @@ async function confirmDialog(message) {
   }
 }
 
-/* Bootstrap confirm dialog (robusto para eliminar) */
-function bootstrapConfirmDelete({ title = 'Confirmar eliminación', body = '', confirmText = 'Eliminar', cancelText = 'Cancelar' } = {}) {
-  return new Promise((resolve) => {
-    let modal = document.getElementById('modalConfirmDelete');
-    if (!modal) {
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = `
-        <div class="modal fade" id="modalConfirmDelete" tabindex="-1" aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark text-white border border-secondary">
-              <div class="modal-header border-secondary">
-                <h5 class="modal-title"></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body"></div>
-              <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${cancelText}</button>
-                <button type="button" id="btn-yes-delete" class="btn btn-danger">
-                  <i class="bi bi-trash"></i> ${confirmText}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>`;
-      document.body.appendChild(wrapper.firstElementChild);
-      modal = document.getElementById('modalConfirmDelete');
-    }
-    modal.querySelector('.modal-title').textContent = title;
-    modal.querySelector('.modal-body').innerHTML = body;
-
-    const m = new bootstrap.Modal(modal);
-    m.show();
-
-    const yesBtn = modal.querySelector('#btn-yes-delete');
-    const cleanup = () => {
-      yesBtn?.removeEventListener('click', onYes);
-      modal.removeEventListener('hidden.bs.modal', onHide);
-    };
-    const onYes = () => { cleanup(); m.hide(); resolve(true); };
-    const onHide = () => { cleanup(); resolve(false); };
-    yesBtn?.addEventListener('click', onYes, { once: true });
-    modal.addEventListener('hidden.bs.modal', onHide, { once: true });
-  });
-}
-
-/* ===============================
-   Cargar styles desde css/leagues.css (Bootstrap ya presente)
-   =============================== */
 function loadLeagueStyles() {
   if (!document.querySelector('link[data-style="leagues"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '../../css/leagues.css'; // ajusta ruta si tu estructura es diferente
+    link.href = '../../css/leagues.css';
     link.dataset.style = 'leagues';
     document.head.appendChild(link);
   }
 }
 
 /* ===============================
-   Render principal
+   Render principal — SOLO CARDS
    =============================== */
 export default async function renderManualLeagues() {
   loadLeagueStyles();
@@ -170,62 +111,33 @@ export default async function renderManualLeagues() {
   }
 
   content.innerHTML = `
-    <div class="card border-0 shadow-sm rounded flock-card">
-      <div class="card-body">
-        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+    <div class="card border-0 shadow-sm rounded flock-card h-100">
+      <div class="card-body d-flex flex-column min-h-0">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
           <div class="d-flex align-items-center gap-2">
             <h4 class="m-0 d-flex align-items-center gap-2">
               <i class="bi bi-pencil-square text-warning"></i> Ligas Manuales
             </h4>
             <span class="text-secondary small">Administra tus ligas, presets y titulares</span>
           </div>
-          <div class="d-flex flex-wrap gap-2">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Vista">
-              <button class="btn btn-outline-light ${STATE.viewMode === 'table' ? 'active' : ''}" id="btn-view-table" title="Tabla">
-                <i class="bi bi-table"></i>
-              </button>
-              <button class="btn btn-outline-light ${STATE.viewMode === 'cards' ? 'active' : ''}" id="btn-view-cards" title="Tarjetas">
-                <i class="bi bi-grid-3x3-gap"></i>
-              </button>
-            </div>
-            <button class="btn btn-sm btn-success d-flex align-items-center gap-2" id="btn-add-league" type="button">
-              <i class="bi bi-plus-circle"></i> Nueva Liga
-            </button>
-          </div>
+          <button class="btn btn-sm btn-success d-flex align-items-center gap-2" id="btn-add-league" type="button">
+            <i class="bi bi-plus-circle"></i> Nueva Liga
+          </button>
         </div>
 
-        <div class="row g-2 mb-3">
+        <div class="row g-2 mb-2">
           <div class="col-12 col-md-6">
             <input id="league-search" class="form-control" placeholder="Buscar liga por nombre o ID..." />
           </div>
         </div>
 
-        <!-- Panel de Tabla con viewport propio (no expande ventana) -->
-        <div id="table-panel" class="${STATE.viewMode === 'table' ? '' : 'd-none'}">
-          <div id="dt-viewport" class="dt-viewport border border-secondary rounded">
-            <table id="manualLeaguesTable" class="table table-dark table-hover align-middle w-100">
-              <thead class="table-dark text-uppercase text-secondary small">
-                <tr>
-                  <th style="width:6%;">ID</th>
-                  <th style="width:28%;">Nombre</th>
-                  <th style="width:18%;">League ID</th>
-                  <th style="width:6%;">Dynasty</th>
-                  <th style="width:6%;">BestBall</th>
-                  <th style="width:12%;">Draft ID</th>
-                  <th style="width:8%;">Equipos</th>
-                  <th style="width:8%;">Status</th>
-                  <th style="width:8%;" class="text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div class="small text-secondary mt-1">* Desliza dentro del panel si hay muchas filas</div>
-        </div>
-
-        <!-- Panel de Tarjetas -->
-        <div id="wrap-cards" class="${STATE.viewMode === 'cards' ? '' : 'd-none'}">
+        <!-- CONTENEDOR CON SCROLL INTERNO -->
+        <div id="leagues-scroll" class="leagues-scroll flex-grow-1">
           <div id="cards-grid" class="row g-3"></div>
+          <div id="empty-state" class="text-center text-secondary py-4 d-none">
+            <i class="bi bi-inbox"></i>
+            <div class="mt-2">No hay ligas que coincidan con la búsqueda.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -332,16 +244,13 @@ export default async function renderManualLeagues() {
     </div>
   `;
 
-  // Element references + instances
+  // Instancias Bootstrap
   const modalAddEl = document.getElementById('modalAddLeague');
   const modalAddInstance = new bootstrap.Modal(modalAddEl);
   const offcanvasEl = document.getElementById('offcanvasStarters');
   const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
 
-  // Bind UI controls
-  document.getElementById('btn-view-table').addEventListener('click', () => switchView('table'));
-  document.getElementById('btn-view-cards').addEventListener('click', () => switchView('cards'));
-
+  // Botón Nueva liga
   document.getElementById('btn-add-league').addEventListener('click', () => {
     STATE.editingLeague = null;
     document.getElementById('modalAddLeagueTitle').textContent = 'Agregar Liga Manual';
@@ -352,128 +261,20 @@ export default async function renderManualLeagues() {
   // Submit (alta / edición)
   document.getElementById('formAddLeague').addEventListener('submit', onSubmitAddLeague(modalAddInstance));
 
-  // Offcanvas save
+  // Guardar titulares
   document.getElementById('btn-save-starters').addEventListener('click', () => onSaveStarters(ocInstance));
 
-  // Search
+  // Buscador local (solo cards)
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
 
-  // Delegated clicks table
-  document.querySelector('#manualLeaguesTable tbody').addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('button');
-    if (!btn) return;
+  // Delegated clicks en cards
+  document.getElementById('cards-grid').addEventListener('click', onCardsClick);
 
-    if (btn.classList.contains('btn-starters')) {
-      const leagueId = btn.dataset.lid || btn.dataset.id;
-      const leagueName = decodeURIComponent(btn.dataset.name || '');
-      const league = STATE.leagues.find(x =>
-        String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
-      ) || null;
-      await openStartersDrawer(league, leagueName);
-
-    } else if (btn.classList.contains('delete-league')) {
-      const parsedId = resolveLeagueInternalIdFromTableClick(btn);
-      if (Number.isNaN(parsedId)) {
-        showError('ID de liga inválido. Reintenta y revisa la consola.');
-        return;
-      }
-
-      const league = STATE.leagues.find(l => Number(l.id) === Number(parsedId));
-      const title = '¿Eliminar liga?';
-      const body = `
-        <div class="d-flex flex-column gap-2">
-          <div>Estás por eliminar la liga:</div>
-          <div class="p-2 rounded border border-secondary bg-dark-subtle">
-            <div><strong>${escapeHtml(league?.name ?? '(sin nombre)')}</strong></div>
-            <div class="small text-secondary">Interno ID: ${parsedId} · League ID: ${escapeHtml(league?.league_id ?? '-')}</div>
-          </div>
-          <div class="text-warning small">Esta acción no se puede deshacer.</div>
-        </div>
-      `;
-      const ok = await bootstrapConfirmDelete({ title, body, confirmText: 'Eliminar' });
-      if (!ok) return;
-
-      try {
-        const token = await getAccessTokenFromClient().catch(() => null);
-        await deleteManualLeague(parsedId, token);
-        showSuccess('Liga eliminada correctamente');
-        const userId = await getUserIdFromClient();
-        const token2 = await getAccessTokenFromClient().catch(() => null);
-        await loadManualLeagues(userId, token2);
-      } catch (err) {
-        console.error('Error deleteManualLeague:', err);
-        showError('Error al eliminar liga: ' + (err.message || err));
-      }
-
-    } else if (btn.classList.contains('btn-edit-league')) {
-      openEditLeague(btn.dataset.id, modalAddInstance);
-    }
-  });
-
-  // Delegated clicks cards
-  document.getElementById('cards-grid').addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('button');
-    if (!btn) return;
-
-    if (btn.classList.contains('btn-starters')) {
-      const leagueId = btn.dataset.lid || btn.dataset.id;
-      const leagueName = decodeURIComponent(btn.dataset.name || '');
-      const league = STATE.leagues.find(x =>
-        String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
-      ) || null;
-      await openStartersDrawer(league, leagueName);
-
-    } else if (btn.classList.contains('btn-delete-card')) {
-      let rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? null;
-      const container = btn.closest('[data-id]');
-      if ((!rawId || rawId === 'undefined') && container) rawId = container.dataset.id;
-
-      const parsedId = Number.isFinite(Number(rawId)) ? Number(rawId) : NaN;
-      if (Number.isNaN(parsedId)) {
-        showError('ID de liga inválido. Reintenta y revisa la consola.');
-        return;
-      }
-
-      const league = STATE.leagues.find(l => Number(l.id) === Number(parsedId));
-      const title = '¿Eliminar liga?';
-      const body = `
-        <div class="d-flex flex-column gap-2">
-          <div>Estás por eliminar la liga:</div>
-          <div class="p-2 rounded border border-secondary bg-dark-subtle">
-            <div><strong>${escapeHtml(league?.name ?? '(sin nombre)')}</strong></div>
-            <div class="small text-secondary">Interno ID: ${parsedId} · League ID: ${escapeHtml(league?.league_id ?? '-')}</div>
-          </div>
-          <div class="text-warning small">Esta acción no se puede deshacer.</div>
-        </div>
-      `;
-      const ok = await bootstrapConfirmDelete({ title, body, confirmText: 'Eliminar' });
-      if (!ok) return;
-
-      try {
-        const token = await getAccessTokenFromClient().catch(() => null);
-        await deleteManualLeague(parsedId, token);
-        showSuccess('Liga eliminada correctamente');
-        const userId = await getUserIdFromClient();
-        const token2 = await getAccessTokenFromClient().catch(() => null);
-        await loadManualLeagues(userId, token2);
-      } catch (err) {
-        console.error('Error deleteManualLeague (card):', err);
-        showError('Error al eliminar liga: ' + (err.message || err));
-      }
-
-    } else if (btn.classList.contains('btn-edit-card')) {
-      openEditLeague(btn.dataset.id, modalAddInstance);
-    }
-  });
-
-  // Inicialización: obtener userId y token y cargar ligas
+  // Inicialización
   await initAndLoad();
 
-  // Limpiar dirty flag al cerrar offcanvas
+  // Limpiar dirty al cerrar offcanvas
   offcanvasEl.addEventListener('hidden.bs.offcanvas', () => (STATE.dirty = false));
-
-  // Ajuste de alto del DataTable en resize
-  window.addEventListener('resize', debounce(recalcTableHeight, 150));
 }
 
 /* ===============================
@@ -500,99 +301,36 @@ async function loadManualLeagues(userId = null, accessToken = null) {
     const leagues = await fetchManualLeaguesByUser(userId, accessToken);
     leagues.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
     STATE.leagues = leagues;
-    renderLeaguesTable(leagues);
     renderLeaguesCards(leagues);
-    recalcTableHeight(); // asegura alto correcto tras render
   } catch (err) {
     showError('Error al cargar ligas: ' + (err.message || err));
   }
 }
 
 /* ===============================
-   Render tabla (DataTables con scroll interno)
-   =============================== */
-function renderLeaguesTable(leagues) {
-  const tbody = document.querySelector('#manualLeaguesTable tbody');
-  if (!tbody) return;
-
-  const rows = leagues.map(l => {
-    const actions = `
-      <div class="d-flex gap-2 justify-content-center">
-        <button class="btn btn-sm btn-outline-warning btn-starters" data-id="${escapeHtml(String(l.id))}" data-lid="${escapeHtml(String(l.league_id || ''))}" data-name="${encodeURIComponent(l.name || '')}" title="Configurar titulares">
-          <i class="bi bi-people-fill"></i>
-        </button>
-        <button class="btn btn-sm btn-outline-info btn-edit-league" data-id="${escapeHtml(String(l.id))}" title="Editar liga">
-          <i class="bi bi-pencil"></i>
-        </button>
-        <button class="btn btn-sm btn-outline-danger delete-league" data-id="${escapeHtml(String(l.id))}" title="Eliminar liga">
-          <i class="bi bi-trash"></i>
-        </button>
-      </div>
-    `;
-
-    return [
-      `<div class="text-white text-center">${l.id}</div>`,
-      `<div class="text-truncate fw-semibold" title="${escapeHtml(l.name)}">${escapeHtml(l.name)}</div>`,
-      `<div class="text-truncate fw-semibold" title="${escapeHtml(l.league_id || '-')}">${escapeHtml(l.league_id || '-')}</div>`,
-      `<div class="text-center">${booleanBadge(l.dynasty)}</div>`,
-      `<div class="text-center">${booleanBadge(l.bestball)}</div>`,
-      `<div class="text-truncate text-white" title="${escapeHtml(l.draft_id || '')}">${escapeHtml(l.draft_id || '')}</div>`,
-      `<div class="text-center text-white">${l.total_rosters ?? ''}</div>`,
-      `<div class="text-center"><span class="badge bg-success text-uppercase">${escapeHtml(l.status || '')}</span></div>`,
-      actions
-    ];
-  });
-
-  // Reiniciar si ya existe
-  if ($.fn.DataTable.isDataTable('#manualLeaguesTable')) {
-    STATE.dt.clear().rows.add(rows).draw(false);
-    return;
-  }
-
-  STATE.dt = $('#manualLeaguesTable').DataTable({
-    data: rows,
-    responsive: {
-      details: { type: 'inline' } // permite expandir filas en pantallas reducidas
-    },
-    autoWidth: false,
-    deferRender: true,
-    paging: false,           // usamos scroll interno, no paginación
-    info: false,
-    ordering: true,
-    language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
-    dom: 't', // sólo tabla (search externo)
-    scrollY: computeTableHeight(), // altura dinámica
-    scrollCollapse: true,
-    columnDefs: [
-      { targets: 0, width: '70px', responsivePriority: 1 },
-      { targets: 1, responsivePriority: 1 },
-      { targets: 2, responsivePriority: 2 },
-      { targets: 3, responsivePriority: 4 },
-      { targets: 4, responsivePriority: 4 },
-      { targets: 5, responsivePriority: 6 },
-      { targets: 6, responsivePriority: 3 },
-      { targets: 7, responsivePriority: 2 },
-      { targets: -1, orderable: false, searchable: false, responsivePriority: 1 }
-    ]
-  });
-}
-
-/* ===============================
-   Render tarjetas
+   Render solo tarjetas
    =============================== */
 function renderLeaguesCards(leagues) {
   const grid = document.getElementById('cards-grid');
+  const empty = document.getElementById('empty-state');
   if (!grid) return;
+
+  if (!Array.isArray(leagues) || leagues.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.remove('d-none');
+    return;
+  }
+  empty.classList.add('d-none');
 
   grid.innerHTML = leagues.map(l => `
     <div class="col-12 col-md-6 col-lg-4" data-id="${escapeHtml(String(l.id))}">
       <div class="card league-card h-100">
         <div class="card-body d-flex flex-column">
           <div class="d-flex align-items-start justify-content-between mb-2">
-            <div>
+            <div class="min-w-0">
               <div class="small text-secondary">ID Interno #${escapeHtml(String(l.id))}</div>
-              <h5 class="card-title m-0 text-truncate" title="${escapeHtml(l.name)}">${escapeHtml(l.name)}</h5>
-              <div class="small text-secondary">League ID: <span class="text-white" title="${escapeHtml(l.league_id || '-')}">${escapeHtml(l.league_id || '-')}</span></div>
+              <h5 class="card-title m-0 text-truncate">${escapeHtml(l.name)}</h5>
+              <div class="small text-secondary">League ID: <span class="text-white">${escapeHtml(l.league_id || '-')}</span></div>
             </div>
             <div class="d-flex flex-column align-items-end gap-1">
               ${l.dynasty === true ? '<span class="badge bg-success">Dynasty</span>' : ''}
@@ -614,56 +352,28 @@ function renderLeaguesCards(leagues) {
           </div>
         </div>
         <div class="card-footer small text-secondary d-flex justify-content-between">
-          <span>Draft: <span class="text-white" title="${escapeHtml(l.draft_id || '-')}">${escapeHtml(l.draft_id || '-')}</span></span>
+          <span>Draft: <span class="text-white">${escapeHtml(l.draft_id || '-')}</span></span>
           <span>Equipos: <span class="text-white">${l.total_rosters ?? '-'}</span></span>
         </div>
       </div>
     </div>
   `).join('');
-
-  // Hacer el contenedor de cartas scrolleable sin expandir pantalla
-  const wrap = document.getElementById('wrap-cards');
-  if (wrap) {
-    wrap.style.maxHeight = cardsViewportHeight() + 'px';
-    wrap.style.overflow = 'auto';
-  }
 }
 
 /* ===============================
-   Switch vista
-   =============================== */
-function switchView(mode) {
-  if (STATE.viewMode === mode) return;
-  STATE.viewMode = mode;
-  document.getElementById('table-panel').classList.toggle('d-none', mode !== 'table');
-  document.getElementById('wrap-cards').classList.toggle('d-none', mode !== 'cards');
-  document.getElementById('btn-view-table').classList.toggle('active', mode === 'table');
-  document.getElementById('btn-view-cards').classList.toggle('active', mode === 'cards');
-
-  if (mode === 'table') {
-    // fuerza recalcular alto/columnas al entrar
-    setTimeout(recalcTableHeight, 0);
-  } else {
-    const wrap = document.getElementById('wrap-cards');
-    if (wrap) {
-      wrap.style.maxHeight = cardsViewportHeight() + 'px';
-      wrap.style.overflow = 'auto';
-    }
-  }
-}
-
-/* ===============================
-   Buscador local
+   Buscador local (solo cards)
    =============================== */
 function onLocalSearch(e) {
   const term = String(e.target.value || '').toLowerCase();
-  const dt = STATE.dt;
-  if (dt) dt.search(term).draw(false);
-  const cards = document.querySelectorAll('#cards-grid .card');
-  cards.forEach(card => {
-    const text = (card.innerText || '').toLowerCase();
-    card.parentElement.classList.toggle('d-none', !text.includes(term));
+  const cards = document.querySelectorAll('#cards-grid .col-12');
+  let visible = 0;
+  cards.forEach(col => {
+    const text = col.innerText.toLowerCase();
+    const show = text.includes(term);
+    col.classList.toggle('d-none', !show);
+    if (show) visible++;
   });
+  document.getElementById('empty-state')?.classList.toggle('d-none', visible !== 0);
 }
 
 /* ===============================
@@ -691,12 +401,11 @@ function onSubmitAddLeague(modalInstance) {
         return;
       }
 
-      // Si estamos editando, añadimos league_id (NO el id interno)
+      // Si estamos editando, añadir league_id (UUID) para que el backend haga upsert por league_id
       if (STATE.editingLeague) {
         payload.league_id = STATE.editingLeague;
       }
 
-      // insertManualLeague se asume que hace upsert cuando le envías league_id
       await insertManualLeague(payload, accessToken);
 
       showSuccess(STATE.editingLeague ? 'Liga actualizada correctamente' : 'Liga agregada correctamente');
@@ -720,6 +429,7 @@ function openEditLeague(id, modalInstance) {
   }
   // guardamos league_id (UUID) para que el backend haga upsert por league_id
   STATE.editingLeague = league.league_id || null;
+
   const form = document.getElementById('formAddLeague');
   form.name.value = league.name || '';
   form.draft_id.value = league.draft_id || '';
@@ -729,6 +439,78 @@ function openEditLeague(id, modalInstance) {
   form.status.value = league.status || '';
   document.getElementById('modalAddLeagueTitle').textContent = 'Editar Liga';
   modalInstance.show();
+}
+
+/* ===============================
+   Eventos en Cards (delegado)
+   =============================== */
+async function onCardsClick(ev) {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+
+  if (btn.classList.contains('btn-starters')) {
+    const leagueId = btn.dataset.lid || btn.dataset.id;
+    const leagueName = decodeURIComponent(btn.dataset.name || '');
+    const league = STATE.leagues.find(x =>
+      String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
+    ) || null;
+    await openStartersDrawer(league, leagueName);
+
+  } else if (btn.classList.contains('btn-delete-card')) {
+    await handleDelete(btn);
+
+  } else if (btn.classList.contains('btn-edit-card')) {
+    openEditLeague(btn.dataset.id, new bootstrap.Modal(document.getElementById('modalAddLeague')));
+  }
+}
+
+/* ===============================
+   Eliminar liga (robusto + feedback)
+   =============================== */
+async function handleDelete(btn) {
+  // Obtener id desde dataset o contenedor
+  let rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? null;
+  const container = btn.closest('[data-id]');
+  if ((!rawId || rawId === 'undefined') && container) rawId = container.dataset.id;
+
+  const parsedId = Number.isFinite(Number(rawId)) ? Number(rawId) : NaN;
+  if (Number.isNaN(parsedId)) {
+    console.error('delete: id inválido', { rawId, btn });
+    showError('ID de liga inválido. Reintenta y revisa la consola.');
+    return;
+  }
+
+  const ok = await confirmDialog({
+    title: 'Eliminar liga',
+    text: '¿Deseas eliminar esta liga? Esta acción no se puede deshacer.',
+    icon: 'warning',
+    showCancelButton: true
+  });
+  if (!ok) return;
+
+  // Deshabilitar botón mientras elimina
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+  try {
+    const token = await getAccessTokenFromClient().catch(() => null);
+    const success = await deleteManualLeague(parsedId, token);
+    if (!success) throw new Error('La API no confirmó la eliminación');
+
+    showSuccess('Liga eliminada correctamente');
+
+    // Refrescar lista
+    const userId = await getUserIdFromClient();
+    const token2 = await getAccessTokenFromClient().catch(() => null);
+    await loadManualLeagues(userId, token2);
+  } catch (err) {
+    console.error('Error deleteManualLeague:', err);
+    showError('Error al eliminar liga: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
 }
 
 /* ===============================
@@ -758,6 +540,8 @@ async function openStartersDrawer(league, fallbackName = '') {
   // Presets binding
   document.querySelectorAll('.preset-chip').forEach(btn => {
     btn.onclick = () => {
+      document.querySelectorAll('.preset-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
       const key = btn.dataset.preset;
       const preset = LINEUP_PRESETS[key];
       if (!preset) return;
@@ -770,6 +554,7 @@ async function openStartersDrawer(league, fallbackName = '') {
 
   document.getElementById('btn-preset-custom').onclick = () => {
     // personalizado: el usuario ajusta manualmente
+    document.querySelectorAll('.preset-chip').forEach(b => b.classList.remove('active'));
   };
 }
 
@@ -779,6 +564,7 @@ async function openStartersDrawer(league, fallbackName = '') {
 function renderPositionControls(currentSP) {
   const wrap = document.getElementById('pos-controls');
   if (!wrap) return;
+
   wrap.innerHTML = POSITION_ORDER.map(pos => {
     const value = Number(currentSP?.[pos] ?? 0);
     return `
@@ -837,7 +623,7 @@ function updateSummary() {
 }
 
 /* ===============================
-   Guardar starters
+   Guardar titulares
    =============================== */
 async function onSaveStarters(offcanvas) {
   try {
@@ -850,87 +636,4 @@ async function onSaveStarters(offcanvas) {
   } catch (err) {
     showError('Error al guardar titulares: ' + (err.message || err));
   }
-}
-
-/* ===============================
-   Utilidades de tamaño / robustez
-   =============================== */
-function computeTableHeight() {
-  // Calcula un alto para el scroll interno del DataTable, evitando scroll de toda la página
-  const viewport = window.innerHeight || document.documentElement.clientHeight;
-  const panel = document.getElementById('dt-viewport');
-  const rect = panel ? panel.getBoundingClientRect() : { top: 180 };
-  const margins = 48; // margen/padding inferior aprox
-  // aseguremos un mínimo utilizable en móviles
-  const height = Math.max(260, Math.min(720, Math.floor(viewport - rect.top - margins)));
-  return height + 'px';
-}
-
-function cardsViewportHeight() {
-  const viewport = window.innerHeight || document.documentElement.clientHeight;
-  const wrap = document.getElementById('wrap-cards');
-  const rect = wrap ? wrap.getBoundingClientRect() : { top: 180 };
-  const margins = 48;
-  return Math.max(260, Math.min(720, Math.floor(viewport - rect.top - margins)));
-}
-
-function recalcTableHeight() {
-  if (!STATE.dt) return;
-  const newY = computeTableHeight();
-  const settings = STATE.dt.settings()[0];
-  if (settings && settings.oScroll) {
-    settings.oScroll.sY = newY;
-    STATE.dt.columns.adjust().draw(false);
-    // Forzar recalcular responsive
-    if (STATE.dt.responsive) {
-      STATE.dt.responsive.recalc();
-    }
-  }
-}
-
-function debounce(fn, wait = 150) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
-  };
-}
-
-/* Extrae ID interno desde el botón o desde la fila de DataTables (fallback robusto) */
-function resolveLeagueInternalIdFromTableClick(btn) {
-  // 1) Preferir dataset del botón
-  let rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? null;
-  if (rawId && rawId !== 'undefined') {
-    const parsed = Number(rawId);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-
-  // 2) Intentar obtener data desde la fila de DataTables
-  try {
-    const tr = btn.closest('tr');
-    const dt = STATE.dt;
-    if (dt && tr) {
-      const data = dt.row(tr).data(); // array de celdas (strings HTML)
-      if (Array.isArray(data) && data.length) {
-        const firstCellHtml = data[0] ?? '';
-        const idMatch = String(firstCellHtml).match(/>(\d+)</);
-        if (idMatch && idMatch[1]) {
-          const parsed = Number(idMatch[1]);
-          if (Number.isFinite(parsed)) return parsed;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('No se pudo resolver ID desde DataTables:', e);
-  }
-
-  // 3) Fallback a inspeccionar el primer td visible
-  const tr = btn.closest('tr');
-  const firstTd = tr ? tr.querySelector('td') : null;
-  if (firstTd) {
-    const m = firstTd.innerHTML.match(/(\d+)/);
-    if (m && m[1] && Number.isFinite(Number(m[1]))) return Number(m[1]);
-  }
-
-  return NaN;
 }

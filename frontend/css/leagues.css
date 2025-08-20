@@ -1,20 +1,50 @@
-/* ====== MANUAL LEAGUES – Alineación Titulares (responsive + bootstrap friendly) ====== */
+/* ====== MANUAL LEAGUES – Solo Cards + Offcanvas + Scroll Interno ====== */
 
-/* Mantén tus variables --bg-secondary, --text-primary, etc. */
+/* Ajusta este offset a la altura de tu header/breadcrumbs/espacios superiores */
+:root {
+  --header-offset: 180px; /* cambia según tu layout */
+}
 
+/* Evita scroll en la página para esta vista si tu shell lo permite */
+#content-container {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Card "marco" principal */
+.flock-card {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+/* El body se comporta como contenedor flexible, importante para scroll interno */
+.flock-card .card-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* clave para permitir que el hijo con overflow funcione */
+}
+
+/* Contenedor con scroll interno: no expande la pantalla */
+.leagues-scroll {
+  height: calc(100dvh - var(--header-offset));
+  overflow: auto;
+  padding-bottom: 0.25rem;
+}
+
+/* Offcanvas */
 .flock-offcanvas.offcanvas {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
   border-left: 1px solid var(--border);
   width: min(520px, 100vw);
 }
-
 .flock-offcanvas .offcanvas-header,
 .flock-offcanvas .offcanvas-footer {
   background-color: rgba(255,255,255,0.05);
 }
 
-/* pos-control (igual que antes, pero preparado para wrap) */
+/* pos-control para titulares */
 .pos-control {
   background-color: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
@@ -25,15 +55,7 @@
   align-items: center;
   justify-content: space-between;
 }
-
-/* Etiqueta y chip */
-.pos-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Chip que muestra la posición */
+.pos-label { display: flex; align-items: center; gap: 0.5rem; }
 .pos-chip {
   display: inline-block;
   padding: 0.2rem 0.5rem;
@@ -46,8 +68,6 @@
   text-transform: uppercase;
   font-size: 0.75rem;
 }
-
-/* Reglas adicionales para inputs y botones dentro de pos-control */
 .pos-control .form-control {
   min-width: 64px;
   text-align: center;
@@ -56,12 +76,8 @@
   border-color: var(--border);
   color: var(--text-primary);
 }
-.pos-control .btn {
-  padding: 0.28rem 0.6rem;
-  min-width: 36px;
-}
+.pos-control .btn { padding: 0.28rem 0.6rem; min-width: 36px; }
 
-/* Color sutil por tipo */
 .pos-qb     { background-color: rgba(0, 123, 255, 0.15); }
 .pos-rb     { background-color: rgba(40, 167, 69, 0.15); }
 .pos-wr     { background-color: rgba(255, 193, 7, 0.15); color: #ffd36b; }
@@ -93,7 +109,7 @@
   border-top: 1px solid var(--border);
 }
 
-/* Botones outline en tema oscuro (mantener) */
+/* Botones outline en tema oscuro */
 .btn-outline-warning { color: #ffc107; border-color: #ffc10733; }
 .btn-outline-warning:hover { background-color: #ffc107; color: #000; }
 .btn-outline-danger  { color: #ff6b6b; border-color: #ff6b6b33; }
@@ -101,110 +117,17 @@
 .btn-outline-light { color: var(--text-secondary); border-color: var(--border); }
 .btn-outline-light:hover { color: #000; background-color: var(--accent); border-color: var(--accent); }
 
-/* Inputs en tema oscuro */
+/* Inputs (buscador / offcanvas) */
 .input-group .form-control { background-color: var(--bg-secondary); border-color: var(--border); color: var(--text-primary); }
 .input-group .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25); }
-
-/* Buscador */
 #league-search { background-color: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); }
 #league-search:focus { border-color: var(--accent); box-shadow: 0 0 0 0.15rem rgba(255, 122, 0, 0.25); }
 
-/* ------------- TABLE ADAPTIVE RULES ------------- */
-/* No forzamos table-layout: fixed — permitimos wrap para evitar overflow horizontal */
-#manualLeaguesTable {
-  width: 100%;
-  table-layout: auto;
-}
-
-/* Permitimos que las celdas hagan wrap y rompan palabras largas si hace falta */
-#manualLeaguesTable th,
-#manualLeaguesTable td {
-  vertical-align: middle;
-  padding: 0.55rem 0.75rem;
-  white-space: normal;
-  word-break: break-word;
-}
-
-/* Si quieres truncar alguno (ej. nombres largos) aplica .text-truncate en el elemento interno */
-.text-truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Asegura que botones y badges no empujen el layout */
-#manualLeaguesTable .btn { white-space: nowrap; }
-
-/* Small screens: ocultar columnas menos relevantes usando DataTables responsive preferiblemente,
-   pero si quieres ocultamos con CSS como fallback */
-@media (max-width: 900px) {
-  /* Si DataTables responsive está activo, preferirlo. Este es solo fallback visual. */
-  #manualLeaguesTable th:nth-child(6),
-  #manualLeaguesTable td:nth-child(6) { display: none; } /* Draft ID */
-}
-
-/* Mobile specific offcanvas */
+/* Mobile: offcanvas full width y controles verticales */
 @media (max-width: 576px) {
   .flock-offcanvas.offcanvas { width: 100vw !important; max-width: 100vw; border-left: none; }
   .pos-control { flex-direction: column; align-items: stretch; gap: 0.5rem; }
   .pos-control .form-control { min-width: 100%; }
   .preset-chip { font-size: 0.9rem; padding: 0.25rem 0.5rem; }
   .league-card { margin-bottom: 0.6rem; }
-}
-
-/* ====== MANUAL LEAGUES – Alineación Titulares (responsive + bootstrap friendly) ====== */
-
-/* ...tus reglas existentes... */
-
-/* --- Viewport del DataTable: scroll interno y altura dinámica --- */
-#dt-viewport {
-  /* el alto real lo controla DataTables con scrollY; este wrapper evita que crezca la tarjeta */
-  max-height: 80vh;
-  overflow: hidden; /* DataTables ya genera su área scrolleable interna */
-  background: var(--bg-secondary);
-  border-radius: 12px;
-}
-
-/* DataTables: asegurar que el contenedor de scroll ocupe lo esperado */
-.dataTables_scrollBody {
-  background: var(--bg-secondary);
-}
-
-/* Mejora responsive child-row en tema oscuro */
-table.dataTable>tbody>tr.child ul.dtr-details {
-  color: var(--text-primary);
-}
-table.dataTable>tbody>tr.child {
-  background-color: rgba(255,255,255,0.02);
-}
-
-/* Evitar desbordes y mantener legibilidad */
-#manualLeaguesTable th,
-#manualLeaguesTable td {
-  vertical-align: middle;
-  padding: 0.55rem 0.75rem;
-  white-space: normal;
-  word-break: break-word;
-}
-#manualLeaguesTable .btn { white-space: nowrap; }
-
-/* Offcanvas móvil */
-@media (max-width: 576px) {
-  .flock-offcanvas.offcanvas { width: 100vw !important; max-width: 100vw; border-left: none; }
-  .pos-control { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-  .pos-control .form-control { min-width: 100%; }
-  .preset-chip { font-size: 0.9rem; padding: 0.25rem 0.5rem; }
-  .league-card { margin-bottom: 0.6rem; }
-}
-
-/* Cards: viewport con scroll interno (cuando la vista activa es cards) */
-#wrap-cards {
-  /* el alto se setea desde JS para ajustarse al viewport */
-  overflow: auto;
-}
-
-/* Opcional: quita el wrapper .table-responsive si existiera para evitar doble scroll */
-#wrap-table,
-.table-responsive {
-  overflow: visible;
 }
