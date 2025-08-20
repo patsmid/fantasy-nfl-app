@@ -55,7 +55,6 @@ export async function insertManualLeague(payload, accessToken = null) {
   return body?.data;
 }
 
-
 // eliminar liga manual
 export async function deleteManualLeague(league_id) {
   const body = await apiFetch(`/manual/leagues/${league_id}`, {
