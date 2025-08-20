@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient.js';
 
 /* ---------------------------
-   Util: obtener user desde token
+   Util: obtener user desde token (server-side)
    --------------------------- */
 async function getUserFromAuthHeader(req) {
   try {
@@ -38,10 +38,13 @@ function generateLeagueId() {
 }
 
 /* =====================================================
-   Admin / Sleeper related (dejamos tal como tenías pero
-   en un módulo separado idealmente)
+   ADMIN / SLEEPER (legacy)
    ===================================================== */
 
+/**
+ * updateLeagues
+ * Refresca ligas desde la API de Sleeper usando main_user_id + season en config.
+ */
 export async function updateLeagues(req, res) {
   try {
     const { data: config, error: configError } = await supabase
@@ -51,7 +54,7 @@ export async function updateLeagues(req, res) {
 
     if (configError) throw configError;
 
-    const configMap = Object.fromEntries(config.map(c => [c.key, c.value]));
+    const configMap = Object.fromEntries((config || []).map(c => [c.key, c.value]));
     const userId = configMap.main_user_id;
     const season = configMap.season;
 
@@ -64,7 +67,7 @@ export async function updateLeagues(req, res) {
 
     const leagues = await response.json();
 
-    const formatted = leagues.map(l => ({
+    const formatted = (leagues || []).map(l => ({
       league_id: l.league_id,
       name: l.name,
       draft_id: l.draft_id || null,
@@ -76,7 +79,7 @@ export async function updateLeagues(req, res) {
       updated_at: new Date().toISOString()
     }));
 
-    // Reemplazamos solo las ligas que traemos (si quieres hacer merge, podemos cambiar)
+    // Reemplazamos (haz backup si necesitas merge)
     const { error: delError } = await supabase.from('leagues').delete().neq('league_id', '');
     if (delError) throw delError;
 
@@ -85,13 +88,45 @@ export async function updateLeagues(req, res) {
 
     res.json({ success: true, message: `${formatted.length} ligas actualizadas.` });
   } catch (err) {
-    console.error('Error en updateLeagues:', err);
+    console.error('❌ Error en updateLeagues:', err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
+
+/**
+ * getLeagues
+ * Devuelve ligas Raw desde sleeper con main_user_id + season (legacy)
+ */
+export async function getLeagues(req, res) {
+  try {
+    const { data: config, error: configError } = await supabase
+      .from('config')
+      .select('key, value')
+      .in('key', ['main_user_id', 'season']);
+
+    if (configError) throw configError;
+
+    const configMap = Object.fromEntries((config || []).map(c => [c.key, c.value]));
+    const userId = configMap.main_user_id;
+    const season = configMap.season;
+
+    if (!userId || !season) {
+      return res.status(400).json({ success: false, error: 'Faltan main_user_id o Año en config' });
+    }
+
+    const response = await fetch(`https://api.sleeper.app/v1/user/${userId}/leagues/nfl/${season}`);
+    if (!response.ok) throw new Error('Error al obtener ligas de Sleeper');
+
+    const leagues = await response.json();
+    res.json({ success: true, data: leagues });
+  } catch (err) {
+    console.error('❌ Error en getLeagues:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
 /* =====================================================
-   Lectura general (no manual) - mantenemos para compatibilidad
+   DB: lectura simple
    ===================================================== */
 export async function getLeaguesFromDB(req, res) {
   try {
@@ -103,19 +138,58 @@ export async function getLeaguesFromDB(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en getLeaguesFromDB:', err);
+    console.error('❌ Error en getLeaguesFromDB:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
 /* =====================================================
-   MANUAL: CRUD y endpoints orientados al usuario autenticado
+   Legacy single league
+   ===================================================== */
+export async function getLeagueById(req, res) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('leagues')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('❌ Error en getLeagueById:', err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
+
+/* =====================================================
+   Legacy update dynasty flag
+   ===================================================== */
+export async function updateLeagueDynasty(req, res) {
+  try {
+    const { id } = req.params;
+    const { dynasty } = req.body;
+
+    const { error } = await supabase
+      .from('leagues')
+      .update({ dynasty, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Error en updateLeagueDynasty:', err);
+    res.status(500).json({ success: false, error: err.message || err });
+  }
+}
+
+/* =====================================================
+   MANUAL: CRUD y endpoints para usuario autenticado
    ===================================================== */
 
 /**
  * upsertLeagueManual
- * Crea o actualiza una liga manual. Si no llega league_id el servidor genera uno.
- * Si user_id viene vacío, queda null.
  */
 export async function upsertLeagueManual(req, res) {
   try {
@@ -160,18 +234,14 @@ export async function upsertLeagueManual(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en upsertLeagueManual:', err);
+    console.error('❌ Error en upsertLeagueManual:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
 /**
- * GET /manual/leagues
- * Si viene Authorization header (Bearer token), devolvemos las ligas del usuario autenticado.
- * Parámetros opcionales:
- *  - include_null=1 -> incluye ligas sin user_id además de las del usuario
- *
- * Retorna { success: true, data: [...] }
+ * getManualLeaguesForAuthUser
+ * GET /manual/leagues  (el frontend pedirá esta ruta sin user_id; el servidor decide)
  */
 export async function getManualLeaguesForAuthUser(req, res) {
   try {
@@ -186,7 +256,6 @@ export async function getManualLeaguesForAuthUser(req, res) {
       .order('display_order', { ascending: true });
 
     if (includeNull) {
-      // or syntax: user_id.eq.<id>,user_id.is.null
       const filter = `user_id.eq.${user.id},user_id.is.null`;
       const { data, error } = await query.or(filter);
       if (error) throw error;
@@ -197,15 +266,13 @@ export async function getManualLeaguesForAuthUser(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en getManualLeaguesForAuthUser:', err);
+    console.error('❌ Error en getManualLeaguesForAuthUser:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
 /**
- * GET /manual/leagues/user/:user_id
- * Endpoint legacy/admin: devuelve ligas por user_id pasado en URL.
- * Query: include_null=1 -> incluye también user_id IS NULL
+ * getLeaguesByUser (legacy/admin)
  */
 export async function getLeaguesByUser(req, res) {
   try {
@@ -224,7 +291,7 @@ export async function getLeaguesByUser(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en getLeaguesByUser:', err);
+    console.error('❌ Error en getLeaguesByUser:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -235,13 +302,12 @@ export async function getLeaguesByUser(req, res) {
 export async function deleteLeagueById(req, res) {
   try {
     const { id } = req.params;
-
-    // Nota: aquí podrías validar que el user haga la petición (owner) o que tenga rol admin.
+    // Considera validar que el request.user sea owner/admin
     const { error } = await supabase.from('leagues').delete().eq('id', id);
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    console.error('Error en deleteLeagueById:', err);
+    console.error('❌ Error en deleteLeagueById:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -265,7 +331,7 @@ export async function setLeagueUser(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en setLeagueUser:', err);
+    console.error('❌ Error en setLeagueUser:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -274,14 +340,10 @@ export async function setLeagueUser(req, res) {
    league_settings CRUD (JSONB)
    ===================================================== */
 
-/**
- * upsertLeagueSettings
- * Body: { league_id, scoring_type, num_teams, superflex, dynasty, bestball, playoff_weeks, playoff_weight_factor, starter_positions }
- */
 export async function upsertLeagueSettings(req, res) {
   try {
     const payload = {
-      league_id: req.body.league_id,
+      league_id: req.params.league_id ?? req.body.league_id,
       scoring_type: req.body.scoring_type ?? null,
       num_teams: req.body.num_teams ?? null,
       superflex: req.body.superflex ?? null,
@@ -302,15 +364,11 @@ export async function upsertLeagueSettings(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en upsertLeagueSettings:', err);
+    console.error('❌ Error en upsertLeagueSettings:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
-/**
- * getLeagueSettings
- * GET /manual/league-settings/:league_id
- */
 export async function getLeagueSettings(req, res) {
   try {
     const { league_id } = req.params;
@@ -318,14 +376,11 @@ export async function getLeagueSettings(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en getLeagueSettings:', err);
+    console.error('❌ Error en getLeagueSettings:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
 
-/**
- * deleteLeagueSettings
- */
 export async function deleteLeagueSettings(req, res) {
   try {
     const { league_id } = req.params;
@@ -333,7 +388,7 @@ export async function deleteLeagueSettings(req, res) {
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    console.error('Error en deleteLeagueSettings:', err);
+    console.error('❌ Error en deleteLeagueSettings:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -353,7 +408,7 @@ export async function addDraftedPlayer(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en addDraftedPlayer:', err);
+    console.error('❌ Error en addDraftedPlayer:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -369,7 +424,7 @@ export async function getDraftedPlayers(req, res) {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
-    console.error('Error en getDraftedPlayers:', err);
+    console.error('❌ Error en getDraftedPlayers:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
@@ -381,7 +436,7 @@ export async function resetDraftedPlayers(req, res) {
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    console.error('Error en resetDraftedPlayers:', err);
+    console.error('❌ Error en resetDraftedPlayers:', err);
     res.status(500).json({ success: false, error: err.message || err });
   }
 }
