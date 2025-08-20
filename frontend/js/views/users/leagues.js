@@ -65,7 +65,7 @@ let STATE = {
   currentLeague: null,
   currentSettings: null,
   dirty: false,
-  editingLeague: null, // ahora contendrá league_id (UUID) cuando editemos
+  editingLeague: null, // guarda league_id (UUID) cuando editamos
 };
 
 /* ===============================
@@ -149,7 +149,8 @@ export default async function renderManualLeagues() {
           </div>
         </div>
 
-        <div class="table-responsive ${STATE.viewMode === 'table' ? '' : 'd-none'}" id="wrap-table">
+        <!-- envuelta en table-responsive -->
+        <div class="table-responsive" id="wrap-table">
           <table id="manualLeaguesTable" class="table table-dark table-hover align-middle w-100">
             <thead class="table-dark text-uppercase text-secondary small">
               <tr>
@@ -282,7 +283,7 @@ export default async function renderManualLeagues() {
   const offcanvasEl = document.getElementById('offcanvasStarters');
   const ocInstance = new bootstrap.Offcanvas(offcanvasEl);
 
-  // Bind UI controls (delegated where convenient)
+  // Bind UI controls
   document.getElementById('btn-view-table').addEventListener('click', () => switchView('table'));
   document.getElementById('btn-view-cards').addEventListener('click', () => switchView('cards'));
 
@@ -302,10 +303,11 @@ export default async function renderManualLeagues() {
   // Search
   document.getElementById('league-search').addEventListener('input', onLocalSearch);
 
-  // Delegated clicks for table rows and card grid (reduce re-binds)
+  // Delegated clicks for table rows and card grid
   document.querySelector('#manualLeaguesTable tbody').addEventListener('click', async (ev) => {
     const btn = ev.target.closest('button');
     if (!btn) return;
+
     if (btn.classList.contains('btn-starters')) {
       const leagueId = btn.dataset.lid || btn.dataset.id;
       const leagueName = decodeURIComponent(btn.dataset.name || '');
@@ -313,20 +315,32 @@ export default async function renderManualLeagues() {
         String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
       ) || null;
       await openStartersDrawer(league, leagueName);
+
     } else if (btn.classList.contains('delete-league')) {
-      const id = btn.dataset.id;
+      // extracción robusta del id
+      const rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? btn.closest('tr')?.dataset.id ?? null;
+      const id = rawId !== null && rawId !== undefined ? (rawId === '' ? null : rawId) : null;
+      if (!id) {
+        console.error('delete: id inválido', { rawId, btn });
+        showError('ID de liga inválido. Reintenta y revisa la consola.');
+        return;
+      }
+
       const ok = await confirmDialog('¿Eliminar esta liga? Esta acción no se puede deshacer.');
       if (!ok) return;
+
       try {
         const token = await getAccessTokenFromClient().catch(() => null);
-        await deleteManualLeague(id, token); // <-- pasamos token por si tu backend lo requiere
+        await deleteManualLeague(id, token); // id interno (num) o UUID según tu API
         showSuccess('Liga eliminada correctamente');
         const userId = await getUserIdFromClient();
         const token2 = await getAccessTokenFromClient().catch(() => null);
         await loadManualLeagues(userId, token2);
       } catch (err) {
+        console.error('Error deleteManualLeague:', err);
         showError('Error al eliminar liga: ' + (err.message || err));
       }
+
     } else if (btn.classList.contains('btn-edit-league')) {
       openEditLeague(btn.dataset.id, modalAddInstance);
     }
@@ -335,6 +349,7 @@ export default async function renderManualLeagues() {
   document.getElementById('cards-grid').addEventListener('click', async (ev) => {
     const btn = ev.target.closest('button');
     if (!btn) return;
+
     if (btn.classList.contains('btn-starters')) {
       const leagueId = btn.dataset.lid || btn.dataset.id;
       const leagueName = decodeURIComponent(btn.dataset.name || '');
@@ -342,10 +357,19 @@ export default async function renderManualLeagues() {
         String(x.league_id) === String(leagueId) || String(x.id) === String(leagueId)
       ) || null;
       await openStartersDrawer(league, leagueName);
+
     } else if (btn.classList.contains('btn-delete-card')) {
-      const id = btn.dataset.id;
+      const rawId = btn.dataset.id ?? btn.getAttribute('data-id') ?? btn.closest('[data-id]')?.dataset.id ?? null;
+      const id = rawId !== null && rawId !== undefined ? (rawId === '' ? null : rawId) : null;
+      if (!id) {
+        console.error('delete-card: id inválido', { rawId, btn });
+        showError('ID de liga inválido. Reintenta y revisa la consola.');
+        return;
+      }
+
       const ok = await confirmDialog('¿Eliminar esta liga?');
       if (!ok) return;
+
       try {
         const token = await getAccessTokenFromClient().catch(() => null);
         await deleteManualLeague(id, token);
@@ -354,8 +378,10 @@ export default async function renderManualLeagues() {
         const token2 = await getAccessTokenFromClient().catch(() => null);
         await loadManualLeagues(userId, token2);
       } catch (err) {
+        console.error('Error deleteManualLeague (card):', err);
         showError('Error al eliminar liga: ' + (err.message || err));
       }
+
     } else if (btn.classList.contains('btn-edit-card')) {
       openEditLeague(btn.dataset.id, modalAddInstance);
     }
@@ -423,11 +449,11 @@ function renderLeaguesTable(leagues) {
 
     return [
       `<div class="text-white text-center">${l.id}</div>`,
-      `<span class="fw-semibold">${escapeHtml(l.name)}</span>`,
-      `<span class="fw-semibold">${escapeHtml(l.league_id || '-')}</span>`,
+      `<span class="fw-semibold text-truncate">${escapeHtml(l.name)}</span>`,
+      `<span class="fw-semibold text-truncate">${escapeHtml(l.league_id || '-')}</span>`,
       `<div class="text-center">${booleanBadge(l.dynasty)}</div>`,
       `<div class="text-center">${booleanBadge(l.bestball)}</div>`,
-      `<div class="text-white text-center">${escapeHtml(l.draft_id || '')}</div>`,
+      `<div class="text-white text-truncate">${escapeHtml(l.draft_id || '')}</div>`,
       `<div class="text-white text-center">${l.total_rosters ?? ''}</div>`,
       `<div class="text-center"><span class="badge bg-success text-uppercase">${escapeHtml(l.status || '')}</span></div>`,
       actions
@@ -441,6 +467,7 @@ function renderLeaguesTable(leagues) {
     $('#manualLeaguesTable').DataTable({
       data: rows,
       responsive: true,
+      autoWidth: false,
       paging: false,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' },
       dom: 'tip'
@@ -462,7 +489,7 @@ function renderLeaguesCards(leagues) {
           <div class="d-flex align-items-start justify-content-between mb-2">
             <div>
               <div class="small text-secondary">ID Interno #${escapeHtml(String(l.id))}</div>
-              <h5 class="card-title m-0">${escapeHtml(l.name)}</h5>
+              <h5 class="card-title m-0 text-truncate">${escapeHtml(l.name)}</h5>
               <div class="small text-secondary">League ID: <span class="text-white">${escapeHtml(l.league_id || '-')}</span></div>
             </div>
             <div class="d-flex flex-column align-items-end gap-1">
@@ -571,7 +598,7 @@ function openEditLeague(id, modalInstance) {
     showError('Liga no encontrada para editar.');
     return;
   }
-  // importante: guardamos league_id (UUID) para que el backend haga upsert por league_id
+  // guardamos league_id (UUID) para que el backend haga upsert por league_id
   STATE.editingLeague = league.league_id || null;
   const form = document.getElementById('formAddLeague');
   form.name.value = league.name || '';
