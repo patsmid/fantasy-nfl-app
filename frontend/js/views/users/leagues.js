@@ -56,8 +56,8 @@ const LINEUP_PRESETS = {
 */
 const LINEUP_PRESETS = {
   DEFAULT:    { label: 'DEFAULT',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
-  SUPER_FLEX:    { label: 'SUPER-FLEX',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1,SUPER_FLEX: 1, K: 0, DST: 0 } },
-  PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  SUPER_FLEX: { label: 'SUPER-FLEX', sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1,SUPER_FLEX: 1, K: 0, DST: 0 } },
+  KDST:       { label: 'K-DST',      sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
 // Orden de posiciones (sin DL/LB/DB)
@@ -663,6 +663,7 @@ async function openStartersDrawer(league, fallbackName = '') {
   document.getElementById('btn-preset-custom').onclick = () => {
     // personalizado: el usuario ajusta manualmente
     document.querySelectorAll('.preset-chip').forEach(b => b.classList.remove('active'));
+    renderPositionControls();
   };
 }
 
