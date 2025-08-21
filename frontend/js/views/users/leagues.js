@@ -157,14 +157,19 @@ export default async function renderManualLeagues() {
 
               <!-- Display order -->
               <div class="col-6">
-                <label class="form-label">Orden (display_order)</label>
+                <label class="form-label">Orden</label>
                 <input type="number" min="0" class="form-control" name="display_order" placeholder="0">
               </div>
 
               <!-- Playoff weeks -->
               <div class="col-6">
-                <label class="form-label">Playoff weeks (coma separadas)</label>
-                <input type="text" class="form-control" name="playoff_weeks" placeholder="15,16,17">
+                <label class="form-label">Playoff weeks</label>
+                <input type="text" class="form-control" name="playoff_weeks" placeholder="Ej. 15,16,17">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Equipos</label>
+                <input type="number" min="0" class="form-control" name="total_rosters">
               </div>
 
               <!-- Scoring type (chips) -->
@@ -191,12 +196,7 @@ export default async function renderManualLeagues() {
 
               <div class="col-12">
                 <label class="form-label">Draft ID (opcional)</label>
-                <input type="text" class="form-control" name="draft_id" placeholder="Puede quedar vacío">
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Equipos</label>
-                <input type="number" min="0" class="form-control" name="total_rosters">
+                <input type="text" class="form-control" name="draft_id" placeholder="">
               </div>
 
               <div class="col-6">
@@ -260,7 +260,7 @@ export default async function renderManualLeagues() {
               <span id="summary-starters" class="badge bg-primary ms-1">0</span>
             </div>
             <div>
-              <span class="text-secondary small">Equipos declarados:</span>
+              <span class="text-secondary small">Equipos:</span>
               <span id="summary-rosters" class="badge bg-info ms-1">0</span>
             </div>
           </div>
