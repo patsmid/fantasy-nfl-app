@@ -47,11 +47,18 @@ async function upsertLeagueSettings(league_id, payload) {
 
 /* ===============================
    Presets / Plantillas
-   =============================== */
+   ===============================
 const LINEUP_PRESETS = {
   STANDARD:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
   HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
   PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+};
+*/
+const LINEUP_PRESETS = {
+  DEFAULT:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
+  SUPERFLEX:    { label: 'Super Flex',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 0 } },
+  3WR:    { label: '3WR',    sp: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 2, K: 0, DST: 0 } },
+  KDST:         { label: 'K y DST',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
 // Orden de posiciones (sin DL/LB/DB)
@@ -157,14 +164,19 @@ export default async function renderManualLeagues() {
 
               <!-- Display order -->
               <div class="col-6">
-                <label class="form-label">Orden (display_order)</label>
+                <label class="form-label">Orden</label>
                 <input type="number" min="0" class="form-control" name="display_order" placeholder="0">
               </div>
 
               <!-- Playoff weeks -->
               <div class="col-6">
-                <label class="form-label">Playoff weeks (coma separadas)</label>
-                <input type="text" class="form-control" name="playoff_weeks" placeholder="15,16,17">
+                <label class="form-label">Playoff weeks</label>
+                <input type="text" class="form-control" name="playoff_weeks" placeholder="Ej. 15,16,17">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Equipos</label>
+                <input type="number" min="0" class="form-control" name="total_rosters">
               </div>
 
               <!-- Scoring type (chips) -->
@@ -191,12 +203,7 @@ export default async function renderManualLeagues() {
 
               <div class="col-12">
                 <label class="form-label">Draft ID (opcional)</label>
-                <input type="text" class="form-control" name="draft_id" placeholder="Puede quedar vacío">
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Equipos</label>
-                <input type="number" min="0" class="form-control" name="total_rosters">
+                <input type="text" class="form-control" name="draft_id" placeholder="">
               </div>
 
               <div class="col-6">
@@ -260,7 +267,7 @@ export default async function renderManualLeagues() {
               <span id="summary-starters" class="badge bg-primary ms-1">0</span>
             </div>
             <div>
-              <span class="text-secondary small">Equipos declarados:</span>
+              <span class="text-secondary small">Equipos:</span>
               <span id="summary-rosters" class="badge bg-info ms-1">0</span>
             </div>
           </div>
@@ -389,7 +396,6 @@ function renderLeaguesCards(leagues) {
               <div class="mt-1">
                 ${l.scoring_type ? `<span class="badge ${badgeForScoring(l.scoring_type)} me-1">${escapeHtml(displayScoringLabel(l.scoring_type))}</span>` : ''}
                 ${l.status ? `<span class="badge ${badgeForStatus(l.status)}">${escapeHtml(l.status)}</span>` : ''}
-                ${l.manual ? `<span class="badge bg-warning text-dark ms-2">Manual</span>` : ''}
               </div>
             </div>
             <div class="d-flex flex-column align-items-end gap-1">
