@@ -57,7 +57,7 @@ const LINEUP_PRESETS = {
 const LINEUP_PRESETS = {
   DEFAULT:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
   SUPERFLEX:    { label: 'Super Flex',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 0 } },
-  3WR:    { label: '3WR',    sp: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 2, K: 0, DST: 0 } },
+  THREEWR:    { label: '3 WR',    sp: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 2, K: 0, DST: 0 } },
   KDST:         { label: 'K y DST',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
