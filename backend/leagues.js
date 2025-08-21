@@ -407,32 +407,73 @@ export async function getLeaguesByUser(req, res) {
 /* =====================================================
    league_settings CRUD (JSONB)
    ===================================================== */
+   /* ===========================
+      league_settings -> ahora en leagues
+      =========================== */
+
+ function normalizeStarterPositions(raw) {
+   // Acepta object/array o JSON string; devuelve jsonb-compatible (JS object/array)
+   if (raw === undefined || raw === null) return undefined;
+   if (typeof raw === 'string') {
+     try {
+       return JSON.parse(raw);
+     } catch (e) {
+       // si no es JSON válido, devolvemos undefined para evitar escribir garbage
+       return undefined;
+     }
+   }
+   // si es ya objeto/array, retornarlo tal cual
+   return raw;
+ }
 
  export async function upsertLeagueSettings(req, res) {
    try {
-     const payload = {
-       league_id: req.params.league_id ?? req.body.league_id,
-       scoring_type: req.body.scoring_type ?? null,
-       num_teams: req.body.num_teams ?? null,
-       superflex: req.body.superflex ?? null,
-       dynasty: req.body.dynasty ?? null,
-       bestball: req.body.bestball ?? null,
-       playoff_weeks: req.body.playoff_weeks ?? null,
-       playoff_weight_factor: req.body.playoff_weight_factor ?? null,
-       starter_positions: req.body.starter_positions ?? null,
-       updated_at: new Date().toISOString()
-     };
+     const league_id = req.params.league_id ?? req.body.league_id;
+     if (!league_id || String(league_id).trim() === '') {
+       return res.status(400).json({ success: false, error: 'league_id requerido' });
+     }
 
-     // Logging útil para debug (muestra league_id y resumen de starter_positions)
-     console.info(`[upsertLeagueSettings] league_id=${payload.league_id} starter_positions_keys=${Object.keys(payload.starter_positions || {}).length}`);
+     // Construir payload solo con campos presentes (evitar enviar nulls que sobrescriban defaults)
+     const body = req.body || {};
+     const starter_positions = normalizeStarterPositions(body.starter_positions);
 
+     const updatePayload = {};
+     if (body.scoring_type !== undefined && body.scoring_type !== null) updatePayload.scoring_type = body.scoring_type;
+     if (body.num_teams !== undefined && body.num_teams !== null) updatePayload.num_teams = Number(body.num_teams);
+     if (body.superflex !== undefined && body.superflex !== null) updatePayload.superflex = Boolean(body.superflex);
+     // dynasty/bestball ya existen en leagues; si vienen explícitos, los aplicamos
+     if (body.dynasty !== undefined && body.dynasty !== null) updatePayload.dynasty = Boolean(body.dynasty);
+     if (body.bestball !== undefined && body.bestball !== null) updatePayload.bestball = Boolean(body.bestball);
+     if (body.playoff_weeks !== undefined && body.playoff_weeks !== null) updatePayload.playoff_weeks = Array.isArray(body.playoff_weeks) ? body.playoff_weeks : body.playoff_weeks;
+     if (body.playoff_weight_factor !== undefined && body.playoff_weight_factor !== null) updatePayload.playoff_weight_factor = Number(body.playoff_weight_factor);
+     if (starter_positions !== undefined) updatePayload.starter_positions = starter_positions;
+
+     // si no hay campos para actualizar, devolvemos 400 para evitar updates vacíos
+     if (Object.keys(updatePayload).length === 0) {
+       return res.status(400).json({ success: false, error: 'No hay campos válidos para actualizar' });
+     }
+
+     // Siempre actualizar timestamp de settings
+     updatePayload.settings_updated_at = new Date().toISOString();
+
+     console.info(`[upsertLeagueSettings] league_id=${league_id} payload_keys=${Object.keys(updatePayload).join(',')}`);
+
+     // Actualizar la fila en leagues según league_id (texto)
      const { data, error } = await supabase
-       .from('league_settings')
-       .upsert(payload)
+       .from('leagues')
+       .update(updatePayload)
+       .eq('league_id', league_id)
        .select()
        .single();
 
-     if (error) throw error;
+     if (error) {
+       console.error('[upsertLeagueSettings] supabase error:', error);
+       throw error;
+     }
+     if (!data) {
+       return res.status(404).json({ success: false, error: 'Liga no encontrada' });
+     }
+
      res.json({ success: true, data });
    } catch (err) {
      console.error('❌ Error en upsertLeagueSettings:', err);
@@ -440,29 +481,85 @@ export async function getLeaguesByUser(req, res) {
    }
  }
 
-export async function getLeagueSettings(req, res) {
-  try {
-    const { league_id } = req.params;
-    const { data, error } = await supabase.from('league_settings').select('*').eq('league_id', league_id).single();
-    if (error) throw error;
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error('❌ Error en getLeagueSettings:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+ export async function getLeagueSettings(req, res) {
+   try {
+     const { league_id } = req.params;
+     if (!league_id || String(league_id).trim() === '') {
+       return res.status(400).json({ success: false, error: 'league_id requerido' });
+     }
 
-export async function deleteLeagueSettings(req, res) {
-  try {
-    const { league_id } = req.params;
-    const { error } = await supabase.from('league_settings').delete().eq('league_id', league_id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('❌ Error en deleteLeagueSettings:', err);
-    res.status(500).json({ success: false, error: err.message || err });
-  }
-}
+     // Seleccionamos solo los campos de settings (ahora en leagues)
+     const cols = [
+       'league_id',
+       'scoring_type',
+       'num_teams',
+       'superflex',
+       'dynasty',
+       'bestball',
+       'playoff_weeks',
+       'playoff_weight_factor',
+       'starter_positions',
+       'settings_updated_at'
+     ].join(',');
+
+     const { data, error } = await supabase
+       .from('leagues')
+       .select(cols)
+       .eq('league_id', league_id)
+       .single();
+
+     if (error) {
+       console.error('[getLeagueSettings] supabase error:', error);
+       throw error;
+     }
+     if (!data) return res.status(404).json({ success: false, error: 'Liga no encontrada' });
+
+     // Devolver en formato compatible con lo que el frontend espera
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en getLeagueSettings:', err);
+     res.status(500).json({ success: false, error: err.message || err });
+   }
+ }
+
+ export async function deleteLeagueSettings(req, res) {
+   try {
+     const { league_id } = req.params;
+     if (!league_id || String(league_id).trim() === '') {
+       return res.status(400).json({ success: false, error: 'league_id requerido' });
+     }
+
+     // Reset a valores por defecto (no borramos la fila de leagues)
+     const resetPayload = {
+       scoring_type: 'PPR',
+       num_teams: 12,
+       superflex: false,
+       // dynasty/bestball: mantenemos los valores actuales en leagues (no forzamos)
+       playoff_weeks: [15, 16, 17],
+       playoff_weight_factor: 0.22,
+       starter_positions: [], // jsonb empty array
+       settings_updated_at: new Date().toISOString()
+     };
+
+     const { data, error } = await supabase
+       .from('leagues')
+       .update(resetPayload)
+       .eq('league_id', league_id)
+       .select()
+       .single();
+
+     if (error) {
+       console.error('[deleteLeagueSettings] supabase error:', error);
+       throw error;
+     }
+     if (!data) return res.status(404).json({ success: false, error: 'Liga no encontrada' });
+
+     res.json({ success: true, data });
+   } catch (err) {
+     console.error('❌ Error en deleteLeagueSettings:', err);
+     res.status(500).json({ success: false, error: err.message || err });
+   }
+ }
 
 /* =====================================================
    league_drafted_players CRUD
