@@ -47,9 +47,15 @@ async function upsertLeagueSettings(league_id, payload) {
 
 /* ===============================
    Presets / Plantillas
-   =============================== */
+   ===============================
 const LINEUP_PRESETS = {
   STANDARD:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+};
+*/
+const LINEUP_PRESETS = {
+  DEFAULT:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
   HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
   PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
