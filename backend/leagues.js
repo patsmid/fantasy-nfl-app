@@ -191,6 +191,8 @@ export async function updateLeagueDynasty(req, res) {
 /**
  * upsertLeagueManual
  */
+ // Reemplaza la función upsertLeagueManual por esta versión:
+
  export async function upsertLeagueManual(req, res) {
    try {
      // 🔹 1. Extraer token del header
@@ -213,55 +215,135 @@ export async function updateLeagueDynasty(req, res) {
 
      const userId = user.id;
 
-     // 🔹 3. Tomar datos del body
+     // -----------------------
+     // Helpers
+     // -----------------------
+     const body = req.body || {};
+     const addIfDefined = (obj, key, value) => {
+       if (value === undefined) return;
+       // no añadir strings vacíos que signifiquen "no cambiar"
+       if (typeof value === 'string' && value.trim() === '') return;
+       obj[key] = value;
+     };
+
+     const toBool = v => {
+       if (v === undefined || v === null) return undefined;
+       if (typeof v === 'boolean') return v;
+       if (typeof v === 'number') return Boolean(v);
+       const s = String(v).toLowerCase();
+       if (s === 'true' || s === '1') return true;
+       if (s === 'false' || s === '0') return false;
+       return undefined;
+     };
+
+     const parsePlayoffWeeks = (raw) => {
+       if (raw === undefined || raw === null) return undefined;
+       if (Array.isArray(raw)) return raw.map(n => Number(n)).filter(x => Number.isFinite(x));
+       if (typeof raw === 'string') {
+         const arr = raw.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n));
+         return arr.length ? arr : undefined;
+       }
+       return undefined;
+     };
+
+     const parseStarterPositions = (raw) => {
+       if (raw === undefined || raw === null) return undefined;
+       if (typeof raw === 'string') {
+         try { return JSON.parse(raw); } catch { return undefined; }
+       }
+       return raw;
+     };
+
+     // -----------------------
+     // Construir payload conservador (solo campos presentes)
+     // -----------------------
      const {
        league_id = null,
        name,
-       draft_id = null,
-       total_rosters = null,
-       status = null,
-       dynasty = null,
-       bestball = null,
-       display_order = 0
-     } = req.body;
+       draft_id = undefined,
+       total_rosters = undefined,
+       status = undefined,
+       dynasty = undefined,
+       bestball = undefined,
+       display_order = undefined,
+       scoring_type = undefined,
+       num_teams = undefined,
+       superflex = undefined,
+       playoff_weeks = undefined,
+       playoff_weight_factor = undefined,
+       starter_positions = undefined,
+       manual = undefined
+     } = body;
 
-     if (!name) {
+     if (!name || String(name).trim() === '') {
        return res.status(400).json({ success: false, error: 'El campo name es obligatorio' });
      }
 
-     // 🔹 4. Generar league_id si no existe
      const finalLeagueId =
        league_id && String(league_id).trim() !== '' ? league_id : generateLeagueId();
 
-     // 🔹 5. Payload para la tabla leagues
-     const payload = {
-       league_id: finalLeagueId,
-       name,
-       draft_id,
-       total_rosters,
-       status,
-       dynasty,
-       bestball,
-       display_order,
-       user_id: userId, // 🚀 SIEMPRE desde el token
-       updated_at: new Date().toISOString()
-     };
+     const payload = {};
+     // obligatorios/siempre: league_id (clave para upsert), name, user_id, updated_at
+     payload.league_id = finalLeagueId;
+     payload.name = name;
+     payload.user_id = userId;
+     payload.updated_at = new Date().toISOString();
 
-     // 🔹 6. Upsert con supabaseAdmin
+     // Campos opcionales: añadimos solo si el cliente los envía
+     addIfDefined(payload, 'draft_id', draft_id ?? null); // permitimos null explícito
+     addIfDefined(payload, 'total_rosters', total_rosters !== undefined ? Number(total_rosters) : undefined);
+     addIfDefined(payload, 'status', status);
+     addIfDefined(payload, 'display_order', display_order !== undefined ? Number(display_order) : undefined);
+
+     // dynasty / bestball (booleanos)
+     const dDyn = toBool(dynasty);
+     if (dDyn !== undefined) payload.dynasty = dDyn;
+     const dBest = toBool(bestball);
+     if (dBest !== undefined) payload.bestball = dBest;
+
+     // manual flag
+     const dManual = toBool(manual);
+     if (dManual !== undefined) {
+       payload.manual = dManual;
+     } else {
+       // si el request viene de tu UI manual, frontend ya envía manual:true.
+       // Si quieres forzarlo desde backend (p.e. siempre marcar manual en upsert desde este endpoint),
+       // descomenta la siguiente línea:
+       // payload.manual = true;
+     }
+
+     // Settings-like fields (ahora almacenados en leagues)
+     addIfDefined(payload, 'scoring_type', scoring_type);
+     addIfDefined(payload, 'num_teams', num_teams !== undefined ? Number(num_teams) : undefined);
+     const sFlex = toBool(superflex);
+     if (sFlex !== undefined) payload.superflex = sFlex;
+     const pw = parsePlayoffWeeks(playoff_weeks);
+     if (pw !== undefined) payload.playoff_weeks = pw;
+     addIfDefined(payload, 'playoff_weight_factor', playoff_weight_factor !== undefined ? Number(playoff_weight_factor) : undefined);
+     const sp = parseStarterPositions(starter_positions);
+     if (sp !== undefined) payload.starter_positions = sp;
+
+     // Logging para debug: muestra las claves que vamos a upsert
+     console.info('[upsertLeagueManual] upsert payload keys:', Object.keys(payload));
+
+     // -----------------------
+     // Upsert seguro (onConflict por league_id)
+     // -----------------------
      const { data, error } = await supabaseAdmin
        .from('leagues')
        .upsert(payload, { onConflict: 'league_id' })
        .select()
        .single();
 
-     if (error) throw error;
+     if (error) {
+       console.error('[upsertLeagueManual] supabase upsert error:', error);
+       throw error;
+     }
 
      res.json({ success: true, data });
    } catch (err) {
      console.error('❌ Error en upsertLeagueManual:', err);
-     res
-       .status(500)
-       .json({ success: false, error: err.message || 'Error interno en el servidor' });
+     res.status(500).json({ success: false, error: err.message || 'Error interno en el servidor' });
    }
  }
 
