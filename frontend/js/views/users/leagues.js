@@ -52,8 +52,6 @@ const LINEUP_PRESETS = {
   STANDARD:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
   HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
   PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
-  SUPERFLEX:   { label: 'Superflex',   sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 0, DST: 1 } },
-  TE_PREMIUM:  { label: 'TE-Premium',  sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
 // Orden de posiciones (sin DL/LB/DB)
@@ -156,14 +154,51 @@ export default async function renderManualLeagues() {
                 <label class="form-label">Nombre</label>
                 <input type="text" class="form-control" name="name" required>
               </div>
+
+              <!-- Display order -->
               <div class="col-6">
-                <label class="form-label">Draft ID</label>
-                <input type="text" class="form-control" name="draft_id">
+                <label class="form-label">Orden (display_order)</label>
+                <input type="number" min="0" class="form-control" name="display_order" placeholder="0">
               </div>
+
+              <!-- Playoff weeks -->
               <div class="col-6">
+                <label class="form-label">Playoff weeks (coma separadas)</label>
+                <input type="text" class="form-control" name="playoff_weeks" placeholder="15,16,17">
+              </div>
+
+              <!-- Scoring type (chips) -->
+              <div class="col-12">
+                <label class="form-label d-block mb-2">Scoring type</label>
+                <div id="scoring-chips" class="d-flex flex-wrap gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-success scoring-chip" data-value="PPR">PPR</button>
+                  <button type="button" class="btn btn-sm btn-outline-warning scoring-chip" data-value="Half-PPR">Half-PPR</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary scoring-chip" data-value="STD">Standard</button>
+                </div>
+                <input type="hidden" name="scoring_type">
+              </div>
+
+              <!-- Status (chips) -->
+              <div class="col-12">
+                <label class="form-label d-block mb-2">Status</label>
+                <div id="status-chips" class="d-flex flex-wrap gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-info status-chip" data-value="pre_season">Pre-season</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary status-chip" data-value="draft">Draft</button>
+                  <button type="button" class="btn btn-sm btn-outline-success status-chip" data-value="in_season">In-season</button>
+                </div>
+                <input type="hidden" name="status">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Draft ID (opcional)</label>
+                <input type="text" class="form-control" name="draft_id" placeholder="Puede quedar vacío">
+              </div>
+
+              <div class="col-12">
                 <label class="form-label">Equipos</label>
                 <input type="number" min="0" class="form-control" name="total_rosters">
               </div>
+
               <div class="col-6">
                 <label class="form-label">Dynasty</label>
                 <select name="dynasty" class="form-select">
@@ -179,10 +214,6 @@ export default async function renderManualLeagues() {
                   <option value="true">Sí</option>
                   <option value="false">No</option>
                 </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Status</label>
-                <input type="text" class="form-control" name="status" placeholder="pre_draft / in_draft / post_draft ...">
               </div>
             </form>
           </div>
@@ -255,6 +286,11 @@ export default async function renderManualLeagues() {
     STATE.editingLeague = null;
     document.getElementById('modalAddLeagueTitle').textContent = 'Agregar Liga Manual';
     document.getElementById('formAddLeague').reset();
+    // limpiar chips
+    document.querySelectorAll('.scoring-chip, .status-chip').forEach(b => b.classList.remove('active'));
+    // dejar valores por defecto en los hidden
+    document.querySelector('input[name="scoring_type"]').value = 'PPR';
+    document.querySelector('input[name="status"]').value = 'pre_season';
     modalAddInstance.show();
   });
 
@@ -269,6 +305,26 @@ export default async function renderManualLeagues() {
 
   // Delegated clicks en cards
   document.getElementById('cards-grid').addEventListener('click', onCardsClick);
+
+  // Scoring chips behavior
+  document.querySelectorAll('.scoring-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.scoring-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = btn.dataset.value;
+      document.querySelector('input[name="scoring_type"]').value = val;
+    });
+  });
+
+  // Status chips behavior
+  document.querySelectorAll('.status-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.status-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = btn.dataset.value;
+      document.querySelector('input[name="status"]').value = val;
+    });
+  });
 
   // Inicialización
   await initAndLoad();
@@ -324,13 +380,17 @@ function renderLeaguesCards(leagues) {
 
   grid.innerHTML = leagues.map(l => `
     <div class="col-12 col-md-6 col-lg-4" data-id="${escapeHtml(String(l.id))}">
-      <div class="card league-card h-100">
+      <div class="card league-card h-100 border border-secondary">
         <div class="card-body d-flex flex-column">
           <div class="d-flex align-items-start justify-content-between mb-2">
             <div class="min-w-0">
-              <div class="small text-secondary">ID Interno #${escapeHtml(String(l.id))}</div>
               <h5 class="card-title m-0 text-truncate">${escapeHtml(l.name)}</h5>
               <div class="small text-secondary">League ID: <span class="text-white">${escapeHtml(l.league_id || '-')}</span></div>
+              <div class="mt-1">
+                ${l.scoring_type ? `<span class="badge ${badgeForScoring(l.scoring_type)} me-1">${escapeHtml(displayScoringLabel(l.scoring_type))}</span>` : ''}
+                ${l.status ? `<span class="badge ${badgeForStatus(l.status)}">${escapeHtml(l.status)}</span>` : ''}
+                ${l.manual ? `<span class="badge bg-warning text-dark ms-2">Manual</span>` : ''}
+              </div>
             </div>
             <div class="d-flex flex-column align-items-end gap-1">
               ${l.dynasty === true ? '<span class="badge bg-success">Dynasty</span>' : ''}
@@ -360,6 +420,26 @@ function renderLeaguesCards(leagues) {
   `).join('');
 }
 
+/* Helper: badge classes y labels */
+function badgeForScoring(sc) {
+  if (!sc) return 'bg-secondary';
+  if (sc === 'PPR') return 'bg-success';
+  if (sc === 'Half-PPR') return 'bg-warning text-dark';
+  if (sc === 'STD' || sc === 'Standard') return 'bg-secondary';
+  return 'bg-secondary';
+}
+function displayScoringLabel(sc) {
+  if (sc === 'STD' || sc === 'Standard') return 'Standard';
+  return sc;
+}
+function badgeForStatus(st) {
+  if (!st) return 'bg-secondary';
+  if (st === 'pre_season') return 'bg-info';
+  if (st === 'draft') return 'bg-primary';
+  if (st === 'in_season') return 'bg-success';
+  return 'bg-secondary';
+}
+
 /* ===============================
    Buscador local (solo cards)
    =============================== */
@@ -384,13 +464,24 @@ function onSubmitAddLeague(modalInstance) {
     e.preventDefault();
     const form = e.target;
     const formData = Object.fromEntries(new FormData(form).entries());
+
+    // parse playoff weeks (coma separadas) -> integer array or null
+    let pw = null;
+    if (formData.playoff_weeks && String(formData.playoff_weeks).trim() !== '') {
+      pw = String(formData.playoff_weeks).split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n));
+    }
+
     const payload = {
       name: formData.name?.trim(),
       draft_id: formData.draft_id?.trim() || null,
       total_rosters: formData.total_rosters ? Number(formData.total_rosters) : null,
       dynasty: formData.dynasty === '' ? null : formData.dynasty === 'true',
       bestball: formData.bestball === '' ? null : formData.bestball === 'true',
-      status: formData.status?.trim() || null,
+      status: formData.status || null,
+      scoring_type: formData.scoring_type || null,
+      playoff_weeks: pw,
+      display_order: formData.display_order ? Number(formData.display_order) : null,
+      manual: true, // siempre true cuando se crea/edita desde UI manual
     };
 
     try {
@@ -434,9 +525,21 @@ function openEditLeague(id, modalInstance) {
   form.name.value = league.name || '';
   form.draft_id.value = league.draft_id || '';
   form.total_rosters.value = league.total_rosters ?? '';
+  form.display_order.value = league.display_order ?? '';
+  form.playoff_weeks.value = Array.isArray(league.playoff_weeks) ? (league.playoff_weeks.join(',')) : (league.playoff_weeks || '');
+  form.scoring_type.value = league.scoring_type || 'PPR';
+  form.status.value = league.status || '';
   form.dynasty.value = league.dynasty === true ? 'true' : (league.dynasty === false ? 'false' : '');
   form.bestball.value = league.bestball === true ? 'true' : (league.bestball === false ? 'false' : '');
-  form.status.value = league.status || '';
+
+  // activar chips visualmente
+  document.querySelectorAll('.scoring-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === form.scoring_type.value);
+  });
+  document.querySelectorAll('.status-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === form.status.value);
+  });
+
   document.getElementById('modalAddLeagueTitle').textContent = 'Editar Liga';
   modalInstance.show();
 }
