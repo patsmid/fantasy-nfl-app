@@ -55,8 +55,8 @@ const LINEUP_PRESETS = {
 };
 */
 const LINEUP_PRESETS = {
-  DEFAULT:    { label: 'Standard',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
-  HALF_PPR:    { label: 'Half-PPR',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
+  DEFAULT:    { label: 'DEFAULT',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 0, DST: 0 } },
+  SUPER_FLEX:    { label: 'SUPER-FLEX',    sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1,SUPER_FLEX: 1, K: 0, DST: 0 } },
   PPR:         { label: 'PPR',         sp: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } },
 };
 
