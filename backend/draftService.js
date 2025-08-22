@@ -264,16 +264,249 @@ export async function getDraftData(
 }
 
 // === NUEVO: draft manual, sin leagueData ===
-// Reusa tus imports existentes arriba (no repitas normalizeADPRecords ni getLatestDateFromADP).
-// Añade, si quieres, un provider genérico de proyecciones en tu projectionsService:
-//   export async function getAllPlayersProjectedTotalsGeneric({ season, scoring }) { ... }
-// Si no lo tienes, el código cae al generador de proyecciones sintéticas.
+
+// getDraftDataManual.optimizado.js
+// "Shark" edition: más rápido, más estable, más útil para novatos.
+// Mantiene compatibilidad con tu pipeline actual y agrega mejoras opcionales.
+// - Respeta tu buildFinalPlayers / calculateVORandDropoffPro / getRankings / etc.
+// - Prefiere ADP desde tu tabla Supabase `sleeper_adp_data` (si existe).
+// - Carga perezosa de DST/K y playersData.
+// - Proyecciones sintéticas calibradas + desviación estándar estimada.
+// - Consejos de draft opcionales (coach) sin romper el contrato de salida.
+
+/*
+  Requisitos externos que ya usas en tu backend:
+  - getExpertData(idExpert)
+  - getRankings({ season, dynasty, scoring, expertData, position })
+  - getDSTRankings({ season, dynasty, expertData, weekStatic })
+  - getKickerRankings({ season, dynasty, expertData, weekStatic })
+  - getADPData(adpType)                              // Sleeper (si no está en DB)
+  - getFantasyProsADPDataSimple({ adp_type })        // FantasyPros fallback
+  - normalizeADPRecords(rows, provider)              // ya la tienes
+  - getPlayersData(playerIdsArray)                   // tu provider/caché
+  - getAllPlayersProjectedTotalsGeneric({ season, scoring })  // opcional
+  - addEstimatedStdDev(players[])                    // devuelve { projStdDev, injuryRisk }
+  - calculateVORandDropoffPro(players, starters, numTeams, options)
+  - buildFinalPlayers({...})
+  - getMainUserDraft(drafted, mainUserId)
+
+  - supabaseAdmin (si vas a leer ADP de tu tabla `sleeper_adp_data`)
+*/
+
+// ===== Helpers locales =====
+
+/**
+ * Sobreescribe parámetros con los que salgan de tu tabla `leagues` si envías leagueRow o leagueId.
+ * No asume estructura exacta; mapea lo típico de Sleeper/FantasyPros.
+ */
+async function resolveParamsFromLeague({
+  season,
+  scoring,
+  numTeams,
+  starterPositions,
+  superFlex,
+  dynasty,
+  playoffWeeks,
+  getLeagueById,  // (leagueId) => leagueRow
+  leagueId,
+  leagueRow,
+}) {
+  let row = leagueRow || null;
+  if (!row && typeof getLeagueById === 'function' && leagueId) {
+    try {
+      row = await getLeagueById(leagueId);
+    } catch (e) {
+      // silencioso: seguimos con parámetros recibidos
+    }
+  }
+  if (!row) return { season, scoring, numTeams, starterPositions, superFlex, dynasty, playoffWeeks };
+
+  const out = { season, scoring, numTeams, starterPositions, superFlex, dynasty, playoffWeeks };
+
+  // Season
+  if (!out.season && (row.season || row.year)) out.season = String(row.season || row.year);
+
+  // Scoring
+  if (row.scoring_format) {
+    const f = String(row.scoring_format).toUpperCase();
+    if (['PPR','HALF','HALF_PPR','HALF-PPR','STANDARD'].includes(f)) {
+      out.scoring = (f === 'HALF_PPR' || f === 'HALF-PPR') ? 'HALF' : f;
+    }
+  } else if (row.scoring) {
+    out.scoring = String(row.scoring).toUpperCase();
+  }
+
+  // Teams
+  if (row.num_teams || row.teams || row.total_teams) out.numTeams = Number(row.num_teams || row.teams || row.total_teams);
+
+  // Dynasty / Superflex flags
+  const dyn = row.dynasty ?? row.is_dynasty ?? row.mode === 'DYNASTY';
+  if (typeof dyn === 'boolean') out.dynasty = dyn;
+  const sf = row.superflex ?? row.is_superflex ?? hasSuperflexSlot(row.roster_positions || row.starter_positions);
+  if (typeof sf === 'boolean') out.superFlex = sf;
+
+  // Starters
+  const starters = normalizeStarterPositions(row.starter_positions || row.roster_positions || out.starterPositions, out.superFlex);
+  if (starters && starters.length) out.starterPositions = starters;
+
+  // Playoff weeks (Sleeper default 15-17)
+  if (Array.isArray(row.playoff_weeks) && row.playoff_weeks.length) out.playoffWeeks = row.playoff_weeks;
+
+  return out;
+}
+
+function hasSuperflexSlot(rosterPositions) {
+  if (!Array.isArray(rosterPositions)) return false;
+  return rosterPositions.some(p => String(p).toUpperCase().includes('SUPER'));
+}
+
+function normalizeStarterPositions(positions, superFlex) {
+  if (!Array.isArray(positions) || !positions.length) return inferStarterPositionsByDefault(superFlex);
+  const mapFlex = (p) => {
+    const up = String(p).toUpperCase();
+    if (up.includes('DEF')) return 'DEF';
+    if (up === 'D/ST' || up === 'DST' || up === 'D/ST ') return 'DEF';
+    if (up === 'PK' || up === 'K' || up === 'KICKER') return 'K';
+    if (up.includes('SUPER')) return 'SUPER_FLEX';
+    if (up.includes('FLEX')) return 'FLEX';
+    if (['QB','RB','WR','TE'].includes(up)) return up;
+    // Mapea slots compuestos
+    if (up === 'RB/WR/TE') return 'FLEX';
+    if (up === 'WR/RB') return 'FLEX';
+    if (up === 'WR/TE') return 'FLEX';
+    if (up === 'QB/RB/WR/TE') return 'SUPER_FLEX';
+    return null; // ignora IDP u otros slots no soportados
+  };
+  const mapped = positions.map(mapFlex).filter(Boolean);
+  const hasK = mapped.includes('K');
+  const hasDEF = mapped.includes('DEF') || mapped.includes('DST');
+  const base = mapped.filter(x => x !== 'DST');
+  // si no trae DEF explícito pero hay DST, normaliza a DEF
+  if (!hasDEF && positions.some(p => String(p).toUpperCase() === 'DST')) base.push('DEF');
+  // fallback si quedó vacía
+  return base.length ? base : inferStarterPositionsByDefault(superFlex);
+}
+
+function inferStarterPositionsByDefault(superFlex = false) {
+  const base = ['QB','RB','RB','WR','WR','TE','FLEX','K','DEF'];
+  return superFlex ? [...base, 'SUPER_FLEX'] : base;
+}
+
+function getADPtype(scoring = 'PPR', dynasty = false, superFlex = false) {
+  if (dynasty && superFlex) return 'DYNASTY_SF';
+  if (dynasty) return scoring === 'PPR' ? 'DYNASTY_PPR' : 'DYNASTY_STANDARD';
+  if (superFlex) return scoring === 'PPR' ? 'SF_PPR' : 'SF_STANDARD';
+  return scoring === 'PPR' ? 'PPR' : scoring === 'HALF' ? 'HALF_PPR' : 'STANDARD';
+}
+
+// ===== ADP desde Supabase (preferido) con fallback a tus fetchers =====
+async function fetchADPPreferred({ adpType, scoring, dynasty, superFlex, sleeperADP, supabaseAdmin }) {
+  const useSleeper = dynasty || superFlex || sleeperADP;
+  let provider = useSleeper ? 'sleeper' : 'fantasypros';
+
+  // 1) Intentar desde DB si es Sleeper
+  if (useSleeper && supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('sleeper_adp_data')
+        .select('adp_type, sleeper_player_id, adp_value, adp_value_prev, date')
+        .eq('adp_type', adpType)
+        .order('adp_value', { ascending: true });
+      if (error) throw error;
+      if (Array.isArray(data) && data.length) {
+        const latestDate = data.reduce((m, r) => (r.date && r.date > m ? r.date : m), data[0]?.date || null);
+        // normaliza a tu shape utilizado más adelante
+        const rows = data.map((r, i) => ({
+          sleeper_player_id: String(r.sleeper_player_id),
+          adp_rank: i + 1,
+          adp_value: Number(r.adp_value),
+          adp_value_prev: r.adp_value_prev != null ? Number(r.adp_value_prev) : null,
+          date: r.date || latestDate,
+        }));
+        return { provider: 'sleeper-db', rows, date: latestDate };
+      }
+    } catch (e) {
+      // sigue con fallback
+    }
+  }
+
+  // 2) Fallback: tus fuentes existentes
+  if (useSleeper) {
+    const raw = (await getADPData(adpType)) || [];
+    const rows = normalizeADPRecords(raw, 'sleeper').map(a => ({ ...a, adp_rank: a.adp_rank != null ? Number(a.adp_rank) : null }));
+    return { provider: 'sleeper', rows, date: getLatestDateFromADP(rows) };
+  } else {
+    const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
+    const raw = (await getFantasyProsADPDataSimple({ adp_type })) || [];
+    const rows = normalizeADPRecords(raw, 'fantasypros').map(a => ({ ...a, adp_rank: a.adp_rank != null ? Number(a.adp_rank) : null }));
+    return { provider: 'fantasypros', rows, date: getLatestDateFromADP(rows) };
+  }
+}
+
+function getLatestDateFromADP(rows) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  return rows.reduce((m, r) => (r.date && r.date > m ? r.date : m), rows[0]?.date || null);
+}
+
+// ===== Build consejos (opcional) =====
+function buildCoachAdvice({ players, drafted, numTeams, starters }) {
+  // Calcula necesidades por posición del usuario principal (si tu frontend lo pasa)
+  const need = computeRosterNeedsFromDraft({ drafted, starters });
+  // Top targets por posición con mejor combinación VOR+necesidad y valor vs ADP
+  const byPos = {};
+  for (const p of players) {
+    const pos = p.position || p.pos;
+    if (!pos) continue;
+    if (!byPos[pos]) byPos[pos] = [];
+    const valueVsADP = computeValueVsADP(p);
+    const score = (p.vor || 0) * (1 + (need[pos] || 0) * 0.25) + valueVsADP * 0.15;
+    byPos[pos].push({ id: p.player_id, name: p.name, team: p.team, score, valueVsADP });
+  }
+  for (const k of Object.keys(byPos)) {
+    byPos[k].sort((a,b)=> b.score - a.score);
+    byPos[k] = byPos[k].slice(0, 5);
+  }
+  return { rosterNeeds: need, targetsByPos: byPos, numTeams };
+}
+
+function computeRosterNeedsFromDraft({ drafted = [], starters = [] }) {
+  // Cuenta slots exigidos por posición básica
+  const need = { QB:0,RB:0,WR:0,TE:0,K:0,DEF:0 };
+  for (const s of starters) {
+    if (need[s] != null) need[s]++;
+    else if (s === 'FLEX') {
+      // FLEX: distribuye en RB/WR/TE con prioridad a la menor ocupación
+      // (heurística simple para guía; tu buildFinalPlayers ya lo maneja en VOR)
+      // aquí solo queremos un indicador amigable para UI
+      let tgt = 'RB';
+      if (need.WR < need[tgt]) tgt = 'WR';
+      if (need.TE < need[tgt]) tgt = 'TE';
+      need[tgt]++;
+    }
+  }
+  // Resta lo que ya se drafteó (aproximación por posición)
+  for (const p of drafted) {
+    const pos = p.position || p.pos;
+    if (need[pos] != null && need[pos] > 0) need[pos]--;
+  }
+  return need;
+}
+
+function computeValueVsADP(p) {
+  // Si tienes rank global (overall) y ADP, calcula delta
+  const adpRank = Number(p.adp_rank ?? p.adp_overall ?? Infinity);
+  const rank = Number(p.rank ?? p.overall ?? Infinity);
+  if (!Number.isFinite(adpRank) || !Number.isFinite(rank)) return 0;
+  return Math.max(0, adpRank - rank); // positivo = valor (cae más allá de su ADP)
+}
+
+// ====== FUNCIÓN PRINCIPAL ======
 export async function getDraftDataManual({
-  // Core “manual”
-  season,                          // <- RECOMENDADO (string/number). Si no, intenta inferir en tus configs.
-  scoring = 'PPR',                 // 'PPR' | 'HALF' | 'STANDARD'
+  // Core
+  season,
+  scoring = 'PPR',
   numTeams = 12,
-  starterPositions = null,         // array ej. ['QB','RB','RB','WR','WR','TE','FLEX','K','DEF'] o null para default
+  starterPositions = null,
   superFlex = false,
   dynasty = false,
 
@@ -281,93 +514,110 @@ export async function getDraftDataManual({
   position = 'TODAS',
   byeCondition = 0,
   idExpert = 3701,
-  sleeperADP = false,              // fuerza usar ADP de Sleeper aunque no sea SF/Dynasty
+  sleeperADP = false,
 
-  // Draft en vivo (manual)
-  drafted = [],                    // picks ya hechos [{player_id, ...}]
-  mainUserId = null,               // para getMainUserDraft
-  playoffWeeks = [15,16,17],       // ajusta a tu calendario
+  // Draft en vivo
+  drafted = [],
+  mainUserId = null,
+  playoffWeeks = [15,16,17],
   playoffWeightFactor = 0.22,
 
+  // Integración liga/DB
+  leagueId = null,
+  leagueRow = null,
+  getLeagueById = null,
+  supabaseAdmin = null,
+
   // Optimización
-  playersDataPreload = null,       // si tienes cache de playersData, pásala
-  projectionsOverride = null,      // si tienes proyecciones propias, pásalas
-  debug = false
+  playersDataPreload = null,
+  projectionsOverride = null,
+  cache = null, // { expertData, rankings, adp, playersData, projections } opcional
+
+  // Otros
+  debug = false,
 } = {}) {
   try {
-    // 0) Normaliza alineaciones titulares (si no te pasan, inferimos)
+    // A) Infiere/normaliza desde `leagues` si está disponible
+    const resolved = await resolveParamsFromLeague({
+      season, scoring, numTeams, starterPositions, superFlex, dynasty, playoffWeeks,
+      getLeagueById, leagueId, leagueRow,
+    });
+    season = resolved.season; scoring = resolved.scoring; numTeams = resolved.numTeams;
+    starterPositions = resolved.starterPositions; superFlex = resolved.superFlex; dynasty = resolved.dynasty;
+    playoffWeeks = resolved.playoffWeeks || playoffWeeks;
+
+    // B) Alineaciones titulares
     const starters = Array.isArray(starterPositions) && starterPositions.length
       ? starterPositions.slice()
       : inferStarterPositionsByDefault(superFlex);
 
-    // Si el usuario pide SUPER / SUPER_FLEX como posición objetivo:
+    // C) Posición objetivo SUPER_FLEX si aplica
     let finalPosition = position;
-    if (superFlex && (position === true || position === 'SUPER' || position === 'SUPER_FLEX' || position === 'SUPER FLEX')) {
+    if (superFlex && (position === true || /SUPER[_ ]?FLEX|SUPER/i.test(String(position)))) {
       finalPosition = 'SUPER FLEX';
     }
 
-    // 1) Rankings + DST/K (idéntico a tu pipeline)
-    const expertData = await getExpertData(idExpert);
-    const rankingsResponse = await getRankings({ season, dynasty, scoring, expertData, position: finalPosition });
+    // D) Expert + Rankings base (usa caché si se pasó)
+    const expertData = cache?.expertData || await getExpertData(idExpert);
+    const rankingsResponse = cache?.rankings || await getRankings({ season, dynasty, scoring, expertData, position: finalPosition });
     const rankings = Array.isArray(rankingsResponse?.players) ? rankingsResponse.players : [];
     const ranks_published = rankingsResponse?.published ?? null;
     const source = rankingsResponse?.source ?? null;
 
+    // E) Carga perezosa de DST/K sólo si la liga los usa
     let dstRankings = [];
     let kickerRankings = [];
+    const needsDEF = starters.includes('DEF');
+    const needsK = starters.includes('K');
     if (expertData?.source === 'fantasypros') {
-      if (starters.includes('DEF')) {
+      if (needsDEF) {
         const dst = await getDSTRankings({ season, dynasty, expertData, weekStatic: null });
         dstRankings = (dst?.players || []).map(p => ({ ...p, rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000 }));
       }
-      if (starters.includes('K')) {
+      if (needsK) {
         const k = await getKickerRankings({ season, dynasty, expertData, weekStatic: null });
         kickerRankings = (k?.players || []).map(p => ({ ...p, rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000 }));
       }
     }
 
-    // 2) ADP (Sleeper/FantasyPros, sin liga)
+    // F) ADP preferido
     const adpType = getADPtype(scoring, dynasty, superFlex);
-    let rawAdpData = [];
-    if (dynasty || superFlex || sleeperADP) {
-      rawAdpData = (await getADPData(adpType)) || [];
-    } else {
-      const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
-      rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
-    }
-    const normalizedAdp = normalizeADPRecords(rawAdpData, (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros')
-      .map(a => ({ ...a, adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null }));
-    const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean));
-    const adpDate = getLatestDateFromADP(normalizedAdp);
+    const adpPkg = cache?.adp || await fetchADPPreferred({ adpType, scoring, dynasty, superFlex, sleeperADP, supabaseAdmin });
+    const normalizedAdp = (adpPkg?.rows || []).map(a => ({ ...a, adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null }));
+    const adpPlayerIds = new Set(normalizedAdp.map(a => a.sleeper_player_id).filter(Boolean).map(String));
+    const adpDate = adpPkg?.date || null;
 
-    // 3) Player universe = ADP ∪ Rankings ∪ DST ∪ K
+    // G) Universo de jugadores
     const allRankings = [...rankings, ...dstRankings, ...kickerRankings];
     const allPlayerIds = new Set([...adpPlayerIds]);
     for (const p of allRankings) if (p?.player_id) allPlayerIds.add(String(p.player_id));
 
-    // 4) playersData
-    const playersData = Array.isArray(playersDataPreload) && playersDataPreload.length
-      ? playersDataPreload
-      : await getPlayersData(Array.from(allPlayerIds));
-
-    // 5) Proyecciones
-    //    - prioridad: projectionsOverride
-    //    - luego: provider genérico (si lo tienes)
-    //    - si no, generamos proyecciones sintéticas a partir de rankings (curvas por posición)
-    let projectionsRaw = [];
-    if (Array.isArray(projectionsOverride) && projectionsOverride.length) {
-      projectionsRaw = projectionsOverride;
-    } else if (typeof getAllPlayersProjectedTotalsGeneric === 'function') {
-      projectionsRaw = (await getAllPlayersProjectedTotalsGeneric({ season, scoring })) || [];
+    // H) playersData (sólo faltantes si enviaron preload)
+    let playersData = Array.isArray(playersDataPreload) ? playersDataPreload.slice() : null;
+    if (!playersData || !playersData.length) {
+      playersData = await getPlayersData(Array.from(allPlayerIds));
     } else {
+      const have = new Set(playersData.map(p => String(p.player_id)));
+      const missing = Array.from(allPlayerIds).filter(id => !have.has(id));
+      if (missing.length) {
+        const extra = await getPlayersData(missing);
+        playersData = [...playersData, ...extra];
+      }
+    }
+
+    // I) Proyecciones
+    let projectionsRaw = Array.isArray(projectionsOverride) && projectionsOverride.length
+      ? projectionsOverride
+      : (typeof getAllPlayersProjectedTotalsGeneric === 'function' ? (await getAllPlayersProjectedTotalsGeneric({ season, scoring })) || [] : []);
+    if (!projectionsRaw.length) {
       projectionsRaw = buildSyntheticProjectionsFromRankings(allRankings, scoring);
     }
 
-    // 6) Draft picks manual
+    // J) Draft picks + mapas de posición
     const draftedMap = new Map((drafted || []).map(p => [String(p.player_id ?? p.sleeper_player_id ?? p.id), p]));
     const positionMap = new Map((playersData || []).map(p => [String(p.player_id), p.position]));
 
-    // 7) Enriquecer proyecciones
+    // K) Enriquecer proyecciones y filtrar inválidos
     const enrichedProjections = (projectionsRaw || []).map(p => {
       const pid = String(p.player_id);
       const pos = positionMap.get(pid) || p.position || null;
@@ -379,13 +629,13 @@ export async function getDraftDataManual({
         total_projected,
         player_id: pid
       };
-    }).filter(p => p.player_id && Number.isFinite(p.total_projected));
+    }).filter(p => p.player_id && p.position && Number.isFinite(p.total_projected));
 
     if (!enrichedProjections.length && debug) {
       console.warn('⚠️ No hay jugadores válidos después de enrichProjections (manual).');
     }
 
-    // 8) Riesgo/varianza
+    // L) Riesgo/varianza
     const projectionsWithStdDev = addEstimatedStdDev(enrichedProjections).map(p => {
       let injury = Number.isFinite(Number(p.injuryRisk)) ? Number(p.injuryRisk) : 0;
       if (injury > 1) injury = Math.min(1, injury / 100);
@@ -400,15 +650,10 @@ export async function getDraftDataManual({
 
     const validProjections = projectionsWithStdDev.filter(p => p.position && Number.isFinite(p.total_projected));
 
-    // 9) Opciones VOR (GTO defaults + ajustes SF/Dynasty)
-    const vorOptions = buildVorOptionsManual({
-      playoffWeeks,
-      playoffWeightFactor,
-      superFlex,
-      dynasty
-    });
+    // M) VOR options con ajustes SF/Dynasty
+    const vorOptions = buildVorOptionsManual({ playoffWeeks, playoffWeightFactor, superFlex, dynasty });
 
-    // 10) Calcular VOR
+    // N) Calcular VOR
     let vorList = [];
     try {
       vorList = calculateVORandDropoffPro(validProjections, starters, numTeams, vorOptions) || [];
@@ -425,7 +670,7 @@ export async function getDraftDataManual({
     const vorMap = new Map((vorList || []).map(v => [String(v.player_id), v]));
     const projectionMap = new Map((projectionsWithStdDev || []).map(p => [String(p.player_id), Number(p.total_projected || 0)]));
 
-    // 11) buildFinalPlayers (igual que en tu servicio)
+    // O) Final players
     const players = buildFinalPlayers({
       adpData: normalizedAdp,
       playersData,
@@ -438,39 +683,36 @@ export async function getDraftDataManual({
       vorMap
     });
 
+    // P) Consejos opcionales de coach (no rompe contratos)
+    let coach = null;
+    try { coach = buildCoachAdvice({ players, drafted, numTeams, starters }); } catch(_) {}
+
     return {
       params: {
-        // identidad “manual”
         season,
         scoring,
         numTeams,
         starterPositions: starters,
         superFlex,
         dynasty,
-        // filtros/metadata
         position,
         byeCondition,
         idExpert,
         ranks_published,
         ADPdate: adpDate,
+        ADPprovider: adpPkg?.provider || null,
         source
       },
-      data: players
+      data: players,
+      coach // <- opcional, tu UI lo puede ignorar
     };
   } catch (err) {
-    console.error('Error en getDraftDataManual:', err);
-    throw new Error(`Error en draft manual: ${err.message || err}`);
+    console.error('Error en getDraftDataManualOptimizado:', err);
+    throw new Error(`Error en draft (optimizado): ${err.message || err}`);
   }
 }
 
-// === Helpers manuales pasar a otro archiv===
-
-// Alineaciones titulares por defecto (estándar high-stakes managed)
-function inferStarterPositionsByDefault(superFlex = false) {
-  const base = ['QB','RB','RB','WR','WR','TE','FLEX','K','DEF'];
-  return superFlex ? [...base, 'SUPER_FLEX'] : base;
-}
-
+// ====== Opciones VOR base + ajustes ======
 function buildVorOptionsManual({
   playoffWeeks = [15,16,17],
   playoffWeightFactor = 0.22,
@@ -490,7 +732,6 @@ function buildVorOptionsManual({
     riskAlpha: 2.5,
     debug: false
   };
-
   if (superFlex) {
     base.scarcityWeights.QB = (base.scarcityWeights.QB || 1.2) * 1.35;
     base.scarcityWeights.RB = (base.scarcityWeights.RB || 2.4) * 0.95;
@@ -504,9 +745,7 @@ function buildVorOptionsManual({
   return base;
 }
 
-// Proyecciones sintéticas por posición si no hay provider disponible.
-// Mantiene ordenamiento y da magnitudes razonables para VOR.
-// Si prefieres, calibra con medias históricas propias.
+// ====== Proyecciones sintéticas (fallback) ======
 function buildSyntheticProjectionsFromRankings(rankings = [], scoring = 'PPR') {
   const posRank = new Map(); // position -> running rank
   const out = [];
@@ -531,7 +770,7 @@ function buildSyntheticProjectionsFromRankings(rankings = [], scoring = 'PPR') {
     const curve = curves[pos] || ((x)=>Math.max(60, 200 - 2.0*(x-1)));
     const basePts = curve(r);
 
-    // pequeño ajuste por scoring (WR/TE se mueven más en PPR/HALF)
+    // ajuste por scoring
     let adj = basePts;
     if (scoring === 'HALF' && (pos === 'WR' || pos === 'TE' || pos === 'RB')) adj *= 0.93;
     if (scoring === 'STANDARD' && (pos === 'WR' || pos === 'TE' || pos === 'RB')) adj *= 0.86;
