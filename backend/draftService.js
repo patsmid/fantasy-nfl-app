@@ -392,12 +392,12 @@ function inferStarterPositionsByDefault(superFlex = false) {
   return superFlex ? [...base, 'SUPER_FLEX'] : base;
 }
 
-function getADPtype(scoring = 'PPR', dynasty = false, superFlex = false) {
+/*function getADPtype(scoring = 'PPR', dynasty = false, superFlex = false) {
   if (dynasty && superFlex) return 'DYNASTY_SF';
   if (dynasty) return scoring === 'PPR' ? 'DYNASTY_PPR' : 'DYNASTY_STANDARD';
   if (superFlex) return scoring === 'PPR' ? 'SF_PPR' : 'SF_STANDARD';
   return scoring === 'PPR' ? 'PPR' : scoring === 'HALF' ? 'HALF_PPR' : 'STANDARD';
-}
+}*/
 
 // ===== ADP desde Supabase (preferido) con fallback a tus fetchers =====
 async function fetchADPPreferred({ adpType, scoring, dynasty, superFlex, sleeperADP, supabaseAdmin }) {
