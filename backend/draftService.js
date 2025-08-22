@@ -434,16 +434,16 @@ async function fetchADPPreferred({ adpType, scoring, dynasty, superFlex, sleeper
   if (useSleeper) {
     const raw = (await getADPData(adpType)) || [];
     const rows = normalizeADPRecords(raw, 'sleeper').map(a => ({ ...a, adp_rank: a.adp_rank != null ? Number(a.adp_rank) : null }));
-    return { provider: 'sleeper', rows, date: getLatestDateFromADP(rows) };
+    return { provider: 'sleeper', rows, date: getLatestDateADP(rows) };
   } else {
     const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
     const raw = (await getFantasyProsADPDataSimple({ adp_type })) || [];
     const rows = normalizeADPRecords(raw, 'fantasypros').map(a => ({ ...a, adp_rank: a.adp_rank != null ? Number(a.adp_rank) : null }));
-    return { provider: 'fantasypros', rows, date: getLatestDateFromADP(rows) };
+    return { provider: 'fantasypros', rows, date: getLatestDateADP(rows) };
   }
 }
 
-function getLatestDateFromADP(rows) {
+function getLatestDateADP(rows) {
   if (!Array.isArray(rows) || !rows.length) return null;
   return rows.reduce((m, r) => (r.date && r.date > m ? r.date : m), rows[0]?.date || null);
 }
