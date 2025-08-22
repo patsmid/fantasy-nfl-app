@@ -1,772 +1,348 @@
-// frontend/src/views/draft_main.js
-import { fetchDraftData } from '../../apiDraft.js'; // ✅ NUEVO: wrapper hacia /manual/draft/:league_id
-import { fetchManualLeaguesByUser } from '../../apiUsers.js'; // ✅ ya lo tenías
-import { positions } from '../../../components/constants.js';
-import { showError, showLoadingBar } from '../../../components/alerts.js';
-import { renderExpertSelect } from '../../../components/selectExperts.js';
-import { getAccessTokenFromClient, getUserIdFromClient } from '../../../components/authHelpers.js';
+/*
+  draft_board.js — Tablero de Toma de Decisiones (BPA para humanos)
+  -----------------------------------------------------------------
+  Vista autónoma (sin init ni export). Se ejecuta al incluir el script y
+  renderiza su propio HTML dentro de #content-container (o crea uno si no existe).
 
-export default async function renderDraftView() {
-  const content = document.getElementById('content-container');
+  Requisitos: Bootstrap 5+ y tu hoja de estilos global ya cargados.
+  Opcional: funciones globales showLoadingBar(msg) y showError(msg) serán usadas si existen.
 
-  content.innerHTML = `
-    <style>
-      /* ====== Layout & Panels ====== */
-      #draft-topbar { display:flex; gap:.75rem; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-      #best-pick { border:1px solid var(--border, rgba(255,255,255,.08)); border-radius:.9rem; padding:.85rem; background:linear-gradient(180deg, rgba(13,202,240,.08), rgba(13,202,240,.02)); }
-      #best-pick .title { font-weight:700; display:flex; align-items:center; gap:.5rem; }
-      #best-pick .meta { display:flex; gap:.75rem; flex-wrap:wrap; font-size:.9rem; opacity:.9; }
-      #needs-panel { border:1px solid var(--border, rgba(255,255,255,.08)); border-radius:.9rem; padding:.75rem; background: var(--bg-secondary, #1e1e1e); }
-      #needs-panel .need-item { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.35rem .5rem; border-radius:.5rem; }
-      #needs-panel .bar { height:8px; background: rgba(255,255,255,.08); border-radius:6px; overflow:hidden; flex:1; }
-      #needs-panel .bar>div { height:100%; background:#0dcaf0; }
+  Comportamiento:
+    - Renderiza controles (liga, experto, posición, bye, sleeperADP).
+    - Llama a tu endpoint GET /draft/:league_id (puedes cambiar baseUrl).
+    - Muestra "Tu pick ahora", 3 alternativas, termómetro de necesidades, heatmap y tabla.
+    - Guarda filtros clave en localStorage como en tu vista actual.
+*/
 
-      /* Cards */
-      #draft-cards .draft-card {
-        background: var(--bg-secondary, #1e1e1e);
-        color: var(--text-primary, #f8f9fa);
-        border: 1px solid var(--border, rgba(255,255,255,.08));
-        border-radius: .75rem;
-        padding: .75rem .9rem;
-        height: 100%;
-      }
-      #draft-cards .title-row {
-        display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.35rem;
-      }
-      #draft-cards .player { font-weight:600; font-size:1rem; line-height:1.2; }
-      #draft-cards .meta { display:flex; flex-wrap:wrap; gap:.5rem .75rem; font-size:.85rem; opacity:.9; }
-      #draft-cards .kv { display:flex; gap:.25rem; align-items:center; }
-      #draft-cards .progress { height:10px; background: rgba(255,255,255,.08); }
-      #draft-cards .progress-bar { background-color:#0dcaf0; }
-      .star-btn { border:1px solid rgba(255,255,255,.1); background:transparent; color:inherit; padding:.15rem .45rem; border-radius:.45rem; cursor:pointer; }
-      .star-btn.active { background:rgba(255,255,255,.08); }
+(function () {
+  'use strict';
 
-      /* Controls row */
-      #cards-controls { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
-      #cards-controls .flex-right { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
+  /* -------------------------
+     Config y utilidades
+     ------------------------- */
+  const DEFAULT_BASEURL = '/draft'; // ajusta si tu ruta es distinta
+  const CONTAINER_ID = 'content-container';
 
-      .pagination-controls { display:flex; gap:.4rem; align-items:center; }
-      .page-btn { min-width:36px; text-align:center; padding:.2rem .5rem; cursor:pointer; border-radius:.35rem; border:1px solid rgba(255,255,255,.06); background:transparent; color:inherit; }
-      .page-btn[disabled] { opacity:.45; cursor:not-allowed; }
+  const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+  const POS_COLORS = { QB: '#ffc107', RB: '#28a745', WR: '#0d6efd', TE: '#6f42c1', K: '#6c757d', DEF: '#6c757d' };
 
-      /* Queue pill */
-      #queue-pill { display:flex; gap:.5rem; align-items:center; border:1px solid var(--border, rgba(255,255,255,.08)); padding:.3rem .6rem; border-radius:999px; background:var(--bg-secondary, #1e1e1e); }
-      #queue-pill .q-item { font-size:.85rem; opacity:.9; }
+  const DEFAULT_WEIGHTS = {
+    safe:      { vor: 0.45, adp: 0.18, need: 0.18, scarcity: 0.09, risk: -0.10 },
+    balanced:  { vor: 0.45, adp: 0.20, need: 0.15, scarcity: 0.10, risk: -0.10 },
+    upside:    { vor: 0.50, adp: 0.23, need: 0.10, scarcity: 0.07, risk: -0.05 }
+  };
 
-      /* Responsive grid tweaks */
-      @media(min-width:1200px) {
-        #draft-cards .col-lg-3 { max-width: 23%; flex: 0 0 23%; }
-      }
+  const html = String.raw;
+  function el(tag, cls = '', inner = '') { const e = document.createElement(tag); if (cls) e.className = cls; if (inner != null) e.innerHTML = inner; return e; }
+  function clamp(x,a=0,b=1){return Math.max(a,Math.min(b,x));}
+  function pct(x){ return `${Math.round(x*100)}%`; }
+  function num(x,d=0){ const n = Number(x); return Number.isFinite(n) ? n : d; }
 
-      /* Bootstrap tooltip (fallback simple) */
-      .hint { border-bottom:1px dotted rgba(255,255,255,.5); cursor:help; }
-    </style>
+  function debounce(fn, wait=200){ let t; return function(...a){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,a), wait); }; }
 
-    <div class="card border-0 shadow-sm rounded flock-card">
-      <div class="card-body">
-        <div id="draft-topbar" class="mb-3">
-          <h4 class="m-0 d-flex align-items-center gap-2">
-            <i class="bi bi-clipboard-data text-info"></i> Draft Inteligente
-          </h4>
+  /* -------------------------
+     Fetch de datos
+     ------------------------- */
+  async function fetchDraftData({ baseUrl = DEFAULT_BASEURL, leagueId, position = 'TODAS', idExpert = '3701', extraParams = {} } = {}) {
+    if (!leagueId) throw new Error('leagueId es requerido para fetchDraftData');
+    const paramsObj = { position, idExpert };
+    Object.entries(extraParams || {}).forEach(([k,v]) => { if (v !== undefined && v !== null) paramsObj[k] = (typeof v === 'boolean') ? (v ? 'true' : 'false') : String(v); });
+    const qs = new URLSearchParams(paramsObj).toString();
+    const url = `${baseUrl}/${encodeURIComponent(leagueId)}?${qs}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await res.json();
+  }
 
-          <div class="d-flex align-items-center gap-2">
-            <div id="queue-pill" class="d-none">
-              <i class="bi bi-star-fill text-warning"></i>
-              <div id="queue-items" class="d-flex gap-2 flex-wrap"></div>
-              <button class="btn btn-sm btn-outline-secondary" id="btn-clear-queue" title="Vaciar cola">Limpiar</button>
+  /* -------------------------
+     Normalización
+     ------------------------- */
+  function normalizePlayers(payload) {
+    const players = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.players) ? payload.players : []);
+    return players.map(p => ({
+      id: String(p.player_id ?? p.id ?? p.sleeper_player_id ?? ''),
+      name: p.name ?? p.full_name ?? p.nombre ?? '—',
+      team: p.team ?? p.nfl_team ?? '—',
+      pos: p.position ?? p.pos ?? p.position_id ?? '—',
+      bye: p.bye ?? p.bye_week ?? null,
+      status: p.status ?? 'LIBRE',
+      overall: num(p.overall ?? p.rank ?? p.ecr_overall),
+      posRank: num(p.pos_rank ?? p.position_rank),
+      adpRank: num(p.adp_rank ?? p.adp_overall ?? p.adp ?? p.adpValue),
+      vor: num(p.vor ?? p.vor_score ?? p.adjustedVOR),
+      dropoff: num(p.dropoff ?? p.dropoff_value),
+      projStdDev: num(p.projStdDev ?? p.stdDev),
+      injuryRisk: normInjury(p.injuryRisk ?? p.injury_risk),
+      valueVsADP: computeValueVsADP(p),
+      raw: p
+    })).filter(p => p.id && p.pos !== '—');
+  }
+
+  function normInjury(x){ if (x==null) return 0; let v = Number(x); if (!Number.isFinite(v)) return 0; if (v>1) v = Math.min(1, v/100); return clamp(v,0,1); }
+  function computeValueVsADP(p){ const adp = num(p.adp_rank ?? p.adp_overall ?? p.adp ?? p.adpValue); const r = num(p.rank ?? p.overall ?? p.ecr_rank); if (!adp || !r) return 0; return Math.max(0, adp - r); }
+
+  /* -------------------------
+     Necesidades / Scarcity / SharkScore
+     ------------------------- */
+  function computeNeeds(params, coach, players){ if (coach && coach.rosterNeeds) return coach.rosterNeeds; const starters = Array.isArray(params?.starterPositions) ? params.starterPositions : []; const need = { QB:0,RB:0,WR:0,TE:0,K:0,DEF:0 }; for (const s of starters){ if (need[s] != null) need[s]++; else if (s === 'FLEX'){ const order=['RB','WR','TE']; order.sort((a,b)=> need[a]-need[b]); need[order[0]]++; } else if (s === 'SUPER_FLEX'){ need.QB++; } } return need; }
+  function scarcityForPos(pos, params){ const base = { RB:2.4, WR:1.3, QB:1.2, TE:1.0, K:1.0, DST:1.0 }; const sf = !!params?.superFlex; const val = (pos==='DEF') ? base.DST : (base[pos] ?? 1.0); return (pos==='QB' && sf) ? val*1.35 : (pos==='RB' && sf) ? val*0.95 : val; }
+
+  function normPos(v,min,max){ const x = Number(v); if (!Number.isFinite(x)) return 0; return clamp((x - min) / Math.max(1, (max - min)), 0, 1); }
+  function totalNeeds(n){ return Object.values(n).reduce((a,b)=> a + (b||0), 0) || 1; }
+
+  function computeSharkScore(p, needs, params, strategy='balanced'){
+    const w = DEFAULT_WEIGHTS[strategy] || DEFAULT_WEIGHTS.balanced;
+    const vorN = normPos(p.vor, 0, 200);
+    const adpN = normPos(p.valueVsADP, 0, 50);
+    const riskN = 1 - clamp(p.injuryRisk * 0.6 + normPos(p.projStdDev, 0, 60) * 0.4, 0, 1);
+    const needRaw = needs[p.pos] || 0;
+    const needN = clamp(needRaw / Math.max(1, totalNeeds(needs)), 0, 1);
+    const scarcity = clamp((scarcityForPos(p.pos, params) - 1.0) / 1.4, 0, 1);
+    let score = 0;
+    score += w.vor * vorN;
+    score += w.adp * adpN;
+    score += w.need * needN;
+    score += w.scarcity * scarcity;
+    score += w.risk * (1 - riskN);
+    if (p.dropoff && p.dropoff > 10) score += 0.03;
+    return score;
+  }
+
+  /* -------------------------
+     Tiers y badges
+     ------------------------- */
+  function inferTier(p){ if (p.raw?.tier) return p.raw.tier; const o = p.overall || 9999; if (o <= 24) return 'elite'; if (o <= 72) return 'starter'; return 'bench'; }
+  function riskBadge(p){ const r = p.injuryRisk; if (r >= 0.33) return '<span class="risk-tag">RIESGO</span>'; if (r >= 0.20) return '<span class="risk-tag" style="opacity:.8">riesgo</span>'; return ''; }
+
+  /* -------------------------
+     Render UI (autónomo)
+     ------------------------- */
+  function ensureContainer() {
+    let container = document.getElementById(CONTAINER_ID);
+    if (!container) {
+      container = el('div', '', '');
+      container.id = CONTAINER_ID;
+      document.body.prepend(container);
+    }
+    return container;
+  }
+
+  function renderShell(container) {
+    container.innerHTML = html`
+      <div class="card border-0 shadow-sm rounded flock-card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0 d-flex align-items-center gap-2"><i class="bi bi-clipboard-data text-info"></i> Draft - Tablero de Decisión</h4>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-primary" id="btn-update-draft"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
             </div>
-            <button class="btn btn-sm btn-primary" id="btn-update-draft">
-              <i class="bi bi-arrow-clockwise"></i> Actualizar Draft
-            </button>
           </div>
-        </div>
 
-        <!-- Best Pick + Needs -->
-        <div class="row g-2 mb-3">
-          <div class="col-12 col-lg-8">
-            <div id="best-pick" class="d-none">
-              <div class="title"><i class="bi bi-lightning-fill text-warning"></i> Mejor pick ahora</div>
-              <div id="best-pick-body" class="mt-2"></div>
+          <form class="row g-3 mb-3" id="draft-controls">
+            <div class="col-md-3">
+              <label for="select-league" class="form-label">Liga</label>
+              <select id="select-league" class="form-select"></select>
             </div>
-          </div>
-          <div class="col-12 col-lg-4">
-            <div id="needs-panel" class="d-none">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <i class="bi bi-graph-up-arrow text-info"></i>
-                <strong>Necesidades por posición</strong>
-              </div>
-              <div id="needs-body"></div>
-            </div>
-          </div>
-        </div>
-
-        <form class="row g-3 mb-3">
-          <div class="col-md-3">
-            <label for="select-league" class="form-label">Liga</label>
-            <select id="select-league" class="form-select"></select>
-          </div>
-          <div class="col-md-2">
-            <label for="select-position" class="form-label">Posición</label>
-            <select id="select-position" class="form-select">
-              <option value="TODAS">TODAS</option>
-              ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label for="select-expert" class="form-label">Experto</label>
-            <select id="select-expert" class="form-select"></select>
-          </div>
-          <div class="col-md-2">
-            <label for="select-status" class="form-label">Status</label>
-            <select id="select-status" class="form-select">
-              <option value="LIBRE">LIBRE</option>
-              <option value="TODOS">TODOS</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label for="input-bye" class="form-label">Bye condición</label>
-            <input type="number" class="form-control" id="input-bye" placeholder="0">
-          </div>
-          <div class="col-md-2 d-flex align-items-end">
-            <div class="form-check mt-2">
-              <input class="form-check-input" type="checkbox" id="chk-sleeperADP">
-              <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
-            </div>
-          </div>
-        </form>
-
-        <div class="d-flex flex-wrap gap-3 mb-2">
-          <div id="ranks-updated-label" class="text-start"></div>
-          <div id="adp-updated-label" class="text-start"></div>
-        </div>
-
-        <!-- Controls para cards (búsqueda + paginado) -->
-        <div id="cards-controls" class="mb-2">
-          <input id="search-input" class="form-control form-control-sm" placeholder="Buscar jugador, equipo, posición..." style="min-width:220px;">
-          <div class="flex-right">
-            <label class="m-0">Mostrar
-              <select id="page-size" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-                <option value="8">8</option>
-                <option value="12" selected>12</option>
-                <option value="20">20</option>
-                <option value="40">40</option>
+            <div class="col-md-2">
+              <label for="select-position" class="form-label">Posición</label>
+              <select id="select-position" class="form-select">
+                <option value="TODAS">TODAS</option>
+                ${POSITIONS.map(p => `<option value="${p}">${p}</option>`).join('')}
               </select>
-            registros
-            </label>
-
-            <label class="m-0 ms-2">Ordenar
-              <select id="sort-by" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-                <option value="rank">Rank ↑</option>
-                <option value="priorityScore">Priority Score ↓</option>
-                <option value="projection">Proyección ↓</option>
-                <option value="shark" selected>SharkScore 🦈</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div class="mb-3" id="draft-summary"></div>
-        <div id="draft-cards" class="mb-2"></div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div id="cards-info" class="text-muted small"></div>
-          <div id="pagination" class="pagination-controls"></div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // =============================
-  // DOM refs
-  // =============================
-  const statusSelect = document.getElementById('select-status');
-  const leagueSelect = document.getElementById('select-league');
-  const positionSelect = document.getElementById('select-position');
-  const expertSelect = document.getElementById('select-expert');
-  const byeInput = document.getElementById('input-bye');
-  const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
-  const cardsContainer = document.getElementById('draft-cards');
-  const btnUpdate = document.getElementById('btn-update-draft');
-  const bestPickWrap = document.getElementById('best-pick');           // ✅ NUEVO
-  const bestPickBody = document.getElementById('best-pick-body');      // ✅ NUEVO
-  const needsPanel = document.getElementById('needs-panel');           // ✅ NUEVO
-  const needsBody = document.getElementById('needs-body');             // ✅ NUEVO
-  const queuePill = document.getElementById('queue-pill');             // ✅ NUEVO
-  const queueItems = document.getElementById('queue-items');           // ✅ NUEVO
-  const clearQueueBtn = document.getElementById('btn-clear-queue');    // ✅ NUEVO
-
-  const searchInput = document.getElementById('search-input');
-  const pageSizeSel = document.getElementById('page-size');
-  const sortBySel = document.getElementById('sort-by');
-  const paginationEl = document.getElementById('pagination');
-  const cardsInfo = document.getElementById('cards-info');
-
-  // Estado
-  let draftData = [];
-  let filtered = [];
-  let currentPage = 1;
-  let pageSize = Number(pageSizeSel.value) || 12;
-  let searchQuery = '';
-  let sortBy = sortBySel.value || 'shark';
-
-  // Restaurar filtros guardados
-  const savedStatus = localStorage.getItem('draftStatusFilter');
-  const savedLeague = localStorage.getItem('draftLeague');
-  const savedExpert = localStorage.getItem('draftExpert');
-  const savedPosition = localStorage.getItem('draftPosition');
-  const savedSleeperADP = localStorage.getItem('draftSleeperADP');
-
-  if (savedStatus) statusSelect.value = savedStatus;
-  if (savedPosition) positionSelect.value = savedPosition;
-  if (savedSleeperADP) sleeperADPCheckbox.checked = savedSleeperADP === 'true';
-  // Forzar SharkScore como default si no hay preferencia guardada
-  if (!localStorage.getItem('draftSortBy')) {
-    sortBy = 'shark'; sortBySel.value = 'shark';
-  }
-
-  // =============================
-  // Utilities
-  // =============================
-  function debounce(fn, wait = 200) { let t; return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), wait); }; }
-  const safeNum = (v, decimals = 2) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
-  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-  function getHeatColor(value, min, max) {
-    const v = Number(value); if (!Number.isFinite(v) || max === min) return '#888';
-    const ratio = clamp((v - min) / (max - min), 0, 1);
-    const r = Math.floor(255 * (1 - ratio)); const g = Math.floor(255 * ratio);
-    return `rgb(${r},${g},0)`;
-  }
-  function getPositionColor(position) {
-    switch ((position || '').toUpperCase()) {
-      case 'QB': return '#ff2a6d';
-      case 'RB': return '#00ceb8';
-      case 'WR': return '#58a7ff';
-      case 'TE': return '#ffae58';
-      default:   return '#6c757d';
-    }
-  }
-  function getContrastTextColor(hex) { hex = hex.replace('#', ''); if (hex.length === 3) hex = hex.split('').map(c => c + c).join(''); const r = parseInt(hex.substr(0, 2), 16); const g = parseInt(hex.substr(2, 2), 16); const b = parseInt(hex.substr(4, 2), 16); const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255; return luminance > 0.6 ? '#000' : '#fff'; }
-  function getPositionBadge(pos) { const bg = getPositionColor(pos); const textColor = getContrastTextColor(bg); return `<span class="badge" style="background:${bg};color:${textColor};">${pos ?? ''}</span>`; }
-
-  // Helper: detectar status "libre" de forma tolerante
-  function isFreeStatus(s) {
-    const t = (s ?? '').toString().trim().toLowerCase();
-    if (!t) return true;
-    return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
-  }
-
-  function comparePlayers(a, b) {
-    if (sortBy === 'rank') {
-      const ra = Number(a.rank), rb = Number(b.rank);
-      return (Number.isFinite(ra) ? ra : Number.MAX_SAFE_INTEGER) - (Number.isFinite(rb) ? rb : Number.MAX_SAFE_INTEGER);
-    } else if (sortBy === 'priorityScore') {
-      const pa = Number(a.priorityScore), pb = Number(b.priorityScore);
-      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity);
-    } else if (sortBy === 'projection') {
-      const pa = Number(a.projection), pb = Number(b.projection);
-      return (Number.isFinite(pb) ? pb : -Infinity) - (Number.isFinite(pa) ? pa : -Infinity);
-    }
-    return 0;
-  }
-
-  // Normaliza números
-  function normalizePlayers(arr) {
-    const toNum = (v) => (Number.isFinite(+v) ? +v : null);
-    return arr.map(p => ({
-      ...p,
-      rank: toNum(p.rank),
-      projection: toNum(p.projection),
-      vor: toNum(p.vor),
-      adjustedVOR: toNum(p.adjustedVOR),
-      dropoff: toNum(p.dropoff),
-      priorityScore: toNum(p.priorityScore),
-      boomRate: toNum(p.boomRate),
-      bustRate: toNum(p.bustRate),
-      adpValue: toNum(p.adpValue),
-      adp_rank: toNum(p.adp_rank ?? p.adpRank),
-      tier_global: toNum(p.tier_global),
-      tier_pos: toNum(p.tier_pos),
-      volatility: toNum(p.volatility),
-      consistency: toNum(p.consistency),
-      stealScore: toNum(p.stealScore)
-    }));
-  }
-
-  // ====== Shark helpers que ya usas ======
-  function _rangeFrom(arr, pick) { const vals = arr.map(pick).map(Number).filter(Number.isFinite); if (!vals.length) return [0, 1]; return [Math.min(...vals), Math.max(...vals)]; }
-  function _scale01(v, [min, max], def = 0) { const x = Number(v); if (!Number.isFinite(x)) return def; if (max <= min) return 0.5; return (x - min) / (max - min); }
-  function _buildSharkRanges(source) { const arr = source && source.length ? source : []; return { rank: _rangeFrom(arr, p => p.rank), adjustedVOR: _rangeFrom(arr, p => p.adjustedVOR), projection: _rangeFrom(arr, p => p.projection), valueOverADP: _rangeFrom(arr, p => p.valueOverADP), stealScore: _rangeFrom(arr, p => p.stealScore), volatility: _rangeFrom(arr, p => p.volatility), tier_global: _rangeFrom(arr, p => p.tier_global), }; }
-  function computeSharkScore(p, R) { const rnkN = _scale01(p.rank, R.rank, 1); const adjVN = _scale01(p.adjustedVOR, R.adjustedVOR, 0); const projN = _scale01(p.projection, R.projection, 0); const voaN = _scale01(p.valueOverADP, R.valueOverADP, 0); const stealN = _scale01(p.stealScore, R.stealScore, 0); const boomN = Math.max(0, Math.min(1, Number(p.boomRate) / 100)); const bustN = Math.max(0, Math.min(1, Number(p.bustRate) / 100)); const consN = Math.max(0, Math.min(1, Number(p.consistency) / 100)); const volN = _scale01(p.volatility, R.volatility, 0.5); const tierInvN = 1 - _scale01(p.tier_global, R.tier_global, 1); const anchor = (1 - rnkN); const valueEdge = voaN * (0.4 + 0.6 * anchor); let score = 0.45 * anchor + 0.20 * adjVN + 0.10 * projN + 0.08 * valueEdge + 0.07 * boomN + 0.05 * consN + 0.03 * tierInvN + 0.02 * stealN - 0.10 * bustN - 0.05 * volN; if (Number.isFinite(p.rank) && p.rank > 100) score -= 0.0025 * (p.rank - 100); return score; }
-
-  // =============================
-  // Queue local (por liga)
-  // =============================
-  const QKEY = (leagueId) => `draftQueue:${leagueId || 'default'}`;
-  function getQueue(leagueId) { try { return JSON.parse(localStorage.getItem(QKEY(leagueId)) || '[]'); } catch { return []; } }
-  function setQueue(leagueId, arr) { localStorage.setItem(QKEY(leagueId), JSON.stringify(arr || [])); renderQueuePill(leagueId); }
-  function toggleQueue(leagueId, player) {
-    const id = player.id || player.player_id || player.slug || player.nombre;
-    if (!id) return;
-    const q = getQueue(leagueId);
-    const idx = q.findIndex(x => x.id === id);
-    if (idx >= 0) { q.splice(idx, 1); }
-    else { q.push({ id, nombre: player.nombre, team: player.team, position: player.position }); }
-    setQueue(leagueId, q);
-  }
-  function isInQueue(leagueId, player) { const id = player.id || player.player_id || player.slug || player.nombre; return getQueue(leagueId).some(x => x.id === id); }
-  function renderQueuePill(leagueId) {
-    const q = getQueue(leagueId);
-    if (!q.length) { queuePill.classList.add('d-none'); queueItems.innerHTML=''; return; }
-    queuePill.classList.remove('d-none');
-    queueItems.innerHTML = q.slice(-6).map(x => `<span class="q-item">${x.nombre} <small class="text-muted">(${x.position})</small></span>`).join('');
-  }
-  clearQueueBtn.addEventListener('click', () => {
-    const leagueId = leagueSelect.value || 'default';
-    setQueue(leagueId, []);
-  });
-
-  // =============================
-  // Best Pick + Needs
-  // =============================
-  function renderBestPick(players, params) {
-    if (!players?.length) { bestPickWrap.classList.add('d-none'); bestPickBody.innerHTML = ''; return; }
-    const base = filtered.length ? filtered : players;
-    const R = _buildSharkRanges(base);
-    const candidates = base.slice(0, 60);
-    candidates.forEach(p => p._shark = computeSharkScore(p, R));
-    const best = candidates.sort((a,b) => (b._shark ?? -Infinity) - (a._shark ?? -Infinity))[0];
-    if (!best) { bestPickWrap.classList.add('d-none'); bestPickBody.innerHTML = ''; return; }
-
-    const tierBreak = (Number(best.dropoff) || 0) >= 0.9 || (best.tier_pos && best.tier_pos_label && /Tier\s*1/.test(best.tier_pos_label));
-    const runHint = tierBreak ? `<span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> Tier pressure</span>` : '';
-    const adpTxt = (Number.isFinite(best.adp_rank) && Number.isFinite(best.rank)) ? `ADP #${best.adp_rank} vs Rank #${best.rank}` : (best.adpValue ? `ADP ${best.adpValue}` : '');
-    const posBadge = getPositionBadge(best.position);
-    const heat = (v) => `<span class="badge" style="background:${getHeatColor(v, -1, 1)};color:#fff;">${safeNum(v, 2)}</span>`;
-
-    const leagueId = leagueSelect.value || 'default';
-    const starred = isInQueue(leagueId, best) ? 'active' : '';
-    const starTitle = starred ? 'Quitar de cola' : 'Añadir a cola';
-
-    bestPickBody.innerHTML = `
-      <div class="d-flex flex-column gap-2">
-        <div class="d-flex align-items-center justify-content-between gap-2">
-          <div class="d-flex align-items-center gap-2">
-            ${posBadge}
-            <div>
-              <div style="font-weight:700; font-size:1.05rem;">${best.nombre ?? ''}</div>
-              <div class="text-muted small">${best.team ?? ''} ${best.status ? '· ' + best.status : ''}</div>
             </div>
+            <div class="col-md-3">
+              <label for="select-expert" class="form-label">Experto</label>
+              <select id="select-expert" class="form-select"></select>
+            </div>
+            <div class="col-md-2">
+              <label for="select-status" class="form-label">Status</label>
+              <select id="select-status" class="form-select"><option value="LIBRE">LIBRE</option><option value="TODOS">TODOS</option></select>
+            </div>
+            <div class="col-md-2">
+              <label for="input-bye" class="form-label">Bye condición</label>
+              <input type="number" class="form-control" id="input-bye" placeholder="0">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="chk-sleeperADP"><label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label></div>
+            </div>
+          </form>
+
+          <div class="d-flex flex-wrap gap-3 mb-2"><div id="ranks-updated-label" class="text-start"></div><div id="adp-updated-label" class="text-start"></div></div>
+
+          <div id="draft-summary" class="mb-2"></div>
+
+          <div id="board-root">
+            <div id="pick-and-alts">
+              <div id="draft-summary-top"></div>
+              <div id="pick-now-wrap" class="mb-3"></div>
+              <div class="row g-3" id="alternatives"></div>
+            </div>
+
+            <div class="mt-3" id="need-meter-wrap"></div>
+            <div class="mt-2" id="tier-heatmap-wrap"></div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+              <div class="btn-group" id="pos-filters"></div>
+              <div><select class="form-select form-select-sm" id="strategy-select" style="width:auto;display:inline-block;"><option value="safe">Estrategia: Seguro</option><option value="balanced" selected>Estrategia: Balanceado</option><option value="upside">Estrategia: Upside</option></select></div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-dark table-hover align-middle" id="players-table">
+                <thead>
+                  <tr><th>Jugador</th><th>Pos</th><th>Team</th><th>Rank</th><th>ADP</th><th>ΔADP</th><th>VOR</th><th>Riesgo</th><th>Tier</th><th>Score</th><th></th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
           </div>
-          <button class="star-btn ${starred}" id="bp-star" title="${starTitle}">
-            <i class="bi ${starred ? 'bi-star-fill text-warning' : 'bi-star'}"></i>
-          </button>
+
         </div>
-        <div class="meta">
-          <span class="kv"><i class="bi bi-trophy"></i> Rank ${best.rank ?? ''}</span>
-          <span class="kv"><i class="bi bi-bar-chart"></i> ${adpTxt}</span>
-          <span class="kv"><i class="bi bi-activity"></i> SharkScore ${heat(best._shark ?? 0)}</span>
-          <span class="kv"><i class="bi bi-layers"></i> Adj VOR ${safeNum(best.adjustedVOR)}</span>
-          ${runHint}
-        </div>
-        ${(best.valueTag || (best.riskTags && best.riskTags.length)) ? `
-          <div class="d-flex flex-wrap gap-2">
-            ${best.valueTag ? `<span class="badge bg-success">${best.valueTag}</span>` : ''}
-            ${(best.riskTags||[]).map(t => `<span class="badge bg-warning text-dark">${t}</span>`).join('')}
-          </div>` : ''}
-      </div>
-    `;
-
-    document.getElementById('bp-star').onclick = () => {
-      toggleQueue(leagueId, best);
-      renderBestPick(players, params);
-    };
-
-    bestPickWrap.classList.remove('d-none');
-  }
-
-  function renderNeeds(coach) {
-    if (!coach?.rosterNeeds || typeof coach.rosterNeeds !== 'object') {
-      needsPanel.classList.add('d-none'); needsBody.innerHTML=''; return;
-    }
-    const needs = coach.rosterNeeds; // { QB: 1, RB: 2, ... } esperado
-    const maxNeed = Math.max(1, ...Object.values(needs).map(n => Number(n) || 0));
-    const entries = Object.entries(needs).sort((a,b) => (b[1]||0) - (a[1]||0));
-    needsBody.innerHTML = entries.map(([pos, val]) => {
-      const pct = clamp((Number(val)||0) / maxNeed, 0, 1) * 100;
-      const badge = getPositionBadge(pos);
-      return `
-        <div class="need-item">
-          <div class="d-flex align-items-center gap-2">${badge}<strong>${pos}</strong></div>
-          <div class="bar"><div style="width:${pct}%"></div></div>
-          <span class="badge bg-secondary">${val}</span>
-        </div>
-      `;
-    }).join('');
-    needsPanel.classList.remove('d-none');
-  }
-
-  // =============================
-  // Render summary & cards & paging
-  // =============================
-  function renderSummary(players) {
-    const summary = { tiers: {}, steals: 0, risks: 0 };
-    players.forEach(p => {
-      const tierLabel = p.tier_global_label || 'Sin tier';
-      summary.tiers[tierLabel] = (summary.tiers[tierLabel] || 0) + 1;
-      if (p.valueTag === '💎 Steal') summary.steals++;
-      if (p.riskTags?.length) summary.risks++;
-    });
-
-    const container = document.getElementById('draft-summary');
-    container.innerHTML = `
-      <div class="d-flex gap-3 flex-wrap">
-        ${Object.entries(summary.tiers).map(([tier, count]) => `<span class="badge bg-info">${tier}: ${count}</span>`).join('')}
-        <span class="badge bg-success">Steals: ${summary.steals}</span>
-        <span class="badge bg-warning text-dark">Riesgos: ${summary.risks}</span>
       </div>
     `;
   }
 
-  function updateCardsForPage(pageIndex = 1) {
-    currentPage = Math.max(1, Math.min(pageIndex, Math.ceil(filtered.length / pageSize) || 1));
-    const start = (currentPage - 1) * pageSize;
-    const pagePlayers = filtered.slice(start, start + pageSize);
+  /* -------------------------
+     Render helpers (pick card / alternatives / table)
+     ------------------------- */
+  function renderSummaryBadges(params){ const wrap = document.getElementById('draft-summary'); if(!wrap) return; const badges=[]; if(params?.scoring) badges.push(`<span class="badge bg-secondary">${params.scoring}</span>`); if(params?.superFlex) badges.push('<span class="badge bg-secondary">SuperFlex</span>'); if(params?.dynasty) badges.push('<span class="badge bg-secondary">Dynasty</span>'); if(params?.ADPdate) badges.push(`<span class="badge bg-secondary">ADP ${params.ADPdate}</span>`); wrap.innerHTML = badges.join(' '); }
 
-    const prios = filtered.map(p => Number(p.priorityScore)).filter(Number.isFinite);
-    const maxProj = Math.max(...filtered.map(p => Number(p.projection) || 0), 0) || 1;
-    const minPrio = prios.length ? Math.min(...prios) : 0;
-    const maxPrio = prios.length ? Math.max(...prios) : 1;
+  function renderNeedMeter(needs){ const meterWrap = document.getElementById('need-meter-wrap'); if(!meterWrap) return; const total = totalNeeds(needs); meterWrap.innerHTML = `<div class="need-meter" id="need-meter">${POSITIONS.map(pos=>{ const t=(needs[pos]||0)/total; const cls = t>=0.5?'high': t>=0.25?'mid':'low'; return `<div class="pos ${cls}">${pos}<br><small>${needs[pos]||0} slots</small></div>`; }).join('')}</div>`; }
 
-    if (!pagePlayers.length) {
-      cardsContainer.innerHTML = `<div class="text-center text-muted">Sin jugadores.</div>`;
-    } else {
-      const leagueId = leagueSelect.value || 'default';
-      cardsContainer.innerHTML = `
-        <div class="row g-2">
-          ${pagePlayers.map(p => {
-            const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
-            const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:0 6px;border-radius:6px;font-weight:700;display:inline-block;`;
-            const risk = (p.riskTags || []).join(', ');
-            const starred = isInQueue(leagueId, p);
-            const starTitle = starred ? 'Quitar de cola' : 'Añadir a cola';
-            const adpTxt = (Number.isFinite(p.adp_rank) && Number.isFinite(p.rank))
-              ? `ADP #${p.adp_rank} vs Rank #${p.rank}`
-              : (p.adpValue ? `ADP ${p.adpValue}` : '');
+  function renderTierHeatmap(players){ const box = document.getElementById('tier-heatmap-wrap'); if(!box) return; const byPos = groupBy(players,p=>p.pos); const rows = POSITIONS.filter(pos=>byPos[pos]).map(pos=>{ const dots = byPos[pos].slice(0,30).map(p=>`<span class="heatmap-pos ${pos}" title="#${p.overall||''} ${p.name}"></span>`).join(''); return `<div class="mb-1"><strong style="color:${POS_COLORS[pos]}">${pos}</strong> ${dots}</div>`; }).join(''); box.innerHTML = rows || ''; }
 
-            return `
-              <div class="col-12 col-md-4 col-lg-3">
-                <div class="draft-card">
-                  <div class="title-row">
-                    <div class="player">${p.nombre ?? ''}</div>
-                    <div class="d-flex align-items-center gap-2">
-                      <button class="star-btn ${starred ? 'active' : ''}" data-star='1' data-id="${p.id || p.player_id || p.slug || p.nombre}" title="${starTitle}">
-                        <i class="bi ${starred ? 'bi-star-fill text-warning' : 'bi-star'}"></i>
-                      </button>
-                      <span class="badge" style="${prioStyle}">Prio: ${p.priorityScore ?? ''}</span>
-                    </div>
-                  </div>
-                  <div class="meta mb-2">
-                    <span class="kv">${getPositionBadge(p.position)}</span>
-                    <span class="kv"><i class="bi bi-shield"></i> ${p.team ?? ''}</span>
-                    <span class="kv"><i class="bi bi-calendar2-x"></i> Bye ${p.bye ?? ''}</span>
-                    <span class="kv"><i class="bi bi-trophy"></i> Rank ${p.rank ?? ''}</span>
-                    <span class="kv"><i class="bi bi-person-check"></i> ${p.status ?? ''}</span>
-                    <span class="kv"><i class="bi bi-diagram-3"></i> Ronda ${p.adpRound ?? ''}</span>
-                    <span class="kv"><i class="bi bi-bar-chart"></i> ${adpTxt}</span>
-                  </div>
-                  <div class="mb-2">
-                    <div class="small mb-1">Proyección</div>
-                    <div class="progress"><div class="progress-bar" style="width:${projPct}%"></div></div>
-                  </div>
-                  <div class="meta">
-                    <span class="kv"><strong>VOR:</strong> ${safeNum(p.vor)}</span>
-                    <span class="kv"><strong>Adj VOR:</strong> ${safeNum(p.adjustedVOR)}</span>
-                    <span class="kv"><strong>Drop:</strong> ${safeNum(p.dropoff)}</span>
-                    <span class="kv"><strong>Val/ADP:</strong> ${safeNum(p.valueOverADP)}</span>
-                  </div>
-                  <div class="mt-2 d-flex flex-wrap gap-2">
-                    ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
-                    ${risk ? `<span class="badge bg-warning text-dark">${risk}</span>` : ''}
-                    ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global ?? ''} ${p.tier_global_label}</span>` : ''}
-                    ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos ?? ''} ${p.tier_pos_label}</span>` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
+  function renderPickMain(top, params){ const wrap = document.getElementById('pick-now-wrap'); if(!wrap) return; if(!top){ wrap.innerHTML = `<div class="text-muted">Sin candidatos.</div>`; return; } const risk = Math.round((top.injuryRisk||0)*100); const vor = top.vor||0; const delta = top.valueVsADP||0; const tier = inferTier(top); wrap.innerHTML = html`<div class="draft-pick-card" id="pick-now"> <div class="d-flex justify-content-between align-items-start"> <div> <h4>${top.name}</h4> <div class="mb-1"><span class="badge" style="background:${POS_COLORS[top.pos]||'#444'}">${top.pos}</span> <span class="badge bg-secondary">${top.team}</span> ${top.bye?`<span class="badge bg-secondary">Bye ${top.bye}</span>`:''}</div> <div class="reason">${explainWhy(top,params)}</div> </div> <div class="text-end"> <div class="mb-2"><span class="badge bg-dark">Rank #${top.overall||'—'}</span> <span class="badge bg-dark">VOR ${vor.toFixed(1)}</span> <span class="badge bg-dark">ΔADP +${delta}</span> <span class="badge bg-dark">Tier ${tier}</span></div> <button class="btn btn-draft" data-action="queue" data-id="${top.id}">Añadir a cola</button> </div> </div> <div class="mt-3"> <div class="progress" title="Confianza inversa al riesgo"> <div class="progress-bar" style="width:${pct(1-(top.injuryRisk||0))}"></div> </div> <small class="text-muted">Riesgo estimado: ${risk}%</small> </div> </div>`; }
 
-      // Wire stars
-      cardsContainer.querySelectorAll('[data-star="1"]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = e.currentTarget.getAttribute('data-id');
-          const p = pagePlayers.find(x => (x.id || x.player_id || x.slug || x.nombre) == id);
-          if (p) { toggleQueue(leagueSelect.value || 'default', p); updateCardsForPage(currentPage); }
-        });
-      });
-    }
+  function renderAltCard(containerId,p,label,params){ const node = document.getElementById(containerId); if(!node) return; if(!p){ node.innerHTML = '<div class="text-muted">—</div>'; return; } node.innerHTML = html`<div class="alt-pick-card"> <div class="d-flex justify-content-between"> <div> <div class="fw-bold">${label}</div> <div class="mt-1">${p.name}</div> <div class="small text-muted">${p.team} · ${p.pos} · Rank #${p.overall||'—'}</div> </div> <div class="text-end"> <div class="mb-2"><span class="badge bg-dark">VOR ${num(p.vor).toFixed(1)}</span> <span class="badge bg-dark">ΔADP +${num(p.valueVsADP)}</span></div> <button class="btn btn-sm btn-accent" data-action="queue" data-id="${p.id}">A cola</button> </div> </div> <div class="mt-2">${riskBadge(p)}</div> </div>`; }
 
-    renderSummary(filtered);
-    renderPagination();
-    cardsInfo.textContent = `Mostrando ${filtered.length ? (start + 1) : 0}-${Math.min(start + pageSize, filtered.length)} de ${filtered.length} jugadores`;
-    // Actualiza BestPick cada cambio de página (sobre conjunto filtrado)
-    renderBestPick(filtered, /*params*/ null);
-  }
+  function renderPosFilters(current='TODAS'){ const wrap = document.getElementById('pos-filters'); if(!wrap) return; const all = ['TODAS', ...POSITIONS]; wrap.innerHTML = all.map(pos=>`<button type="button" class="btn btn-sm ${pos===current?'btn-accent':'btn-outline-secondary'} me-1" data-pos="${pos}">${pos}</button>`).join(''); }
 
-  function renderPagination() {
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    const firstDisabled = currentPage === 1 ? 'disabled' : '';
-    const lastDisabled = currentPage === totalPages ? 'disabled' : '';
+  function renderTable(players){ const tbody = document.querySelector('#players-table tbody'); if(!tbody) return; const frag = document.createDocumentFragment(); players.forEach(p=>{ const tr = el('tr'); tr.classList.add(`tier-${inferTier(p)}`); tr.innerHTML = html`<td>${p.name}</td><td><span class="badge" style="background:${POS_COLORS[p.pos]||'#444'}">${p.pos}</span></td><td>${p.team}</td><td>${p.overall||'—'}</td><td>${p.adpRank||'—'}</td><td><span class="value-tag">+${num(p.valueVsADP)}</span></td><td>${num(p.vor).toFixed(1)}</td><td>${riskBadge(p)}</td><td>${inferTier(p)}</td><td>${num(p._score).toFixed(3)}</td><td class="text-end"><button class="btn btn-sm btn-outline-light" data-action="queue" data-id="${p.id}">Cola</button></td>`; frag.appendChild(tr); }); tbody.innerHTML=''; tbody.appendChild(frag); }
 
-    paginationEl.innerHTML = `
-      <button class="page-btn" id="btn-first" ${firstDisabled} title="Primera">«</button>
-      <button class="page-btn" id="btn-prev" ${firstDisabled} title="Anterior">‹</button>
-      <div style="padding:0 .6rem">Página <strong>${currentPage}</strong> / ${totalPages}</div>
-      <button class="page-btn" id="btn-next" ${lastDisabled} title="Siguiente">›</button>
-      <button class="page-btn" id="btn-last" ${lastDisabled} title="Última">»</button>
-    `;
+  function explainWhy(p,params){ const bits=[]; if(p.valueVsADP>=8) bits.push('Gran valor vs ADP'); else if(p.valueVsADP>=4) bits.push('Valor vs ADP'); if(p.vor>=20) bits.push('Mayor VOR disponible'); if(p.dropoff && p.dropoff>10) bits.push('Evita gran corte de tier'); if(params?.superFlex && p.pos==='QB') bits.push('SuperFlex favorece QBs'); return bits.join(' · ') || 'Mejor combinación de valor y seguridad'; }
 
-    const btnFirst = document.getElementById('btn-first');
-    const btnPrev = document.getElementById('btn-prev');
-    const btnNext = document.getElementById('btn-next');
-    const btnLast = document.getElementById('btn-last');
+  /* -------------------------
+     Helpers
+     ------------------------- */
+  function groupBy(arr,keyFn){ return arr.reduce((m,x)=>{ const k = keyFn(x); (m[k]=m[k]||[]).push(x); return m; },{}); }
+  function pickTopAlternatives(sorted){ if(!sorted.length) return { top:null,safe:null,balanced:null,upside:null }; const top = sorted[0]; const safe = [...sorted].sort((a,b)=> (a.injuryRisk||0)-(b.injuryRisk||0))[0] || null; const upside = [...sorted].sort((a,b)=> ((b.valueVsADP||0)+(b.vor||0)) - ((a.valueVsADP||0)+(a.vor||0)) )[0] || null; const balanced = sorted[1] || null; return { top,safe,balanced,upside }; }
+  function filterByPos(players,pos){ if(!pos || pos==='TODAS') return players; return players.filter(p => p.pos === pos); }
 
-    btnFirst?.addEventListener('click', () => { if (currentPage !== 1) updateCardsForPage(1); });
-    btnPrev?.addEventListener('click', () => { if (currentPage > 1) updateCardsForPage(currentPage - 1); });
-    btnNext?.addEventListener('click', () => { if (currentPage < totalPages) updateCardsForPage(currentPage + 1); });
-    btnLast?.addEventListener('click', () => { if (currentPage !== totalPages) updateCardsForPage(totalPages); });
-  }
+  /* -------------------------
+     Cola simple
+     ------------------------- */
+  function addToQueue(player){ try{ const key='draft_queue'; const arr = JSON.parse(localStorage.getItem(key) || '[]'); if(!arr.find(x=>x.id===player.id)) arr.push({ id:player.id, name:player.name, pos:player.pos, team:player.team }); localStorage.setItem(key, JSON.stringify(arr)); console.info('Queue →', arr); }catch(e){} }
 
-  // =============================
-  // Filtrado local
-  // =============================
-  function applyFiltersAndSort() {
-    const statusFilter = statusSelect.value || '';
-    const posFilter = positionSelect.value;
-    const byeCondition = Number(byeInput.value) || 0;
-    const q = (searchQuery || '').trim().toLowerCase();
+  /* -------------------------
+     Loading UI helpers
+     ------------------------- */
+  function showLoading(msg){ if(typeof window.showLoadingBar==='function') return window.showLoadingBar(msg); const id='__db_loading_overlay'; let o=document.getElementById(id); if(!o){ o = el('div','',`<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:2000; background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);"> <div style="padding:16px 22px;border-radius:10px;background:var(--bg-secondary);border:1px solid var(--border);box-shadow:0 6px 24px rgba(0,0,0,.6); color:var(--text-primary)">${msg||'Cargando...'}</div></div>`); o.id=id; document.body.appendChild(o);} else { o.style.display='block'; o.innerHTML = `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:2000;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);"> <div style="padding:16px 22px;border-radius:10px;background:var(--bg-secondary);border:1px solid var(--border);box-shadow:0 6px 24px rgba(0,0,0,.6); color:var(--text-primary)">${msg||'Cargando...'}</div></div>`; } }
+  function hideLoading(){ if(typeof window.showLoadingBar==='function') return window.showLoadingBar(''); const o=document.getElementById('__db_loading_overlay'); if(o) o.style.display='none'; }
 
-    filtered = draftData.filter(p => {
-      if (statusFilter && statusFilter !== 'TODOS') {
-        if (statusFilter === 'LIBRE') {
-          if (!isFreeStatus(p.status)) return false;
-        } else {
-          if ((p.status || '').toUpperCase() !== statusFilter.toUpperCase()) return false;
-        }
+  function showErrorMsg(msg){ if(typeof window.showError==='function') return window.showError(msg); alert(msg); }
+
+  /* -------------------------
+     Main: render + load data + interactions
+     ------------------------- */
+  async function boot() {
+    const container = ensureContainer();
+    renderShell(container);
+
+    // DOM refs we need
+    const leagueSel = document.getElementById('select-league');
+    const expertSel = document.getElementById('select-expert');
+    const positionSel = document.getElementById('select-position');
+    const statusSel = document.getElementById('select-status');
+    const byeInput = document.getElementById('input-bye');
+    const sleeperChk = document.getElementById('chk-sleeperADP');
+    const btnUpdate = document.getElementById('btn-update-draft');
+    const strategySel = document.getElementById('strategy-select');
+
+    // restorative localStorage values
+    try{ const savedLeague = localStorage.getItem('draftLeague'); if(savedLeague) leagueSel.value = savedLeague; const savedExp = localStorage.getItem('draftExpert'); if(savedExp) expertSel.value = savedExp; const savedPos = localStorage.getItem('draftPosition'); if(savedPos) positionSel.value = savedPos; const savedBye = localStorage.getItem('draftBye'); if(savedBye) byeInput.value = savedBye; const savedSleeper = localStorage.getItem('draftSleeperADP'); if(savedSleeper) sleeperChk.checked = savedSleeper === 'true'; }catch(e){}
+
+    // If helper functions exist in your app, try to use them to populate selects
+    try{
+      if (typeof renderExpertSelect === 'function') {
+        await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false, onChange(){ try{ localStorage.setItem('draftExpert', this.getValue?.()||''); }catch(e){} } });
       }
-      if (posFilter && posFilter !== '' && posFilter !== 'TODAS') {
-        if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
+    } catch(e) { console.warn('renderExpertSelect not available'); }
+    try{
+      if (typeof renderLeagueSelect === 'function') {
+        await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false, onChange(){ try{ localStorage.setItem('draftLeague', this.getValue?.()||''); }catch(e){} } });
       }
-      if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
+    } catch(e) { console.warn('renderLeagueSelect not available'); }
 
-      if (q) {
-        const haystack = [
-          p.nombre, p.team, p.position, p.valueTag, p.tier_global_label, p.tier_pos_label, ...(p.riskTags || [])
-        ].filter(Boolean).join(' ').toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
+    // Simple fetchers to populate selects (best-effort). If your app exposes endpoints, these will help
+    (async function tryPopulateFallbacks(){
+      try{ if(!leagueSel.options.length || leagueSel.options.length<=1){ const res = await fetch('/api/leagues'); if(res.ok){ const arr = await res.json(); if(Array.isArray(arr)){ leagueSel.innerHTML = `<option value="">Selecciona liga</option>` + arr.map(l=>`<option value="${l.id}">${l.name||l.id}</option>`).join(''); } } } }catch(e){}
+      try{ if(!expertSel.options.length || expertSel.options.length<=1){ const res = await fetch('/api/experts'); if(res.ok){ const arr = await res.json(); if(Array.isArray(arr)){ expertSel.innerHTML = `<option value="">Selecciona experto</option>` + arr.map(x=>`<option value="${x.value||x.id||x.name}" data-id="${x.id||x.value||''}">${x.label||x.name||x.value}</option>`).join(''); } } } }catch(e){}
+    })();
 
-    if (sortBy === 'shark') {
-      const base = filtered.length ? filtered : draftData;
-      const R = _buildSharkRanges(base);
-      filtered.forEach(p => { p._shark = computeSharkScore(p, R); });
-      filtered.sort((a, b) => (b._shark ?? -Infinity) - (a._shark ?? -Infinity));
-    } else {
-      filtered.sort(comparePlayers);
-    }
+    let currentPlayers = [];
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    if (currentPage > totalPages) currentPage = 1;
+    async function loadAndRender() {
+      const leagueId = (leagueSel?.value || '').toString().trim();
+      const idExpert = (expertSel?.value || expertSel?.dataset?.id) ? (expertSel.dataset?.id || expertSel.value) : (expertSel.value || '3701');
+      const position = (positionSel?.value || 'TODAS');
+      const byeCondition = Number(byeInput?.value || 0);
+      const sleeperADP = !!sleeperChk?.checked;
 
-    updateCardsForPage(currentPage);
-  }
-
-  // =============================
-  // Carga de datos
-  // =============================
-  async function loadDraftData() {
-    try {
-      const leagueId = (leagueSelect.value || '').toString().trim();
-      const posRaw = (positionSelect.value || 'TODAS').toString().trim();
-      const position = posRaw === '' ? 'TODAS' : posRaw;
-      const byeCondition = Number(byeInput.value || 0);
-
-      const expertVal = (document.querySelector('#select-expert')?.tomselect?.getValue?.() ?? expertSelect.value ?? '');
-      let idExpert = (Array.isArray(expertVal) ? expertVal[0] : expertVal || '').toString().trim();
-      const selectedOption = expertSelect.selectedOptions?.[0];
-      if (selectedOption?.dataset?.id) idExpert = selectedOption.dataset.id.toString().trim();
-
-      const sleeperADP = !!sleeperADPCheckbox.checked;
-
-      if (!leagueId || !idExpert) {
-        showError('Selecciona una liga y un experto');
+      if(!leagueId){ // si no hay liga, pedimos al usuario
+        document.getElementById('pick-now-wrap').innerHTML = `<div class="text-muted">Selecciona una liga y un experto para ver recomendaciones.</div>`;
         return;
       }
 
-      showLoadingBar('Actualizando draft', 'Descargando datos más recientes...');
-      const res = await fetchDraftData(leagueId, position, byeCondition, idExpert, sleeperADP);
-      Swal.close();
+      try{
+        showLoading('Cargando draft…');
+        const payload = await fetchDraftData({ baseUrl: DEFAULT_BASEURL, leagueId, position, idExpert, extraParams: { byeCondition, sleeperADP } });
+        const params = payload?.params || {};
+        renderSummaryBadges(params);
 
-      const players = res?.players || res?.data || [];
-      const params = res?.params || null;
-      const coach = res?.coach || null;
+        const players = normalizePlayers(payload);
+        currentPlayers = players.slice();
 
-      if (!players || !players.length) {
-        draftData = []; filtered = [];
-        updateCardsForPage(1);
-        showError('No se encontraron jugadores.');
-        return;
-      }
+        const needs = computeNeeds(params, payload?.coach, players);
+        renderNeedMeter(needs);
 
-      draftData = normalizePlayers(players);
-      currentPage = 1;
-      applyFiltersAndSort();
+        // compute SharkScore and sort
+        players.forEach(p=>{ p._score = computeSharkScore(p, needs, params, strategySel?.value || 'balanced'); });
+        players.sort((a,b)=> b._score - a._score);
 
-      // Meta labels
-      if (params?.ranks_published) {
-        const fecha = new Date(params.ranks_published);
-        document.getElementById('ranks-updated-label').innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-calendar-check-fill text-success"></i>
-            Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
-          </div>`;
-      } else document.getElementById('ranks-updated-label').innerHTML = '';
+        const { top, safe, balanced, upside } = pickTopAlternatives(players);
+        renderPickMain(top, params);
+        // render alternatives
+        const altWrap = document.getElementById('alternatives'); if(altWrap){ altWrap.innerHTML = `<div class="col-md-4"><div id="alt-safe"></div></div><div class="col-md-4"><div id="alt-balanced"></div></div><div class="col-md-4"><div id="alt-upside"></div></div>`; }
+        renderAltCard('alt-safe', safe, 'Seguro', params); renderAltCard('alt-balanced', balanced, 'Equilibrado', params); renderAltCard('alt-upside', upside, 'Upside', params);
 
-      if (params?.ADPdate) {
-        const adpDate = new Date(params.ADPdate);
-        document.getElementById('adp-updated-label').innerHTML = `
-          <div class="px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-clock-history text-warning"></i>
-            ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}
-          </div>`;
-      } else document.getElementById('adp-updated-label').innerHTML = '';
+        renderTierHeatmap(players);
+        renderPosFilters(position);
 
-      // Render BestPick y Needs
-      renderBestPick(draftData, params);
-      renderNeeds(coach);
+        renderTable(players);
 
-      // Actualizar queue pill
-      renderQueuePill(leagueId);
-    } catch (err) {
-      Swal.close();
-      console.error('Error en loadDraftData:', err);
-      showError('Error al actualizar draft: ' + (err?.message || err));
+        // update labels
+        if(params?.ranks_published){ const fecha = new Date(params.ranks_published); document.getElementById('ranks-updated-label').innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"><i class="bi bi-calendar-check-fill text-success"></i> Ranks actualizados: ${fecha.toLocaleString('es-MX', { dateStyle:'medium', timeStyle:'short' })}</div>`; } else document.getElementById('ranks-updated-label').innerHTML = '';
+        if(params?.ADPdate){ const adpDate = new Date(params.ADPdate); document.getElementById('adp-updated-label').innerHTML = `<div class="px-3 py-1 small rounded-pill shadow-sm" style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);"><i class="bi bi-clock-history text-warning"></i> ADP actualizado: ${adpDate.toLocaleDateString('es-MX', { dateStyle:'medium' })}</div>`; } else document.getElementById('adp-updated-label').innerHTML = '';
+
+      } catch(err){ console.error('Error cargando draft:', err); showErrorMsg('No se pudo cargar datos del draft: ' + (err.message || err)); }
+      finally{ hideLoading(); }
     }
+
+    // Wire: controls
+    btnUpdate?.addEventListener('click', () => { try{ localStorage.setItem('draftLeague', leagueSel.value || ''); localStorage.setItem('draftExpert', expertSel.value || ''); localStorage.setItem('draftPosition', positionSel.value || 'TODAS'); localStorage.setItem('draftBye', byeInput.value || '0'); localStorage.setItem('draftSleeperADP', !!sleeperChk.checked); }catch(e){} loadAndRender(); });
+
+    document.getElementById('pos-filters')?.addEventListener('click', (e)=>{ const b = e.target.closest('button[data-pos]'); if(!b) return; const pos = b.getAttribute('data-pos'); renderPosFilters(pos); const filtered = filterByPos(currentPlayers, pos); renderTable(filtered); });
+
+    document.getElementById('strategy-select')?.addEventListener('change', ()=>{ const strat = document.getElementById('strategy-select').value; const needs = computeNeeds({}, null, currentPlayers); currentPlayers.forEach(p=> p._score = computeSharkScore(p, needs, {}, strat)); currentPlayers.sort((a,b)=> b._score - a._score); renderTable(currentPlayers); });
+
+    document.addEventListener('click', (e)=>{ const btn = e.target.closest('[data-action="queue"]'); if(!btn) return; const id = btn.getAttribute('data-id'); const p = currentPlayers.find(x=>x.id===id); if(!p) return; addToQueue(p); btn.textContent = 'En cola'; btn.disabled = true; });
+
+    // Autoload initial
+    try{ const savedLeague = localStorage.getItem('draftLeague'); const savedExpert = localStorage.getItem('draftExpert'); if(savedLeague) leagueSel.value = savedLeague; if(savedExpert) expertSel.value = savedExpert; }catch(e){}
+    setTimeout(()=>{ loadAndRender(); }, 220);
+
   }
 
-  // =============================
-  // Init selects (Expert y Ligas por usuario via apiUsers)
-  // =============================
-  let expertTS = null;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  // Expertos (mantiene tu helper)
-  try {
-    expertTS = await renderExpertSelect('#select-expert', {
-      plugins: ['dropdown_input'],
-      dropdownInput: false,
-      create: false,
-      persist: false,
-      onChange() {
-        try { localStorage.setItem('draftExpert', this.getValue?.() || ''); } catch(e) {}
-        this?.blur?.();
-        if (leagueSelect.value) loadDraftData();
-      }
-    });
-  } catch (e) {
-    await renderExpertSelect('#select-expert', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
-  if (!expertTS && document.querySelector('#select-expert')?.tomselect) expertTS = document.querySelector('#select-expert').tomselect;
-
-  // Ligas por usuario (apiUsers.js)  ✅ NUEVO
-  async function populateLeaguesFromUser() {
-    try {
-      const accessToken = await getAccessTokenFromClient().catch(() => null);
-      const userId = await getUserIdFromClient().catch(() => null);
-
-      if (!userId) {
-        leagueSelect.innerHTML = '<option value="">Inicia sesión para ver tus ligas</option>';
-        return;
-      }
-
-      const leagues = await fetchManualLeaguesByUser(userId, accessToken);
-      // Esperamos shape tipo: [{ league_id, name, draft_id, total_rosters }, ...]
-      leagueSelect.innerHTML = leagues.length
-        ? leagues.map(l => `<option value="${l.league_id}">${l.name || l.league_name || ('Liga ' + l.league_id)}</option>`).join('')
-        : '<option value="">(Sin ligas)</option>';
-
-      // Restaurar guardado si existe
-      if (savedLeague && leagues.some(l => String(l.league_id) === String(savedLeague))) {
-        leagueSelect.value = savedLeague;
-      }
-
-      // Cargar inicial si hay experto ya elegido
-      if ((expertSelect.value || expertTS?.getValue?.()) && leagueSelect.value) {
-        loadDraftData();
-      }
-    } catch (e) {
-      console.error('No se pudieron cargar ligas del usuario:', e);
-      leagueSelect.innerHTML = '<option value="">(Error cargando ligas)</option>';
-    }
-  }
-
-  await populateLeaguesFromUser();
-
-  // Aplica experto guardado
-  function applySavedValue(selectEl, tsInstance, savedValue) {
-    if (!savedValue) return;
-    try {
-      if (tsInstance && typeof tsInstance.setValue === 'function') {
-        tsInstance.setValue(savedValue);
-        tsInstance.blur?.();
-      } else if (selectEl && selectEl.tomselect && typeof selectEl.tomselect.setValue === 'function') {
-        selectEl.tomselect.setValue(savedValue);
-        selectEl.tomselect.blur?.();
-      } else if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        selectEl.blur?.();
-      }
-    } catch {
-      if (selectEl) {
-        selectEl.value = savedValue;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  }
-  applySavedValue(expertSelect, expertTS, savedExpert);
-
-  // =============================
-  // Eventos UI
-  // =============================
-  statusSelect.addEventListener('change', () => { localStorage.setItem('draftStatusFilter', statusSelect.value); applyFiltersAndSort(); });
-  positionSelect.addEventListener('change', () => { localStorage.setItem('draftPosition', positionSelect.value); applyFiltersAndSort(); });
-  byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
-  sleeperADPCheckbox.addEventListener('change', () => { localStorage.setItem('draftSleeperADP', sleeperADPCheckbox.checked); loadDraftData(); });
-
-  pageSizeSel.addEventListener('change', () => {
-    pageSize = Number(pageSizeSel.value) || 12; currentPage = 1; updateCardsForPage(currentPage);
-  });
-
-  sortBySel.addEventListener('change', () => {
-    sortBy = sortBySel.value; localStorage.setItem('draftSortBy', sortBy); applyFiltersAndSort();
-  });
-
-  searchInput.addEventListener('input', debounce((e) => {
-    searchQuery = e.target.value || ''; currentPage = 1; applyFiltersAndSort();
-  }, 250));
-
-  btnUpdate.addEventListener('click', loadDraftData);
-
-  expertSelect.addEventListener('change', () => { localStorage.setItem('draftExpert', expertSelect.value); loadDraftData(); });
-  leagueSelect.addEventListener('change', () => { localStorage.setItem('draftLeague', leagueSelect.value); loadDraftData(); renderQueuePill(leagueSelect.value); });
-
-  // Render inicial vacío
-  filtered = []; updateCardsForPage(1);
-
-  window.addEventListener('resize', () => { /* hook responsive si lo necesitas */ });
-}
+})();

@@ -727,3 +727,109 @@ td span.risk-tag {
   gap: 8px;
   margin-bottom: 12px;
 }
+
+
+/* ===========================
+   DRAFTBOARD — cartas y tablero
+   =========================== */
+
+/* Carta principal "Tu Pick Ahora" */
+.draft-pick-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  margin-bottom: 1.5rem;
+}
+
+.draft-pick-card h4 {
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.draft-pick-card .reason {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Botón de acción principal */
+.btn-draft {
+  background-color: var(--accent);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+.btn-draft:hover {
+  background-color: #cc6200;
+}
+
+/* Alternativas (Seguro / Balanceado / Upside) */
+.alt-pick-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: transform 0.2s ease;
+}
+.alt-pick-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+/* Termómetro de necesidades (grid por posición) */
+.need-meter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+.need-meter .pos {
+  flex: 1;
+  text-align: center;
+  padding: 0.4rem 0.3rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.need-meter .low { background: rgba(40, 167, 69, 0.25); }   /* verde */
+.need-meter .mid { background: rgba(255, 193, 7, 0.25); }  /* amarillo */
+.need-meter .high { background: rgba(220, 53, 69, 0.25); } /* rojo */
+
+/* Tiers unificados con variables */
+:root {
+  --tier-elite: rgba(255, 122, 0, 0.20);
+  --tier-starter: rgba(0, 123, 255, 0.20);
+  --tier-bench: rgba(108, 117, 125, 0.20);
+  --tier-steal: rgba(40, 167, 69, 0.25);
+}
+.tier-elite { background-color: var(--tier-elite) !important; }
+.tier-starter { background-color: var(--tier-starter) !important; }
+.tier-bench { background-color: var(--tier-bench) !important; }
+.tier-steal { background-color: var(--tier-steal) !important; font-weight: bold; }
+
+/* Value & Risk tags más legibles */
+.value-tag {
+  background-color: rgba(40,167,69,0.25);
+  color: #28a745;
+}
+.risk-tag {
+  background-color: rgba(220,53,69,0.25);
+  color: #dc3545;
+}
+
+/* Heatmap de posición en mini barras */
+.heatmap-pos {
+  display: inline-block;
+  height: 8px;
+  border-radius: 3px;
+  margin: 0 2px;
+}
+.heatmap-pos.RB { background: #28a745; }
+.heatmap-pos.WR { background: #007bff; }
+.heatmap-pos.QB { background: #ffc107; }
+.heatmap-pos.TE { background: #6f42c1; }
+.heatmap-pos.DST, .heatmap-pos.K { background: #6c757d; }
