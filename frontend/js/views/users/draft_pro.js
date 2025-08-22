@@ -1,6 +1,6 @@
 // frontend/src/views/draft_main.js
-import { fetchDraftData } from '../apiDraft.js'; // ✅ NUEVO: wrapper hacia /manual/draft/:league_id
-import { fetchManualLeaguesByUser } from '../apiUsers.js'; // ✅ ya lo tenías
+import { fetchDraftData } from '../../apiDraft.js'; // ✅ NUEVO: wrapper hacia /manual/draft/:league_id
+import { fetchManualLeaguesByUser } from '../../apiUsers.js'; // ✅ ya lo tenías
 import { positions } from '../../../components/constants.js';
 import { showError, showLoadingBar } from '../../../components/alerts.js';
 import { renderExpertSelect } from '../../../components/selectExperts.js';
