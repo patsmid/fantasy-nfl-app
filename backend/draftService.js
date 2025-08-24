@@ -267,7 +267,7 @@ export async function getDraftData(
     const expertsData = await Promise.all(
       top3.map(e => getExpertData(e.id_experto ?? e.id))
     );
-
+    console.log(expertsData);
     // 3) Rankings por experto
     const week = 0;
     const rankingsByExpert = await Promise.all(
