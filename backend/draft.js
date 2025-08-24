@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/:leagueId', async (req, res) => {
   try {
     const { leagueId } = req.params;
-    let { position = 'TODAS', byeCondition = 0, idExpert = '3701', sleeperADP = 'false' } = req.query;
+    let { position = 'TODAS', byeCondition = 0, idExpert = null, sleeperADP = 'false' } = req.query;
 
     // Convertir sleeperADP a boolean
     const sleeperADPFlag = sleeperADP === 'true';
