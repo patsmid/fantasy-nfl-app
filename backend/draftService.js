@@ -305,23 +305,9 @@ export async function getDraftData(
     // 3) Rankings por experto
     const week = 0;
     const rankingsByExpert = await Promise.all(
-      expertsData.map(async (ed) => {
-        const r = await getRankings({
-          season,
-          dynasty,
-          scoring,
-          expertData: ed,
-          position: finalPosition,
-          week
-        });
-        return {
-          expert_id: ed.id_experto ?? ed.id,
-          expert_name: ed.experto ?? ed.name ?? 'Desconocido',
-          source: ed.source ?? 'fantasypros',
-          published: r?.published ?? null,
-          players: Array.isArray(r?.players) ? r.players : []
-        };
-      })
+      expertsData.map(ed =>
+        getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week })
+      )
     );
 
     // 4) ADP
