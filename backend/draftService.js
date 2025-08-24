@@ -263,11 +263,11 @@ export async function getDraftData(
     // 2) Top 3 expertos
     const top3 = await getTopExpertsFromDB(3);
     if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
-
+    console.log(top3);
     const expertsData = await Promise.all(
       top3.map(e => getExpertData(e.id_experto ?? e.id))
     );
-    console.log(expertsData);
+    //console.log(expertsData);
     // 3) Rankings por experto
     const week = 0;
     const rankingsByExpert = await Promise.all(
