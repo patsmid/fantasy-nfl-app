@@ -263,10 +263,44 @@ export async function getDraftData(
     // 2) Top 3 expertos
     const top3 = await getTopExpertsFromDB(3);
     if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
-    console.log(top3);
-    const expertsData = await Promise.all(
-      top3.map(e => getExpertData(e.id_experto ?? e.id))
-    );
+
+    const expertsData = top3.map(row => {
+      if (!row) return null; // seguridad extra
+      const src = row.source ? String(row.source).toLowerCase() : 'desconocido';
+
+      if (src === 'fantasypros') {
+        return {
+          source: 'fantasypros',
+          id: row.id,
+          id_experto: row.id_experto ?? null, // usa null si no hay valor
+          experto: row.experto ?? 'Sin nombre'
+        };
+      }
+
+      if (src === 'manual') {
+        return {
+          source: 'manual',
+          id: row.id, // UUID
+          experto: row.experto ?? 'Sin nombre'
+        };
+      }
+
+      if (src === 'flock') {
+        return {
+          id: row.id,
+          source: 'flock',
+          experto: row.experto ?? 'Sin nombre'
+        };
+      }
+
+      // fallback para futuros tipos o si source viene null
+      return {
+        source: src,
+        id: row.id,
+        id_experto: row.id_experto ?? null,
+        experto: row.experto ?? 'Sin nombre'
+      };
+    }).filter(Boolean);
     //console.log(expertsData);
     // 3) Rankings por experto
     const week = 0;

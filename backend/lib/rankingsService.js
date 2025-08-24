@@ -4,6 +4,11 @@ import { getExpertData } from '../experts.js';
 import { supabase } from '../supabaseClient.js';
 
 export async function getRankings({ season, dynasty, scoring, expertData, position, week: weekStatic = null }) {
+  if (!expertData || !expertData.source) {
+    throw new Error('getRankings: expertData inválido (falta source).');
+  }
+  const source = String(expertData.source).toLowerCase();
+
   if (expertData.source === 'manual') {
     return await getManualRankings(expertData.id);
   }

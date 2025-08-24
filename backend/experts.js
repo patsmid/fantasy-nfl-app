@@ -135,10 +135,10 @@ export async function getExpertData(idExpert) {
 }
 
 export async function getTopExpertsFromDB(limit = 3) {
-  // Ajusta nombres de columnas si tu tabla difiere
   const { data, error } = await supabase
     .from('experts')
-    .select('id_experto, experto, source, display_order')
+    .select('id, id_experto, experto, source, display_order')
+    .not('source', 'is', null) // evita rows sin source
     .order('display_order', { ascending: true })
     .limit(limit);
 
