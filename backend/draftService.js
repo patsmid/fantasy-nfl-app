@@ -440,43 +440,49 @@ export async function getDraftData(
     const playersData = await getPlayersData(Array.from(finalIdSet));
     const playersMap = new Map((playersData || []).map(p => [String(toId(p.player_id)), p]));
 
-    // 9) Construir rankMaps normalizados (claves = sleeper player_id)
-    const rankMaps = rankingsByExpertRaw.map(ex => {
-      const src = String(ex.source || '').toLowerCase();
-      const map = new Map();
-      for (const p of ex.players || []) {
-        if (!p?.player_id) continue;
-        const raw = String(toId(p.player_id));
-        let normalizedId = null;
-        if (src === 'fantasypros') {
-          normalizedId = fpToSleeper.get(raw) || null; // si no se mapeó, lo ignoramos para evitar duplicados
-        } else {
-          normalizedId = raw;
-        }
-        if (!normalizedId) continue;
-        // solo guardar rank si el jugador está en playersMap (evita huérfanos)
-        if (!playersMap.has(String(normalizedId))) continue;
-        const r = typeof p.rank === 'number' ? p.rank : (p.overall_rank ?? p.ecr ?? null);
-        map.set(String(normalizedId), typeof r === 'number' ? r : (Number.isFinite(Number(r)) ? Number(r) : null));
+    const safeNum = v => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const averageNonNull = nums => {
+      const arr = (nums || []).filter(n => typeof n === 'number' && Number.isFinite(n));
+      if (!arr.length) return null;
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    };
+
+    // 9a) Obtener picks del draft y calcular myDraft/myTeams/myByeWeeksSet
+    const drafted = leagueData.draft_id ? await getDraftPicks(leagueData.draft_id) : [];
+    const draftedMap = new Map((drafted || []).map(p => [String(toId(p.player_id)), p]));
+
+    // getMainUserDraft ya existe en tu archivo (lo usas en modo experto)
+    const myDraft = getMainUserDraft(drafted || [], mainUserId) || [];
+
+    const myByeWeeksSet = new Set();
+    const myTeams = [];
+    for (const pick of (myDraft || [])) {
+      const playerId = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
+      const playerInfo = playersMap.get(playerId);
+      if (playerInfo) {
+        const bw = safeNum(playerInfo?.bye_week ?? 0);
+        if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
+        if (playerInfo.team) myTeams.push(playerInfo.team);
       }
+    }
 
-      return {
-        expert_id: ex.expert_id ?? null,
-        expert_name: ex.expert_name ?? ex.experto ?? 'Desconocido',
-        source: ex.source ?? 'unknown',
-        published: ex.published ?? null,
-        map
-      };
-    });
+    // 9b) Asegurarnos goodOffense disponible (si no, usar lista vacía)
+    const goodOffenseList = (typeof goodOffense !== 'undefined' && Array.isArray(goodOffense))
+      ? goodOffense
+      : [];
 
-    // 10) Construcción final de filas usando solo playersMap keys (evita duplicados)
+    // 10) Construcción final de filas (solo desde playersMap => NO duplicados)
     const rows = Array.from(playersMap.keys()).map(pid => {
       const pd = playersMap.get(pid) || {};
-      // fallback de nombre/pos desde rankings si es necesario
+
+      // fallback de nombre/posición desde rankingsByExpertRaw si es necesario
       let fallbackName = pd.full_name || pd.name || null;
       let fallbackPos = pd.position || null;
       if (!fallbackName || !fallbackPos) {
-        for (const ex of rankingsByExpertRaw) {
+        for (const ex of rankingsByExpertRaw || []) {
           const src = String(ex.source || '').toLowerCase();
           const found = (ex.players || []).find(p => {
             const raw = String(toId(p.player_id));
@@ -491,6 +497,17 @@ export async function getDraftData(
         }
       }
 
+      // Info del jugador (como en buildFinalPlayers)
+      const playerInfo = pd;
+      const isRookie = (playerInfo?.years_exp === 0);
+      const rookie = isRookie ? ' (R)' : '';
+      const bye = safeNum(playerInfo?.bye_week ?? 0);
+      const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
+      const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
+      const isGoodOffense = goodOffenseList.includes(playerInfo?.team);
+      const teamGood = isGoodOffense ? ' ✔️' : '';
+
+      // ranks por experto (usamos rankMaps, que ya normalizaste antes)
       const expert_ranks = rankMaps.map(rm => ({
         expert_id: rm.expert_id,
         expert: rm.expert_name,
@@ -506,17 +523,26 @@ export async function getDraftData(
       return {
         player_id: String(pid),
         name: fallbackName || null,
-        position: pd.position || fallbackPos || null,
-        team: pd.team || pd.team_abbr || null,
-        bye: pd.bye_week ?? pd.bye ?? null,
-        player: pd,
+        position: playerInfo?.position || fallbackPos || null,
+        team: playerInfo?.team || playerInfo?.team_abbr || null,
+        bye,
+        // campos solicitados (mismo cálculo que buildFinalPlayers)
+        isRookie,
+        rookie,
+        byeFound,
+        teamFound,
+        isGoodOffense,
+        teamGood,
+        // objeto con toda la info cruda del jugador
+        player: playerInfo,
+        // ADP y rankings
         adp_rank,
         experts: expert_ranks,
         avg_rank
       };
     });
 
-    // 11) Orden final (por avg_rank y fallback ADP)
+    // 11) Orden final (igual que antes)
     rows.sort((a, b) => {
       if (a.avg_rank === null && b.avg_rank === null) {
         const aAdp = a.adp_rank ?? Infinity;
