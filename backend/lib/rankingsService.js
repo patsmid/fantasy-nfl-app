@@ -43,8 +43,8 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   if (dynasty) type = 'DK';
 
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
-  //console.log('📊 URL FantasyPros Rankings:', url);
-
+  console.log('📊 URL FantasyPros Rankings:', url);
+  //https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=2025&week=0&id=3701&position=ALL&type=PRESEASON&notes=false&scoring=PPR&export=json&host=ta
   const res = await fetch(url);
   const json = await res.json();
 
