@@ -133,3 +133,16 @@ export async function getExpertData(idExpert) {
 
   return data;
 }
+
+export function getTopExpertsFromDB(limit = 3) {
+  // Ajusta nombres de columnas si tu tabla difiere
+  const { data, error } = await supabase
+    .from('experts')
+    .select('id_experto, experto, source, active, display_order')
+    .eq('active', true)
+    .order('display_order', { ascending: true })
+    .limit(limit);
+
+  if (error) throw new Error(`Error consultando tabla experts: ${error.message}`);
+  return data || [];
+}
