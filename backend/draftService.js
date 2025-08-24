@@ -78,7 +78,8 @@ export async function getDraftData(
 
     // 2. Rankings + proyecciones
     const expertData = await getExpertData(idExpert);
-    const rankingsPromise = getRankings({ season, dynasty, scoring, expertData, position: finalPosition, 0 });
+    const week = 0;
+    const rankingsPromise = getRankings({ season, dynasty, scoring, expertData, position: finalPosition, week });
     const projectionsPromise = getAllPlayersProjectedTotals(leagueId);
     const draftedPromise = leagueData.draft_id ? getDraftPicks(leagueData.draft_id) : Promise.resolve([]);
 
