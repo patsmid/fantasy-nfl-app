@@ -24,8 +24,6 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
       players: data
     };
   }
-  console.log(nflState);
-  let week = nflState.display_week;
   week = nflState.season_type === 'pre' ? 0 : nflState.week;
   if (weekStatic !== null && weekStatic !== '') {
     week = parseInt(weekStatic);
