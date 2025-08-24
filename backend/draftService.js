@@ -264,36 +264,33 @@ export async function getDraftData(
     const top3 = await getTopExpertsFromDB(3);
     if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
 
+    // preparar expertsData (igual que antes)
     const expertsData = top3.map(row => {
-      if (!row) return null; // seguridad extra
+      if (!row) return null;
       const src = row.source ? String(row.source).toLowerCase() : 'desconocido';
 
       if (src === 'fantasypros') {
         return {
           source: 'fantasypros',
-          id: row.id,
-          id_experto: row.id_experto ?? null, // usa null si no hay valor
+          id: row.id, // uuid interno de la tabla experts
+          id_experto: row.id_experto ?? null, // partner id numérico (p.ej. 3701)
           experto: row.experto ?? 'Sin nombre'
         };
       }
-
       if (src === 'manual') {
         return {
           source: 'manual',
-          id: row.id, // UUID
+          id: row.id,
           experto: row.experto ?? 'Sin nombre'
         };
       }
-
       if (src === 'flock') {
         return {
-          id: row.id,
           source: 'flock',
+          id: row.id,
           experto: row.experto ?? 'Sin nombre'
         };
       }
-
-      // fallback para futuros tipos o si source viene null
       return {
         source: src,
         id: row.id,
@@ -301,95 +298,197 @@ export async function getDraftData(
         experto: row.experto ?? 'Sin nombre'
       };
     }).filter(Boolean);
-    //console.log(expertsData);
-    // 3) Rankings por experto
+
+    // 3) Rankings por experto (obtiene players "crudos" de cada fuente)
     const week = 0;
-    const rankingsByExpert = await Promise.all(
-      expertsData.map(ed =>
-        getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week })
-      )
+    const rankingsByExpertRaw = await Promise.all(
+      expertsData.map(async (ed) => {
+        const r = await getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week });
+        return {
+          expert_id: ed.id_experto ?? ed.id ?? null,
+          expert_name: ed.experto ?? ed.expert ?? 'Desconocido',
+          source: r?.source ?? ed.source ?? 'unknown',
+          published: r?.published ?? null,
+          players: Array.isArray(r?.players) ? r.players : []
+        };
+      })
     );
 
-    // 4) ADP
+    // 4) ADP (igual que antes)
     const adpType = getADPtype(scoring, dynasty, superFlex);
-    let rawAdpData = [];
+    let rawAdpData2 = [];
     let adpSource = 'fantasypros';
-
-    // si es dynasty/superflex o pediste sleeperADP -> Sleeper ADP
     if (dynasty || superFlex || sleeperADP) {
-      rawAdpData = (await getADPData(adpType)) || [];
+      rawAdpData2 = (await getADPData(adpType)) || [];
       adpSource = 'sleeper';
     } else {
-      // si es redraft normal -> usa FantasyPros ADP simple
-      const adp_type =
-        scoring === 'PPR'
-          ? 'FP_ppr'
-          : scoring === 'HALF'
-          ? 'FP_half-ppr'
-          : 'FP_ppr';
-
-      rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
+      const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
+      rawAdpData2 = (await getFantasyProsADPDataSimple({ adp_type })) || [];
       adpSource = 'fantasypros';
     }
-
-    const normalizedAdp = normalizeADPRecords(rawAdpData, adpSource).map(a => ({
+    const normalizedAdp = normalizeADPRecords(rawAdpData2, adpSource).map(a => ({
       ...a,
-      adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null,
+      adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null
     }));
-
     const adpDate = getLatestDateFromADP(normalizedAdp);
+    const adpMap = new Map(normalizedAdp.filter(a => a?.sleeper_player_id).map(a => [String(a.sleeper_player_id), a]));
 
-    // map rápido de ADP por sleeper_player_id
-    const adpMap = new Map(
-      normalizedAdp
-        .filter(a => a?.sleeper_player_id)
-        .map(a => [String(a.sleeper_player_id), a])
-    );
+    // 5) Recolectar raw IDs (los que vienen de cada experto)
+    //    y separar los que vienen de FantasyPros (necesitan mapping)
+    const rawIdsByExpert = []; // array parallelo a rankingsByExpertRaw, con los ids crudos
+    const fantasyProsIdsSet = new Set();
+    const directIdsSet = new Set(); // ids que ya parecen sleeper/local
 
-    // 5) Unión de ids (aseguramos rankingsByExpert siempre definido)
-    const allIds = new Set();
+    for (const ex of rankingsByExpertRaw) {
+      const src = String(ex.source || '').toLowerCase();
+      const ids = [];
+      for (const p of ex.players || []) {
+        if (!p?.player_id) continue;
+        const raw = String(toId(p.player_id));
+        ids.push(raw);
+        if (src === 'fantasypros') fantasyProsIdsSet.add(raw);
+        else directIdsSet.add(raw);
+      }
+      rawIdsByExpert.push(ids);
+    }
 
-    if (Array.isArray(rankingsByExpert) && rankingsByExpert.length > 0) {
-      for (const ex of rankingsByExpert) {
-        for (const p of ex.players || []) {
-          if (p?.player_id) allIds.add(String(toId(p.player_id)));
+    // siempre incluir ADP sleeper ids (si los hay) en el conjunto directo
+    for (const a of normalizedAdp) {
+      if (a?.sleeper_player_id) directIdsSet.add(String(a.sleeper_player_id));
+    }
+
+    // 6) Mapear FantasyPros IDs -> sleeper player_id consultando tabla 'players' (supabase)
+    //    Se prueban varias columnas candidatas y luego fallback por full_name.
+    const fpToSleeper = new Map();
+    if (fantasyProsIdsSet.size > 0) {
+      const fpArray = Array.from(fantasyProsIdsSet);
+
+      // columnas candidatas en tu tabla players
+      const candidateCols = [
+        'fantasy_pros_id', 'fp_id', 'fantasypros_id', 'fantasy_pro_id',
+        'fantasy_prosid', 'fp_player_id', 'fpId', 'fantasy_id', 'fp_external_id'
+      ];
+
+      for (const col of candidateCols) {
+        try {
+          const { data: rows, error } = await supabase
+            .from('players')
+            .select(`player_id, ${col}`)
+            .in(col, fpArray);
+
+          if (error) continue;
+          if (!rows || !rows.length) continue;
+          for (const r of rows) {
+            const val = r[col];
+            if (val != null) {
+              fpToSleeper.set(String(val), String(r.player_id));
+            }
+          }
+        } catch (err) {
+          // columna inexistente o permiso -> ignorar y seguir con la siguiente
+          continue;
+        }
+      }
+
+      // fallback por nombre para los FP ids que quedaron sin mapear
+      const unmapped = Array.from(fpArray).filter(id => !fpToSleeper.has(id));
+      if (unmapped.length) {
+        // construir map fpId -> name a partir de los rankings fantasypros
+        const fpNameMap = new Map();
+        for (const ex of rankingsByExpertRaw) {
+          if (String(ex.source || '').toLowerCase() !== 'fantasypros') continue;
+          for (const p of ex.players || []) {
+            const pid = String(toId(p.player_id));
+            if (unmapped.includes(pid)) {
+              const name = p.name || p.player_name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
+              if (name) fpNameMap.set(pid, name);
+            }
+          }
+        }
+
+        const names = Array.from(new Set([...fpNameMap.values()])).filter(Boolean);
+        if (names.length) {
+          try {
+            const { data: nameMatches } = await supabase
+              .from('players')
+              .select('player_id, full_name')
+              .in('full_name', names);
+
+            if (nameMatches && nameMatches.length) {
+              for (const [fpId, nm] of fpNameMap.entries()) {
+                const match = nameMatches.find(m => String(m.full_name) === String(nm));
+                if (match) fpToSleeper.set(fpId, String(match.player_id));
+              }
+            }
+          } catch (err) {
+            // fallback busca falló: seguimos adelante
+          }
         }
       }
     }
 
-    // aunque no haya expertos, agregamos los ids de ADP
-    for (const a of normalizedAdp) {
-      if (a?.sleeper_player_id) allIds.add(String(a.sleeper_player_id));
-    }
+    // 7) Construir el conjunto definitivo de player_ids SLEEPER/local
+    const finalIdSet = new Set();
+    // agregar los directos (ya sleeper ids) detectados antes
+    for (const id of directIdsSet) finalIdSet.add(String(id));
+    // agregar mapeos desde fantasypros (solo los que se mapearon)
+    for (const [fp, sl] of fpToSleeper.entries()) finalIdSet.add(String(sl));
+    // agregar ADP (ya incluidos arriba, pero por seguridad)
+    for (const a of normalizedAdp) if (a?.sleeper_player_id) finalIdSet.add(String(a.sleeper_player_id));
 
-    // 6) Datos del jugador
-    const playersData = await getPlayersData(Array.from(allIds));
-    const playersMap = new Map(
-      (playersData || []).map(p => [String(toId(p.player_id)), p])
-    );
+    // 8) Obtener playersData solo para los ids unificados
+    const playersData = await getPlayersData(Array.from(finalIdSet));
+    const playersMap = new Map((playersData || []).map(p => [String(toId(p.player_id)), p]));
 
-    // 7) Rank maps por experto
-    const rankMaps = rankingsByExpert.map(ex => ({
-      expert_id: ex.expert_id,
-      expert_name: ex.expert_name,
-      source: ex.source,
-      published: ex.published,
-      map: buildRankMap(ex.players)
-    }));
-
-    // 8) Construcción final (jugador + info + ADP + ranks + promedio)
-    const rows = Array.from(allIds).map(pid => {
-      const pd = playersMap.get(pid) || {};
-      // fallback de nombre/posición si no están en playersData
-      let fallbackName = null;
-      let fallbackPos = null;
-      for (const ex of rankingsByExpert) {
-        const found = (ex.players || []).find(p => String(toId(p.player_id)) === pid);
-        if (found) {
-          fallbackName = fallbackName || found.name || found.player_name || null;
-          fallbackPos = fallbackPos || found.position || null;
+    // 9) Construir rankMaps normalizados (claves = sleeper player_id)
+    const rankMaps = rankingsByExpertRaw.map(ex => {
+      const src = String(ex.source || '').toLowerCase();
+      const map = new Map();
+      for (const p of ex.players || []) {
+        if (!p?.player_id) continue;
+        const raw = String(toId(p.player_id));
+        let normalizedId = null;
+        if (src === 'fantasypros') {
+          normalizedId = fpToSleeper.get(raw) || null; // si no se mapeó, lo ignoramos para evitar duplicados
+        } else {
+          normalizedId = raw;
         }
-        if (fallbackName && fallbackPos) break;
+        if (!normalizedId) continue;
+        // solo guardar rank si el jugador está en playersMap (evita huérfanos)
+        if (!playersMap.has(String(normalizedId))) continue;
+        const r = typeof p.rank === 'number' ? p.rank : (p.overall_rank ?? p.ecr ?? null);
+        map.set(String(normalizedId), typeof r === 'number' ? r : (Number.isFinite(Number(r)) ? Number(r) : null));
+      }
+
+      return {
+        expert_id: ex.expert_id ?? null,
+        expert_name: ex.expert_name ?? ex.experto ?? 'Desconocido',
+        source: ex.source ?? 'unknown',
+        published: ex.published ?? null,
+        map
+      };
+    });
+
+    // 10) Construcción final de filas usando solo playersMap keys (evita duplicados)
+    const rows = Array.from(playersMap.keys()).map(pid => {
+      const pd = playersMap.get(pid) || {};
+      // fallback de nombre/pos desde rankings si es necesario
+      let fallbackName = pd.full_name || pd.name || null;
+      let fallbackPos = pd.position || null;
+      if (!fallbackName || !fallbackPos) {
+        for (const ex of rankingsByExpertRaw) {
+          const src = String(ex.source || '').toLowerCase();
+          const found = (ex.players || []).find(p => {
+            const raw = String(toId(p.player_id));
+            const normalized = src === 'fantasypros' ? (fpToSleeper.get(raw) || null) : raw;
+            return String(normalized) === String(pid);
+          });
+          if (found) {
+            fallbackName = fallbackName || found.name || found.player_name || `${found.first_name || ''} ${found.last_name || ''}`.trim();
+            fallbackPos = fallbackPos || found.position || null;
+          }
+          if (fallbackName && fallbackPos) break;
+        }
       }
 
       const expert_ranks = rankMaps.map(rm => ({
@@ -397,32 +496,27 @@ export async function getDraftData(
         expert: rm.expert_name,
         source: rm.source,
         published: rm.published,
-        rank: rm.map.get(pid) ?? null
+        rank: rm.map.get(String(pid)) ?? null
       }));
 
       const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
-      const adpRec = adpMap.get(pid);
+      const adpRec = adpMap.get(String(pid));
       const adp_rank = adpRec?.adp_rank ?? null;
 
       return {
-        player_id: pid,
-        // Info principal
-        name: pd.full_name || pd.name || fallbackName || null,
+        player_id: String(pid),
+        name: fallbackName || null,
         position: pd.position || fallbackPos || null,
         team: pd.team || pd.team_abbr || null,
         bye: pd.bye_week ?? pd.bye ?? null,
-
-        // Toda la info que ya manejas del jugador (anidada)
         player: pd,
-
-        // ADP y Rankings
         adp_rank,
         experts: expert_ranks,
         avg_rank
       };
     });
 
-    // 9) Orden por consenso y ADP
+    // 11) Orden final (por avg_rank y fallback ADP)
     rows.sort((a, b) => {
       if (a.avg_rank === null && b.avg_rank === null) {
         const aAdp = a.adp_rank ?? Infinity;
@@ -437,6 +531,7 @@ export async function getDraftData(
       return aAdp - bAdp;
     });
 
+    // 12) Resultado (igual formato que antes)
     return {
       mode: 'consensus_simple',
       params: {
@@ -448,7 +543,7 @@ export async function getDraftData(
         dynasty,
         superFlex,
         ADPdate: adpDate,
-        experts_used: rankingsByExpert.map(ex => ({
+        experts_used: rankingsByExpertRaw.map(ex => ({
           expert_id: ex.expert_id,
           expert: ex.expert_name,
           source: ex.source,
