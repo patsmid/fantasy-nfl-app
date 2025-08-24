@@ -134,7 +134,7 @@ export async function getExpertData(idExpert) {
   return data;
 }
 
-export function getTopExpertsFromDB(limit = 3) {
+export async function getTopExpertsFromDB(limit = 3) {
   // Ajusta nombres de columnas si tu tabla difiere
   const { data, error } = await supabase
     .from('experts')
