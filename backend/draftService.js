@@ -313,33 +313,60 @@ export async function getDraftData(
     // 4) ADP
     const adpType = getADPtype(scoring, dynasty, superFlex);
     let rawAdpData = [];
+    let adpSource = 'fantasypros';
+
+    // si es dynasty/superflex o pediste sleeperADP -> Sleeper ADP
     if (dynasty || superFlex || sleeperADP) {
       rawAdpData = (await getADPData(adpType)) || [];
+      adpSource = 'sleeper';
     } else {
-      const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
-      rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
-    }
-    const normalizedAdp = normalizeADPRecords(
-      rawAdpData,
-      (dynasty || superFlex || sleeperADP) ? 'sleeper' : 'fantasypros'
-    ).map(a => ({ ...a, adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null }));
-    const adpDate = getLatestDateFromADP(normalizedAdp);
-    const adpMap = new Map(normalizedAdp.filter(a => a.sleeper_player_id).map(a => [String(a.sleeper_player_id), a]));
+      // si es redraft normal -> usa FantasyPros ADP simple
+      const adp_type =
+        scoring === 'PPR'
+          ? 'FP_ppr'
+          : scoring === 'HALF'
+          ? 'FP_half-ppr'
+          : 'FP_ppr';
 
-    // 5) Unión de ids
+      rawAdpData = (await getFantasyProsADPDataSimple({ adp_type })) || [];
+      adpSource = 'fantasypros';
+    }
+
+    const normalizedAdp = normalizeADPRecords(rawAdpData, adpSource).map(a => ({
+      ...a,
+      adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null,
+    }));
+
+    const adpDate = getLatestDateFromADP(normalizedAdp);
+
+    // map rápido de ADP por sleeper_player_id
+    const adpMap = new Map(
+      normalizedAdp
+        .filter(a => a?.sleeper_player_id)
+        .map(a => [String(a.sleeper_player_id), a])
+    );
+
+    // 5) Unión de ids (aseguramos rankingsByExpert siempre definido)
     const allIds = new Set();
-    for (const ex of rankingsByExpert) {
-      for (const p of ex.players || []) {
-        if (p?.player_id) allIds.add(String(toId(p.player_id)));
+
+    if (Array.isArray(rankingsByExpert) && rankingsByExpert.length > 0) {
+      for (const ex of rankingsByExpert) {
+        for (const p of ex.players || []) {
+          if (p?.player_id) allIds.add(String(toId(p.player_id)));
+        }
       }
     }
+
+    // aunque no haya expertos, agregamos los ids de ADP
     for (const a of normalizedAdp) {
       if (a?.sleeper_player_id) allIds.add(String(a.sleeper_player_id));
     }
 
     // 6) Datos del jugador
     const playersData = await getPlayersData(Array.from(allIds));
-    const playersMap = new Map((playersData || []).map(p => [String(toId(p.player_id)), p]));
+    const playersMap = new Map(
+      (playersData || []).map(p => [String(toId(p.player_id)), p])
+    );
 
     // 7) Rank maps por experto
     const rankMaps = rankingsByExpert.map(ex => ({
