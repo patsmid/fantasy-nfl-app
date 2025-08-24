@@ -440,6 +440,41 @@ export async function getDraftData(
     const playersData = await getPlayersData(Array.from(finalIdSet));
     const playersMap = new Map((playersData || []).map(p => [String(toId(p.player_id)), p]));
 
+    const numberOrNull = v => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    const rankMaps = (rankingsByExpertRaw || []).map(ex => {
+      const src = String(ex.source || '').toLowerCase();
+      const map = new Map();
+
+      for (const p of ex.players || []) {
+        if (!p?.player_id) continue;
+        const rawId = String(toId(p.player_id));
+
+        // Si viene de FantasyPros, intenta normalizar a sleeper usando fpToSleeper
+        // Si no hay mapping, lo ignoramos (evita huérfanos/duplicados)
+        const normalizedId = src === 'fantasypros' ? (fpToSleeper.get(rawId) || null) : rawId;
+        if (!normalizedId) continue;
+
+        // Solo guardar si ese player existe en playersMap (asegura consistencia con modo experto)
+        if (!playersMap.has(String(normalizedId))) continue;
+
+        const r = numberOrNull(p.rank) ?? numberOrNull(p.overall_rank) ?? numberOrNull(p.ecr);
+        if (r !== null) {
+          map.set(String(normalizedId), r);
+        }
+      }
+
+      return {
+        expert_id: ex.expert_id ?? null,
+        expert_name: ex.expert_name ?? ex.experto ?? 'Desconocido',
+        source: ex.source ?? 'unknown',
+        published: ex.published ?? null,
+        map
+      };
+    });
+
     const safeNum = v => {
       const n = Number(v);
       return Number.isFinite(n) ? n : 0;
