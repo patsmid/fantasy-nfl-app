@@ -139,7 +139,6 @@ export async function getTopExpertsFromDB(limit = 3) {
   const { data, error } = await supabase
     .from('experts')
     .select('id_experto, experto, source, active, display_order')
-    .eq('active', true)
     .order('display_order', { ascending: true })
     .limit(limit);
 
