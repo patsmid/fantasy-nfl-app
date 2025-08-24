@@ -3,9 +3,7 @@ import { positions } from '../utils/constants.js';
 import { getExpertData } from '../experts.js';
 import { supabase } from '../supabaseClient.js';
 
-export async function getRankings({ season, dynasty, scoring, expertData, position, weekStatic = null }) {
-  const nflState = await getNflState();
-
+export async function getRankings({ season, dynasty, scoring, expertData, position, week: weekStatic = null }) {
   if (expertData.source === 'manual') {
     return await getManualRankings(expertData.id);
   }
@@ -24,10 +22,10 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
       players: data
     };
   }
-  const week = nflState.season_type === 'pre' ? 0 : nflState.week;
-  console.log(weekStatic);
+  const nflState = await getNflState();
+  let week = nflState.season_type === 'pre' ? 0 : nflState.week;
   if (weekStatic !== null && weekStatic !== '') {
-    week = parseInt(weekStatic);
+    week = parseInt(weekStatic, 10);
   }
 
   let pos = position;
