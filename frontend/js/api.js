@@ -78,14 +78,14 @@ export async function fetchConsensusData(
 
     return {
       players: json.data.players,
-      params: json.params || {}
+      params: json.params || {},
+      myDrafted: json.data.my_drafted || []   // <-- añadido
     };
   } catch (err) {
     console.error('Error en fetchConsensusData:', err);
     throw err;
   }
 }
-
 
 export async function fetchPlayers() {
   const res = await fetchWithTimeout(`${API_BASE}/players`);

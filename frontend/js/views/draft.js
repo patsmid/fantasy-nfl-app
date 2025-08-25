@@ -1,13 +1,8 @@
 // frontend/src/views/draftConsenso.js
 import { showSuccess, showError, showLoadingBar } from '../../components/alerts.js';
-import { getAccessTokenFromClient } from '../../../components/authHelpers.js';
 import { positions } from '../../components/constants.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
 import { fetchConsensusData } from '../api.js';
-
-// Ajusta si tu base cambia
-const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
-const DRAFT_API_PATH = '/draft'; // endpoint consenso (no idExperto)
 
 export default async function renderConsensusDraft() {
   // --- Render chrome (estructura similar a tu primera vista, con controles de la segunda) ---
@@ -471,35 +466,7 @@ export default async function renderConsensusDraft() {
   }
 
   // -------------------------
-  // Fetch: se obtiene consenso desde backend (NO enviar idExperto)
-  // -------------------------
-  async function fetchConsensusData({ leagueId, position = 'ALL', byeCondition = 0, sleeperADP = false }) {
-    const token = await getAccessTokenFromClient().catch(() => null);
-    const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-
-		const qs = new URLSearchParams({
-		  leagueId: String(leagueId || ''),
-		  position: String(position || 'ALL'),
-		  byeCondition: String(Number(byeCondition || 0)),
-		  sleeperADP: sleeperADP ? '1' : '0'
-		});
-
-    const url = `${API_BASE}${DRAFT_API_PATH}?${qs.toString()}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      const t = await res.text().catch(() => '');
-      throw new Error(t || 'Error al descargar consenso');
-    }
-    const payload = await res.json();
-    // esperado: { data: { players, my_drafted }, params }
-    const players = payload?.data?.players ?? payload?.players ?? [];
-    const params = payload?.data?.params ?? payload?.params ?? payload?.params ?? {};
-    const my = payload?.data?.my_drafted ?? payload?.my_drafted ?? [];
-    return { players, params, myDrafted: my };
-  }
-
-  // -------------------------
-  // Carga principal
+  // Carga principal (usa api.js)
   // -------------------------
   async function loadConsensus() {
     try {
@@ -518,16 +485,19 @@ export default async function renderConsensusDraft() {
       }
 
       const position = positionSelect.value || 'ALL';
+      // La API espera "TODAS" para el comodín
+      const apiPosition = (position === 'ALL' || position === 'TODAS') ? 'TODAS' : position;
+
       const byeCond = Number(byeInput.value || 0);
       const sleeper = !!sleeperADPCheckbox.checked;
 
       showLoadingBar('Cargando consenso', 'Descargando jugadores...');
-			const { players, params, myDrafted: my } = await fetchConsensusData({
-			  leagueId,
-			  position,
-			  byeCondition: byeCond,
-			  sleeperADP: sleeper
-			});
+      const { players, params } = await fetchConsensusData(
+        leagueId,
+        apiPosition,
+        byeCond,
+        sleeper
+      );
 
       Swal.close();
 
@@ -541,7 +511,8 @@ export default async function renderConsensusDraft() {
       }
 
       draftData = normalizePlayers(players);
-      myDrafted = Array.isArray(my) ? my : [];
+      myDrafted = []; // la nueva API no devuelve my_drafted
+
       // publicar etiquetas fecha
       if (params?.ranks_published) {
         const fecha = new Date(params.ranks_published);
@@ -654,7 +625,7 @@ export default async function renderConsensusDraft() {
 
   searchInput.addEventListener('input', debounce((e) => { searchQuery = e.target.value || ''; currentPage = 1; applyFiltersAndSort(); }, 250));
 
-  btnRefresh.addEventListener('click', loadConsensus);
+  btnRefresh.addEventListener('click', loadConsensus); // evita doble binding
 
   // Inicial: lista vacía
   filtered = [];
@@ -666,6 +637,5 @@ export default async function renderConsensusDraft() {
   if (initialLeague) await loadConsensus();
 
   // Offcanvas open handler to refresh drafted list
-  document.getElementById('btn-refresh-draft')?.addEventListener('click', loadConsensus);
   document.querySelector('[data-bs-target="#offcanvasDrafted"]')?.addEventListener('click', renderDraftedOffcanvas);
 }
