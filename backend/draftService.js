@@ -10,7 +10,7 @@ import { getSleeperLeague } from './utils/sleeper.js';
 import { getFantasyProsADPDataSimple } from './lib/fantasyprosService.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoffPro } from './lib/vorUtils.js';
-import { buildFinalPlayers } from './lib/transformPlayers.js';
+import { buildFinalPlayers, buildFinalPlayersSimple } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
 import { getExpertData, getTopExpertsFromDB } from './experts.js';
 
@@ -264,208 +264,174 @@ export async function getDraftData(
     // CONSENSO RÁPIDO (OPTIMIZADO)
     // ------------------
 
-    // 2) Top 3 expertos
-    const top3 = await getTopExpertsFromDB(3);
-    if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
+		// 2) Top 3 expertos
+		const top3 = await getTopExpertsFromDB(3);
+		if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
 
-    const expertsData = top3.map(row => {
-      if (!row) return null;
-      const src = row.source ? String(row.source).toLowerCase() : 'desconocido';
-      if (src === 'fantasypros') {
-        return { source: 'fantasypros', id: row.id, id_experto: row.id_experto ?? null, experto: row.experto ?? 'Sin nombre' };
-      }
-      if (src === 'manual') return { source: 'manual', id: row.id, experto: row.experto ?? 'Sin nombre' };
-      if (src === 'flock') return { source: 'flock', id: row.id, experto: row.experto ?? 'Sin nombre' };
-      return { source: src, id: row.id, id_experto: row.id_experto ?? null, experto: row.experto ?? 'Sin nombre' };
-    }).filter(Boolean);
+		const expertsData = top3.map(row => {
+		  if (!row) return null;
+		  const src = row.source ? String(row.source).toLowerCase() : 'desconocido';
+		  return {
+		    source: src,
+		    id: row.id,
+		    id_experto: row.id_experto ?? null,
+		    experto: row.experto ?? 'Sin nombre'
+		  };
+		}).filter(Boolean);
 
-    // 3) Rankings por experto (en paralelo)
-    const week = 0;
-    const rankingsByExpertRaw = await Promise.all(
-      expertsData.map(async (ed) => {
-        const r = await getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week });
-        return {
-          expert_id: ed.id_experto ?? ed.id ?? null,
-          expert_name: ed.experto ?? ed.expert ?? 'Desconocido',
-          source: r?.source ?? ed.source ?? 'unknown',
-          published: r?.published ?? null,
-          players: Array.isArray(r?.players) ? r.players : []
-        };
-      })
-    );
+		// 3) Rankings por experto (en paralelo)
+		const week = 0;
+		const rankingsByExpertRaw = await Promise.all(
+		  expertsData.map(async (ed) => {
+		    const r = await getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week });
+		    return {
+		      expert_id: ed.id_experto ?? ed.id ?? null,
+		      expert_name: ed.experto ?? 'Desconocido',
+		      source: r?.source ?? ed.source ?? 'unknown',
+		      published: r?.published ?? null,
+		      players: Array.isArray(r?.players) ? r.players : []
+		    };
+		  })
+		);
 
-    // 4) ADP (igual que antes — base rápida)
-    const adpType = getADPtype(scoring, dynasty, superFlex);
-    let rawAdpData2 = [];
-    let adpSource = 'fantasypros';
-    if (dynasty || superFlex || sleeperADP) {
-      rawAdpData2 = (await getADPData(adpType)) || [];
-      adpSource = 'sleeper';
-    } else {
-      const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
-      rawAdpData2 = (await getFantasyProsADPDataSimple({ adp_type })) || [];
-      adpSource = 'fantasypros';
-    }
-    const normalizedAdp = normalizeADPRecords(rawAdpData2, adpSource).map(a => ({
-      ...a,
-      adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null
-    }));
-    const adpDate = getLatestDateFromADP(normalizedAdp);
-    const adpPlayerIds = Array.from(new Set(normalizedAdp.map(a => String(a.sleeper_player_id)).filter(Boolean)));
+		// 4) ADP
+		const adpType = getADPtype(scoring, dynasty, superFlex);
+		let rawAdpData2 = [];
+		let adpSource = 'fantasypros';
+		if (dynasty || superFlex || sleeperADP) {
+		  rawAdpData2 = (await getADPData(adpType)) || [];
+		  adpSource = 'sleeper';
+		} else {
+		  const adp_type = scoring === 'PPR' ? 'FP_ppr' : scoring === 'HALF' ? 'FP_half-ppr' : 'FP_ppr';
+		  rawAdpData2 = (await getFantasyProsADPDataSimple({ adp_type })) || [];
+		  adpSource = 'fantasypros';
+		}
+		const normalizedAdp = normalizeADPRecords(rawAdpData2, adpSource).map(a => ({
+		  ...a,
+		  adp_rank: a.adp_rank !== null ? Number(a.adp_rank) : null
+		}));
+		const adpDate = getLatestDateFromADP(normalizedAdp);
 
-    // 5) playersData SOLO para ADP (rápido)
-    const playersData = await getPlayersData(adpPlayerIds);
-    const playersMap = new Map((playersData || []).map(p => [String(toId(p.player_id)), p]));
-    const adpMap = new Map(normalizedAdp.filter(a => a?.sleeper_player_id).map(a => [String(a.sleeper_player_id), a]));
+		// 5) playersData SOLO para ADP
+		const adpPlayerIds = normalizedAdp.map(a => String(a.sleeper_player_id)).filter(Boolean);
+		const playersData = await getPlayersData(adpPlayerIds);
+		const playersMap = new Map(playersData.map(p => [String(toId(p.player_id)), p]));
+		const adpMap = new Map(normalizedAdp.map(a => [String(a.sleeper_player_id), a]));
 
-    // helpers locales
-    const numberOrNull = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-    const averageNonNull = nums => { const arr = (nums||[]).filter(n => typeof n === 'number' && Number.isFinite(n)); return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; };
-    // extraer rank robusto (fallback a índice)
-    function extractRankFromExpertPlayer(p, index) {
-      return numberOrNull(p?.rank) ?? numberOrNull(p?.overall_rank) ?? numberOrNull(p?.ecr) ?? (typeof index === 'number' ? index + 1 : null);
-    }
+		// 6) Preparar myDraft para info extra
+		const drafted = leagueData.draft_id ? await getDraftPicks(leagueData.draft_id) : [];
+		const myDraft = getMainUserDraft(drafted || [], mainUserId) || [];
+		const myByeWeeksSet = new Set();
+		const myTeams = [];
+		for (const pick of myDraft) {
+		  const pid = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
+		  const pInfo = playersMap.get(pid);
+		  if (pInfo) {
+		    const bw = Number(pInfo.bye_week);
+		    if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
+		    if (pInfo.team) myTeams.push(pInfo.team);
+		  }
+		}
 
-    // 6) Para cada player del ADP, buscamos rank en cada experto por: player_id exacto -> name exacto -> fuzzySearch -> índice
-    const rows = [];
-    const drafted = leagueData.draft_id ? await getDraftPicks(leagueData.draft_id) : [];
-    const myDraft = getMainUserDraft(drafted || [], mainUserId) || [];
-    const myByeWeeksSet = new Set();
-    const myTeams = [];
-    for (const pick of (myDraft || [])) {
-      const pid = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
-      const pInfo = playersMap.get(pid);
-      if (pInfo) {
-        const bw = Number(pInfo.bye_week);
-        if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
-        if (pInfo.team) myTeams.push(pInfo.team);
-      }
-    }
-    const safeNum = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-    const goodOffenseList = Array.isArray(goodOffense) ? goodOffense : [];
+		// 7) Calcular filas finales
+		const rows = [];
 
-    for (const a of normalizedAdp) {
-      const pid = String(a.sleeper_player_id);
-      const playerInfo = playersMap.get(pid);
-      if (!playerInfo) continue; // omitimos ADP que no tenemos en playersData
+		function extractRankFromExpertPlayer(p, index) {
+		  const n = Number(p?.rank ?? p?.overall_rank ?? p?.ecr);
+		  return Number.isFinite(n) ? n : (typeof index === 'number' ? index + 1 : null);
+		}
 
-      const fullName = playerInfo.full_name || `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim();
+		function averageNonNull(nums) {
+		  const filtered = nums.filter(n => Number.isFinite(n));
+		  return filtered.length ? filtered.reduce((a, b) => a + b, 0) / filtered.length : null;
+		}
 
-      const expert_ranks = rankingsByExpertRaw.map(ex => {
-        // intento 1: buscar por player_id que coincida (si el experto ya usa sleeper ids)
-        let foundIndex = -1;
-        let found = (ex.players || []).find((p, idx) => {
-          // compare normalized ids si posible
-          try {
-            if (p?.player_id && String(toId(p.player_id)) === pid) { foundIndex = idx; return true; }
-          } catch (err) { /* ignore */ }
-          return false;
-        });
+		for (const a of normalizedAdp) {
+		  const pid = String(a.sleeper_player_id);
+		  const playerInfo = playersMap.get(pid);
+		  if (!playerInfo) continue;
 
-        // intento 2: búsqueda exacta por nombre
-        if (!found) {
-          foundIndex = (ex.players || []).findIndex((p) => {
-            const name = p?.name || p?.player_name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
-            return name && String(name).toLowerCase() === String(fullName).toLowerCase();
-          });
-          if (foundIndex !== -1) found = ex.players[foundIndex];
-        }
+		  const fullName = playerInfo.full_name || `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim();
 
-        // intento 3: fuzzySearch (si existe en scope)
-        if (!found) {
-          try {
-            const fuzzyMatches = typeof fuzzySearch === 'function' ? fuzzySearch(fullName, ex.players || []) : [];
-            if (Array.isArray(fuzzyMatches) && fuzzyMatches.length) {
-              found = fuzzyMatches[0];
-              // obtener index si podemos
-              foundIndex = (ex.players || []).findIndex(p => (p?.player_id && String(toId(p.player_id)) === String(found.player_id)) || ((p?.name||p?.player_name) === (found.name||found.player_name)));
-            }
-          } catch (err) {
-            // si fuzzySearch no existe o falla, lo ignoramos
-          }
-        }
+		  const expert_ranks = rankingsByExpertRaw.map(ex => {
+		    const found = ex.players.find((p, idx) => {
+		      const pidMatch = p?.player_id && String(toId(p.player_id)) === pid;
+		      if (pidMatch) return true;
+		      const name = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+		      return name.toLowerCase() === fullName.toLowerCase();
+		    });
+		    const index = ex.players.indexOf(found);
+		    return {
+		      expert_id: ex.expert_id,
+		      expert: ex.expert_name,
+		      source: ex.source,
+		      published: ex.published,
+		      rank: extractRankFromExpertPlayer(found, index)
+		    };
+		  });
 
-        // si aún no hay found, usaremos null rank
-        const rank = found ? extractRankFromExpertPlayer(found, foundIndex) : null;
+		  const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
+		  const adp_rank = a.adp_rank ?? null;
 
-        return {
-          expert_id: ex.expert_id,
-          expert: ex.expert_name,
-          source: ex.source,
-          published: ex.published,
-          rank
-        };
-      });
+		  const isRookie = playerInfo?.years_exp === 0;
+		  const rookie = isRookie ? ' (R)' : '';
+		  const bye = Number(playerInfo?.bye_week ?? 0);
+		  const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
+		  const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
+		  const isGoodOffense = Array.isArray(goodOffense) ? goodOffense.includes(playerInfo?.team) : false;
+		  const teamGood = isGoodOffense ? ' ✔️' : '';
 
-      const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
+		  rows.push({
+		    player_id: pid,
+		    name: fullName || null,
+		    position: playerInfo?.position || null,
+		    team: playerInfo?.team || playerInfo?.team_abbr || null,
+		    bye,
+		    isRookie,
+		    rookie,
+		    byeFound,
+		    teamFound,
+		    isGoodOffense,
+		    teamGood,
+		    player: playerInfo,
+		    adp_rank,
+		    experts: expert_ranks,
+		    avg_rank
+		  });
+		}
 
-      // campos tipo buildFinalPlayers (ligeros)
-      const isRookie = (playerInfo?.years_exp === 0);
-      const rookie = isRookie ? ' (R)' : '';
-      const bye = safeNum(playerInfo?.bye_week ?? 0);
-      const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
-      const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
-      const isGoodOffense = goodOffenseList.includes(playerInfo?.team);
-      const teamGood = isGoodOffense ? ' ✔️' : '';
+		// 8) Orden final y return
+		rows.sort((a, b) => {
+		  if (a.avg_rank === null && b.avg_rank === null) {
+		    return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
+		  }
+		  if (a.avg_rank === null) return 1;
+		  if (b.avg_rank === null) return -1;
+		  if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
+		  return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
+		});
 
-      const adpRec = adpMap.get(pid);
-      const adp_rank = adpRec?.adp_rank ?? null;
-
-      rows.push({
-        player_id: pid,
-        name: fullName || null,
-        position: playerInfo?.position || null,
-        team: playerInfo?.team || playerInfo?.team_abbr || null,
-        bye,
-        isRookie,
-        rookie,
-        byeFound,
-        teamFound,
-        isGoodOffense,
-        teamGood,
-        player: playerInfo,
-        adp_rank,
-        experts: expert_ranks,
-        avg_rank
-      });
-    }
-
-    // 7) Orden y retorno (igual que antes)
-    rows.sort((a, b) => {
-      if (a.avg_rank === null && b.avg_rank === null) {
-        const aAdp = a.adp_rank ?? Infinity;
-        const bAdp = b.adp_rank ?? Infinity;
-        return aAdp - bAdp;
-      }
-      if (a.avg_rank === null) return 1;
-      if (b.avg_rank === null) return -1;
-      if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
-      const aAdp = a.adp_rank ?? Infinity;
-      const bAdp = b.adp_rank ?? Infinity;
-      return aAdp - bAdp;
-    });
-
-    return {
-      mode: 'consensus_simple',
-      params: {
-        leagueId,
-        position,
-        byeCondition,
-        idExpert: null,
-        scoring,
-        dynasty,
-        superFlex,
-        ADPdate: adpDate,
-        experts_used: rankingsByExpertRaw.map(ex => ({
-          expert_id: ex.expert_id,
-          expert: ex.expert_name,
-          source: ex.source,
-          published: ex.published
-        }))
-      },
-      data: rows
-    };
-
+		return {
+		  mode: 'consensus_simple',
+		  params: {
+		    leagueId,
+		    position,
+		    byeCondition,
+		    idExpert: null,
+		    scoring,
+		    dynasty,
+		    superFlex,
+		    ADPdate: adpDate,
+		    experts_used: rankingsByExpertRaw.map(ex => ({
+		      expert_id: ex.expert_id,
+		      expert: ex.expert_name,
+		      source: ex.source,
+		      published: ex.published
+		    }))
+		  },
+		  data: rows
+		};
+		
   } catch (err) {
     console.error('Error en getDraftData:', err);
     throw new Error(`Error obteniendo datos del draft: ${err.message || err}`);

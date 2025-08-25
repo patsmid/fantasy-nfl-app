@@ -460,3 +460,85 @@ export function buildFinalPlayers({
     tierHeatmapPos
   };
 }
+
+export function buildFinalPlayersSimple({
+  adpData = [],
+  playersData = [],
+  rankings = [],
+  drafted = [],
+  myDraft = [],
+  num_teams = 10,
+  byeCondition = 0
+}) {
+  const draftedMap = new Map((drafted || []).map(p => [String(p.player_id), p]));
+  const playersDataMap = new Map((playersData || []).map(p => [String(p.player_id), p]));
+  const rankingsMap = new Map((rankings || []).map(r => [String(r.player_id), r]));
+
+  const myByeWeeksSet = new Set();
+  const myTeams = [];
+  for (const pick of (myDraft || [])) {
+    const playerId = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
+    const playerInfo = playersDataMap.get(playerId);
+    if (playerInfo) {
+      const bw = Number(playerInfo.bye_week);
+      if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
+      if (playerInfo.team) myTeams.push(playerInfo.team);
+    }
+  }
+
+  const rows = [];
+
+  for (const adp of adpData) {
+    try {
+      const rawId = adp?.sleeper_player_id ?? adp?.player_id ?? adp?.id;
+      if (!rawId) continue;
+
+      const playerId = String(rawId);
+      const playerInfo = playersDataMap.get(playerId);
+      if (!playerInfo || !playerInfo.full_name) continue;
+
+      const fullName = playerInfo.full_name;
+      const adp_rank = Number.isFinite(adp?.adp_rank) ? Number(adp.adp_rank) : null;
+
+      const ranking = rankingsMap.get(playerId) ?? {};
+      const rank = Number.isFinite(ranking?.rank) ? Number(ranking.rank) : null;
+
+      const isRookie = (playerInfo?.years_exp === 0);
+      const rookie = isRookie ? ' (R)' : '';
+      const bye = Number(playerInfo?.bye_week ?? 0);
+      const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
+      const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
+      const isGoodOffense = goodOffense.includes(playerInfo?.team);
+      const teamGood = isGoodOffense ? ' ✔️' : '';
+      const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
+
+      const nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
+      const status = draftedMap.has(playerId) ? '' : 'LIBRE';
+
+      rows.push({
+        player_id: playerId,
+        nombre,
+        position: playerInfo?.position ?? 'UNK',
+        team: playerInfo?.team ?? 'UNK',
+        bye,
+        rank,
+        adp_rank,
+        status,
+        valueOverADP: rank && adp_rank ? Number((rank / adp_rank).toFixed(2)) : null
+      });
+    } catch (err) {
+      console.warn('Error en buildFinalPlayersSimple:', err?.message ?? err);
+    }
+  }
+
+  rows.sort((a, b) => {
+    if (a.rank === null && b.rank === null) {
+      return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
+    }
+    if (a.rank === null) return 1;
+    if (b.rank === null) return -1;
+    return a.rank - b.rank;
+  });
+
+  return rows;
+}
