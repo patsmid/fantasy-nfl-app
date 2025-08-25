@@ -37,9 +37,11 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
     pos = 'TODAS_PRE';
   }
+	console.log('position:' + pos);
+	pos = pos.toUpperCase().replace(/\s+/g, ' ').trim();
 
-  const posObj = positions.find(p => p.nombre === pos) || positions.find(p => p.nombre === 'TODAS');
-  const posValue = posObj.valor || pos;
+	const posObj = positions.find(p => p.nombre.toUpperCase() === pos) || positions.find(p => p.nombre === 'TODAS');
+	const posValue = posObj.valor || pos;
 
   let type = 'PRESEASON';
   if (week > 0) type = 'WEEKLY';
