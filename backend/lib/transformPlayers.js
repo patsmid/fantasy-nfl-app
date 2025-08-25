@@ -538,30 +538,55 @@ export function buildFinalPlayersConsensus({
       const fullNameNorm = normalizeName(fullName);
 
       // --- Ranks de expertos robusto ---
-      const expert_ranks = rankingsByExpert.map(ex => {
-        const idx = ex.players.findIndex(p => {
-          const pidVal = (typeof toId === 'function')
-            ? String(toId(p?.player_id ?? ''))
-            : String(p?.player_id ?? '');
+			const expert_ranks = rankingsByExpert.map(ex => {
+			  let found = null;
+			  let idx = -1;
 
-          if (pidVal && pidVal === playerId) return true;
+			  // 1) Intentar por player_id
+			  idx = ex.players.findIndex(p => {
+			    const pidVal = (typeof toId === 'function')
+			      ? String(toId(p?.player_id ?? ''))
+			      : String(p?.player_id ?? '');
+			    return pidVal && pidVal === playerId;
+			  });
+			  if (idx >= 0) {
+			    found = ex.players[idx];
+			  }
 
-          const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
-          return normalizeName(candidateName) === fullNameNorm;
-        });
+			  // 2) Intentar por nombre normalizado exacto
+			  if (!found) {
+			    idx = ex.players.findIndex(p => {
+			      const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+			      return normalizeName(candidateName) === fullNameNorm;
+			    });
+			    if (idx >= 0) {
+			      found = ex.players[idx];
+			    }
+			  }
 
-        const found = idx >= 0 ? ex.players[idx] : null;
-        const parsedRank = getRankFromPlayerObj(found);
+			  // 3) Fallback fuzzy si nada de lo anterior funcionó
+			  if (!found) {
+			    const fuzzyMatches = fuzzySearch(fullName, ex.players || []);
+			    if (fuzzyMatches.length) {
+			      found = fuzzyMatches[0];
+			      console.log(`[CONSENSUS][${ex.source}] Fuzzy match usado para "${fullName}" → "${found?.name}"`);
+			    }
+			  }
 
-        return {
-          expert_id: ex.expert_id,
-          expert: ex.expert_name,
-          source: ex.source,
-          published: ex.published,
-          // Solo usa fallback index+1 si lo encontró (idx >= 0). Jamás regreses 0.
-          rank: parsedRank ?? (idx >= 0 ? idx + 1 : null)
-        };
-      });
+			  // 4) Parsear rank
+			  const parsedRank = getRankFromPlayerObj(found);
+			  if (!parsedRank && !found) {
+			    console.warn(`[CONSENSUS][${ex.source}] No se encontró rank para "${fullName}"`);
+			  }
+
+			  return {
+			    expert_id: ex.expert_id,
+			    expert: ex.expert_name,
+			    source: ex.source,
+			    published: ex.published,
+			    rank: parsedRank ?? (idx >= 0 ? idx + 1 : null)
+			  };
+			});
 
       const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
       const adp_rank = asValidRank(adp?.adp_rank);
