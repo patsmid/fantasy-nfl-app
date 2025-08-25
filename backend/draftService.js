@@ -323,7 +323,7 @@ export async function getDraftData(
 		const myDraft = getMainUserDraft(drafted || [], mainUserId) || [];
 
 		// 7) Calcular filas finales usando NUEVA FUNCIÓN
-		const rows = buildFinalPlayersConsensus({
+		const { players, my_drafted } = buildFinalPlayersConsensus({
 		  adpData: normalizedAdp,
 		  playersData,
 		  rankingsByExpert: rankingsByExpertRaw,
@@ -352,7 +352,8 @@ export async function getDraftData(
 		      published: ex.published
 		    }))
 		  },
-		  data: rows
+		  data: players,
+		  my_drafted
 		};
 
   } catch (err) {

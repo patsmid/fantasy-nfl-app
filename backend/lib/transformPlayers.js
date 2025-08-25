@@ -674,8 +674,8 @@ export function buildFinalPlayersConsensus({
 
   console.log(`[CONSENSUS] Jugadores de mi equipo drafteados: ${myDraftedPlayers.length}`);
 
-  // Adjuntamos como propiedad del array (compatibilidad hacia atrás)
-  rows.my_drafted = myDraftedPlayers;
-
-  return rows;
+	return {
+	  players: rows,
+	  my_drafted: myDraftedPlayers
+	};
 }
