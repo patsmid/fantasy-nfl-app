@@ -569,7 +569,7 @@ export function buildFinalPlayersConsensus({
 			    const fuzzyMatches = fuzzySearch(fullName, ex.players || []);
 			    if (fuzzyMatches.length) {
 			      found = fuzzyMatches[0];
-			      console.log(`[CONSENSUS][${ex.source}] Fuzzy match usado para "${fullName}" → "${found?.name}"`);
+			      //console.log(`[CONSENSUS][${ex.source}] Fuzzy match usado para "${fullName}" → "${found?.name}"`);
 			    }
 			  }
 
@@ -678,7 +678,7 @@ export function buildFinalPlayersConsensus({
     myDraftedPlayers.push({ nombre, team, position, bye });
   }
 
-  console.log(`[CONSENSUS] Jugadores de mi equipo drafteados: ${myDraftedPlayers.length}`);
+  //console.log(`[CONSENSUS] Jugadores de mi equipo drafteados: ${myDraftedPlayers.length}`);
 
 	return {
 	  players: rows,
