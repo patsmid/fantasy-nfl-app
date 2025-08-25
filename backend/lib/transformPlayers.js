@@ -623,8 +623,7 @@ export function buildFinalPlayersConsensus({
     }
   }
 
-  // --- Orden ---
-  rows.sort((a, b) => {
+	rows.sort((a, b) => {
     if ((a.avg_rank ?? null) === null && (b.avg_rank ?? null) === null) {
       return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
     }
@@ -633,6 +632,50 @@ export function buildFinalPlayersConsensus({
     if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
     return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
   });
+
+  // ===============================
+  // JUGADORES DE MI EQUIPO YA DRAFTEADOS
+  // ===============================
+  // Mapeamos mis picks por player_id para acceder a metadatos si faltan en playersData
+  const myDraftMap = new Map((myDraft || []).map(p => [
+    String(p?.player_id ?? p?.metadata?.player_id ?? ''),
+    p
+  ]));
+
+  const myDraftedPlayers = [];
+  const seenIds = new Set();
+
+  for (const [pid, pick] of myDraftMap.entries()) {
+    if (!pid || seenIds.has(pid)) continue;
+    seenIds.add(pid);
+
+    const pInfo = playersDataMap.get(pid);
+    const nombre =
+      pInfo?.full_name ||
+      [pInfo?.first_name, pInfo?.last_name].filter(Boolean).join(' ') ||
+      pick?.metadata?.player_name ||
+      pick?.player?.full_name ||
+      pick?.display_name ||
+      pid;
+
+    const team = pInfo?.team ?? pick?.metadata?.team ?? pick?.team ?? null;
+    const position = pInfo?.position ?? pick?.metadata?.position ?? pick?.position ?? null;
+
+    let bye = Number(
+      pInfo?.bye_week ??
+      pick?.metadata?.bye_week ??
+      pick?.bye_week ??
+      NaN
+    );
+    if (!Number.isFinite(bye)) bye = null;
+
+    myDraftedPlayers.push({ nombre, team, position, bye });
+  }
+
+  console.log(`[CONSENSUS] Jugadores de mi equipo drafteados: ${myDraftedPlayers.length}`);
+
+  // Adjuntamos como propiedad del array (compatibilidad hacia atrás)
+  rows.my_drafted = myDraftedPlayers;
 
   return rows;
 }
