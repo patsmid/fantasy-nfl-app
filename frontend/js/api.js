@@ -53,6 +53,40 @@ export async function fetchDraftData(
   }
 }
 
+export async function fetchConsensusData(
+  leagueId,
+  position = 'TODAS',
+  byeCondition = 0,
+  sleeperADP = false
+) {
+  const url = `${API_BASE}/draft/${leagueId}?position=${encodeURIComponent(position)}&byeCondition=${byeCondition}&sleeperADP=${sleeperADP}`;
+
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`Error HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+
+    // Validar estructura esperada
+    if (!json?.data?.players || !Array.isArray(json.data.players)) {
+      console.error('Respuesta inesperada del servidor:', json);
+      throw new Error('Formato inválido: faltan jugadores en la respuesta');
+    }
+
+    return {
+      players: json.data.players,
+      params: json.params || {}
+    };
+  } catch (err) {
+    console.error('Error en fetchConsensusData:', err);
+    throw err;
+  }
+}
+
+
 export async function fetchPlayers() {
   const res = await fetchWithTimeout(`${API_BASE}/players`);
   const json = await res.json();
