@@ -132,7 +132,9 @@ export default async function renderConsensusDraft() {
     </div>
   `;
 
-  // refs
+  // -------------------------
+  // Refs y estado
+  // -------------------------
   const leagueSelect = document.getElementById('select-league');
   const positionSelect = document.getElementById('select-position');
   const statusSelect = document.getElementById('select-status');
@@ -157,16 +159,20 @@ export default async function renderConsensusDraft() {
   let currentPage = 1;
   let pageSize = Number(pageSizeSel.value) || 12;
   let searchQuery = '';
-  // ensure defaults
-  sortBySel.value = sortBySel.value || 'avg_rank';
-  sortDirSel.value = sortDirSel.value || 'asc';
+
+  // concurrency control
+  let currentAbortController = null;
+  let lastLoadSeq = 0;
+  let leagueSelectInitialized = false; // to prevent tomselect onChange during init
 
   // restore localstorage
   try { positionSelect.value = localStorage.getItem('consensusPosition') || positionSelect.value; } catch(e){}
   try { statusSelect.value = localStorage.getItem('consensusStatus') || statusSelect.value; } catch(e){}
   try { sleeperADPCheckbox.checked = (localStorage.getItem('consensusSleeperADP') === 'true') || false; } catch(e){}
 
-  // helpers
+  // -------------------------
+  // Helpers (escaped + numerics)
+  // -------------------------
   function debounce(fn, wait = 200) {
     let t;
     return (...args) => {
@@ -228,7 +234,7 @@ export default async function renderConsensusDraft() {
     }));
   }
 
-  // shark helpers (kept intact)
+  // shark helpers (intact)
   function _rangeFrom(arr, pick) {
     const vals = arr.map(pick).map(Number).filter(Number.isFinite);
     if (!vals.length) return [0,1];
@@ -282,7 +288,9 @@ export default async function renderConsensusDraft() {
     return score;
   }
 
-  // render grid & pagination
+  // -------------------------
+  // Renderers
+  // -------------------------
   function renderPlayersGrid() {
     const list = filtered || [];
     if (!list.length) {
@@ -303,12 +311,10 @@ export default async function renderConsensusDraft() {
 
     grid.innerHTML = pagePlayers.map(p => {
       const posBadge = getPositionBadge(p.position);
-      // treat empty status as libero
       const statusBadge = (p.status && !isFreeStatus(p.status)) ? '<span class="badge bg-secondary">Tomado</span>' : '<span class="badge bg-success">LIBRE</span>';
       const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:.1rem .5rem;border-radius:6px;font-weight:700;`;
       const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
 
-      // experts short list visible
       const expertsShort = (p.experts || []).slice(0,3).map(e => `${escapeHtml(e.expert)} (${safeNum(e.rank,2)})`).join(', ');
       const expertsMore = (p.experts || []).length > 3 ? ` +${(p.experts || []).length - 3} more` : '';
 
@@ -377,7 +383,6 @@ export default async function renderConsensusDraft() {
     const firstDisabled = currentPage === 1 ? 'disabled' : '';
     const lastDisabled = currentPage === totalPages ? 'disabled' : '';
 
-    // simple controls + page number
     paginationEl.innerHTML = `
       <button class="page-btn" id="btn-first" ${firstDisabled}>«</button>
       <button class="page-btn" id="btn-prev" ${firstDisabled}>‹</button>
@@ -392,7 +397,7 @@ export default async function renderConsensusDraft() {
     paginationEl.querySelector('#btn-last')?.addEventListener('click', () => { const tot = Math.ceil(filtered.length / pageSize); if (currentPage !== tot) { currentPage = tot; renderPlayersGrid(); renderPagination(); } });
   }
 
-  // isFreeStatus : treat empty as free
+  // treat empty status as free
   function isFreeStatus(s) {
     const t = (s ?? '').toString().trim().toLowerCase();
     if (!t) return true;
@@ -454,7 +459,6 @@ export default async function renderConsensusDraft() {
         if (bNull) return -1;
         if (va < vb) return -1 * dir;
         if (va > vb) return 1 * dir;
-        // desempata con adp_rank
         const aa = a?.adp_rank ?? Number.POSITIVE_INFINITY;
         const bb = b?.adp_rank ?? Number.POSITIVE_INFINITY;
         if (aa < bb) return -1 * dir;
@@ -468,8 +472,25 @@ export default async function renderConsensusDraft() {
     renderPagination();
   }
 
-  // load consensus from API
+  // -------------------------
+  // loadConsensus with abort + seq protection
+  // -------------------------
   async function loadConsensus() {
+    // abort previous request (if any) to avoid race and extra Swals
+    try { currentAbortController?.abort(); } catch (e) {}
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
+    const mySeq = ++lastLoadSeq;
+
+    // ensure any previous Swal closed, then open a new loading UI
+    try { Swal.close(); } catch(e) {}
+    try {
+      showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos');
+    } catch (e) {
+      // fallback in case showLoadingBar throws
+      try { Swal.fire({ title: 'Cargando consenso', text: 'Esto puede tardar unos segundos', allowOutsideClick:false, didOpen: () => Swal.showLoading() }); } catch(e2) {}
+    }
+
     try {
       const qsLeagueId = (() => {
         try {
@@ -489,18 +510,21 @@ export default async function renderConsensusDraft() {
       const byeCond = Number(byeInput.value || 0);
       const sleeper = !!sleeperADPCheckbox.checked;
 
-      showLoadingBar('Cargando consenso', 'Descargando jugadores...');
+      // Try passing the signal as last arg (fetchConsensusData may ignore it; seq protects results)
+      const maybeOptions = { signal };
+      const result = await fetchConsensusData(leagueId, apiPosition, byeCond, sleeper, maybeOptions);
 
-      // keep signature compatible con tu api.js
-      const { players = [], params = {}, myDrafted: apiMyDrafted = [] } = await fetchConsensusData(
-        leagueId,
-        apiPosition,
-        byeCond,
-        sleeper
-      );
+      // if some other load started after this one, discard results
+      if (mySeq !== lastLoadSeq) {
+        return;
+      }
 
-      // normalize once, sort by avg_rank asc by default
+      const players = result?.data || result?.players || [];
+      const params = result?.params || {};
+      const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.my_drafted || result?.myDrafted || result?.myDrafted; // tolerate formats
+      // normalize
       draftData = normalizePlayers(players || []);
+      // default ordering by avg_rank asc
       draftData.sort((a,b) => {
         const aa = a?.avg_rank ?? Number.POSITIVE_INFINITY;
         const bb = b?.avg_rank ?? Number.POSITIVE_INFINITY;
@@ -509,7 +533,7 @@ export default async function renderConsensusDraft() {
         return 0;
       });
 
-      myDrafted = apiMyDrafted || [];
+      myDrafted = result?.my_drafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || [];
 
       // publish dates
       if (params?.ranks_published) {
@@ -528,18 +552,28 @@ export default async function renderConsensusDraft() {
       }
 
       applyFiltersAndSort();
-      renderDraftedOffcanvas(); // pre-render drafted
+      renderDraftedOffcanvas();
       showSuccess('Consenso actualizado');
     } catch (err) {
+      if (err && err.name === 'AbortError') {
+        // aborted intentionally — do nothing
+        return;
+      }
       console.error('loadConsensus error', err);
       showError('Error al cargar consenso: ' + (err?.message || err));
     } finally {
-      try { Swal.close(); } catch(e) {}
-      try { showLoadingBar(false); } catch(e) {}
+      // only close the loading UI if this is the last completed call
+      if (mySeq === lastLoadSeq) {
+        try { Swal.close(); } catch(e) {}
+        try { showLoadingBar(false); } catch(e) {}
+        currentAbortController = null;
+      }
     }
   }
 
-  // offcanvas drafted renderer
+  // -------------------------
+  // Offcanvas drafted renderer
+  // -------------------------
   function renderDraftedOffcanvas() {
     const wrap = document.getElementById('drafted-list');
     const countEl = document.getElementById('drafted-count');
@@ -568,7 +602,9 @@ export default async function renderConsensusDraft() {
     `;
   }
 
-  // UI events
+  // -------------------------
+  // Events
+  // -------------------------
   statusSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusStatus', statusSelect.value); }catch{} applyFiltersAndSort(); });
   positionSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusPosition', positionSelect.value); }catch{} applyFiltersAndSort(); });
   byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
@@ -580,10 +616,10 @@ export default async function renderConsensusDraft() {
 
   searchInput.addEventListener('input', debounce((e) => { searchQuery = e.target.value || ''; currentPage = 1; applyFiltersAndSort(); }, 250));
 
-  btnRefresh.addEventListener('click', loadConsensus);
-  btnOpenDrafted?.addEventListener('click', () => { renderDraftedOffcanvas(); });
+  btnRefresh.addEventListener('click', () => loadConsensus());
+  btnOpenDrafted?.addEventListener('click', () => renderDraftedOffcanvas());
 
-  // initialize league select (returns tomselect instance usually)
+  // initialize league select
   let leagueTS = null;
   try {
     leagueTS = await renderLeagueSelect('#select-league', {
@@ -592,18 +628,19 @@ export default async function renderConsensusDraft() {
       create: false,
       persist: false,
       onChange() {
+        // avoid triggering on initial setValue while we initialize
+        if (!leagueSelectInitialized) return;
         try { localStorage.setItem('consensusLeague', this.getValue?.() || ''); } catch(e) {}
         if (this && typeof this.blur === 'function') this.blur();
         loadConsensus();
       }
     });
   } catch (e) {
-    // fallback
     await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
   }
   if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
 
-  // apply saved league
+  // apply saved league but avoid triggering onChange automatic load
   try {
     const url = new URL(window.location.href);
     const qLeague = url.searchParams.get('leagueId');
@@ -619,23 +656,26 @@ export default async function renderConsensusDraft() {
     }
   } catch (e) {}
 
-  // initial empty render
+  // allow onChange to run now
+  leagueSelectInitialized = true;
+
+  // initial render
   filtered = [];
   renderPlayersGrid();
   renderPagination();
 
-  // if league already selected, load
+  // if league exists, load once
   const initialLeague = (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
   if (initialLeague) await loadConsensus();
 
-  // also render drafted offcanvas when the offcanvas is shown (if bootstrap event exists)
+  // close stale Swal on unload (safety)
+  window.addEventListener('beforeunload', () => { try { Swal.close(); } catch(e){} });
+
+  // ensure offcanvas re-renders drafted list when opened
   try {
     const off = document.getElementById('offcanvasDrafted');
     if (off) {
       off.addEventListener('show.bs.offcanvas', () => renderDraftedOffcanvas());
     }
-  } catch(e) {}
-
-  // if there's an external control that opens the offcanvas, attach too
-  document.querySelector('[data-bs-target="#offcanvasDrafted"]')?.addEventListener('click', renderDraftedOffcanvas);
+  } catch(e){}
 }
