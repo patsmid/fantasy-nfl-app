@@ -63,23 +63,20 @@ export async function fetchConsensusData(
 
   try {
     const res = await fetch(url);
-
-    if (!res.ok) {
-      throw new Error(`Error HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
 
     const json = await res.json();
 
-    // Validar estructura esperada
-    if (!json?.data?.players || !Array.isArray(json.data.players)) {
+    // Nueva API: data es un array directo
+    if (!json?.data || !Array.isArray(json.data)) {
       console.error('Respuesta inesperada del servidor:', json);
       throw new Error('Formato inválido: faltan jugadores en la respuesta');
     }
 
     return {
-      players: json.data.players,
+      players: json.data,              // <- usar directamente json.data
       params: json.params || {},
-      myDrafted: json.data.my_drafted || []   // <-- añadido
+      myDrafted: json.my_drafted || [] // <- si existe
     };
   } catch (err) {
     console.error('Error en fetchConsensusData:', err);

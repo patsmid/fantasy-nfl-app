@@ -484,34 +484,28 @@ export default async function renderConsensusDraft() {
         return;
       }
 
-      const position = positionSelect.value || 'ALL';
-      // La API espera "TODAS" para el comodín
-      const apiPosition = (position === 'ALL' || position === 'TODAS') ? 'TODAS' : position;
+			const position = positionSelect.value || 'ALL';
+			// La API espera "TODAS" para el comodín
+			const apiPosition = (position === 'ALL' || position === 'TODAS') ? 'TODAS' : position;
 
-      const byeCond = Number(byeInput.value || 0);
-      const sleeper = !!sleeperADPCheckbox.checked;
+			const byeCond = Number(byeInput.value || 0);
+			const sleeper = !!sleeperADPCheckbox.checked;
 
-      showLoadingBar('Cargando consenso', 'Descargando jugadores...');
-      const { players, params } = await fetchConsensusData(
-        leagueId,
-        apiPosition,
-        byeCond,
-        sleeper
-      );
+			showLoadingBar('Cargando consenso', 'Descargando jugadores...');
+
+			const { players, params, myDrafted: apiMyDrafted } = await fetchConsensusData(
+			  leagueId,
+			  apiPosition,
+			  byeCond,
+			  sleeper
+			);
+
+			draftData = normalizePlayers(players);
+			myDrafted = apiMyDrafted || [];
 
       Swal.close();
 
-      if (!players || !players.length) {
-        draftData = [];
-        filtered = [];
-        myDrafted = [];
-        renderPlayersGrid();
-        showError('No se encontraron jugadores.');
-        return;
-      }
-
       draftData = normalizePlayers(players);
-      myDrafted = []; // la nueva API no devuelve my_drafted
 
       // publicar etiquetas fecha
       if (params?.ranks_published) {
