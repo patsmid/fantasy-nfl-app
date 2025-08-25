@@ -3,7 +3,7 @@ import { showSuccess, showError, showLoadingBar } from '../../components/alerts.
 import { getAccessTokenFromClient } from '../../../components/authHelpers.js';
 import { positions } from '../../components/constants.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
-import { fetchConsensusData } from '../../api.js';
+import { fetchConsensusData } from '../api.js';
 
 // Ajusta si tu base cambia
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
