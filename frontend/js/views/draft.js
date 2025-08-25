@@ -1,6 +1,7 @@
 // frontend/src/views/consensusDraft.js
 import { showSuccess, showError } from '../../../components/alerts.js';
 import { getAccessTokenFromClient } from '../../../components/authHelpers.js';
+import { renderLeagueSelect } from '../../../components/selectLeagues.js';
 
 // === Config ===
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
@@ -154,6 +155,7 @@ function renderControls() {
       </div>
 
       <div class="d-flex flex-wrap gap-2">
+        <div id="league-select-container"></div>
         <button id="btn-refresh-draft" type="button" class="btn btn-sm btn-outline-light">
           <i class="bi bi-arrow-clockwise"></i> Actualizar
         </button>
@@ -196,6 +198,12 @@ function renderControls() {
       </div>
     </div>
   `;
+
+  // Render league select
+  renderLeagueSelect('#league-select-container', STATE.leagueId, async (lid) => {
+    STATE.leagueId = lid;
+    await fetchConsensusDraft({ leagueId: STATE.leagueId, position: STATE.position });
+  });
 
   // Bindings
   document.querySelectorAll('.pos-chip').forEach(btn => {
