@@ -591,33 +591,39 @@ export function buildFinalPlayersConsensus({
       const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
       const adp_rank = asValidRank(adp?.adp_rank);
 
-      // --- Decoraciones ---
-      const isRookie = (playerInfo?.years_exp === 0);
-      const rookie = isRookie ? ' (R)' : '';
-      const bye = Number(playerInfo?.bye_week ?? 0);
-      const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
-      const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
-      const isGoodOffense = Array.isArray(goodOffense) ? goodOffense.includes(playerInfo?.team) : false;
-      const teamGood = isGoodOffense ? ' ✔️' : '';
-      const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
+			const isRookie = (playerInfo?.years_exp === 0);
+			const rookie = isRookie ? true : false; // ahora será booleano
+			const bye = Number(playerInfo?.bye_week ?? 0);
 
-      const nombre = `${fullName}${rookie}${teamGood}${byeFound}${teamFound}${byeCond}`;
-      const status = draftedMap.has(playerId) ? '' : 'LIBRE';
+			const byeFound   = myByeWeeksSet.has(bye);                               // boolean
+			const teamFound  = myTeams.includes(playerInfo?.team);                   // boolean
+			const isGoodOffense = Array.isArray(goodOffense)
+			  ? goodOffense.includes(playerInfo?.team)
+			  : false;                                                               // boolean
+			const byeCond    = (byeCondition > 0 && bye <= byeCondition);            // boolean
 
-      rows.push({
-        player_id: playerId,
-        nombre,
-        position: playerInfo?.position ?? 'UNK',
-        team: playerInfo?.team ?? 'UNK',
-        bye,
-        status,
-        adp_rank,
-        experts: expert_ranks,
-        avg_rank,
-        valueOverADP: (Number.isFinite(avg_rank) && avg_rank > 0 && Number.isFinite(adp_rank) && adp_rank > 0)
-          ? Number((avg_rank / adp_rank).toFixed(2))
-          : null
-      });
+			const nombre = fullName; // limpio, sin adornos
+			const status = draftedMap.has(playerId) ? '' : 'LIBRE';
+
+			rows.push({
+			  player_id: playerId,
+			  nombre,
+			  position: playerInfo?.position ?? 'UNK',
+			  team: playerInfo?.team ?? 'UNK',
+			  bye,
+			  status,
+			  adp_rank,
+			  experts: expert_ranks,
+			  avg_rank,
+			  valueOverADP: (Number.isFinite(avg_rank) && avg_rank > 0 && Number.isFinite(adp_rank) && adp_rank > 0)
+			    ? Number((avg_rank / adp_rank).toFixed(2))
+			    : null,
+			  rookie,        // true/false
+			  byeFound,      // true/false
+			  teamFound,     // true/false
+			  goodOffense: isGoodOffense, // true/false
+			  byeConflict: byeCond        // true/false
+			});
     } catch (err) {
       console.warn('Error en buildFinalPlayersConsensus:', err?.message ?? err);
     }
