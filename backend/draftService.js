@@ -10,7 +10,7 @@ import { getSleeperLeague } from './utils/sleeper.js';
 import { getFantasyProsADPDataSimple } from './lib/fantasyprosService.js';
 import { getAllPlayersProjectedTotals } from './lib/projectionsService.js';
 import { addEstimatedStdDev, calculateVORandDropoffPro } from './lib/vorUtils.js';
-import { buildFinalPlayers, buildFinalPlayersSimple } from './lib/transformPlayers.js';
+import { buildFinalPlayers, buildFinalPlayersConsensus } from './lib/transformPlayers.js';
 import { getStarterPositions, getADPtype } from './utils/helpers.js';
 import { getExpertData, getTopExpertsFromDB } from './experts.js';
 
@@ -256,18 +256,13 @@ export async function getDraftData(
       };
     }
 
-    // ===============================
-    // MODO CONSENSO (sin VOR/tiers)
-    // ===============================
-
-    // ------------------
-    // CONSENSO RÁPIDO (OPTIMIZADO)
-    // ------------------
-
-		// 2) Top 3 expertos
+		// ===============================
+		// MODO CONSENSO (sin VOR/tiers)
+		// ===============================
 		const top3 = await getTopExpertsFromDB(3);
 		if (!top3.length) throw new Error('No hay expertos activos en la tabla "experts".');
 
+		// 2) Info de expertos
 		const expertsData = top3.map(row => {
 		  if (!row) return null;
 		  const src = row.source ? String(row.source).toLowerCase() : 'desconocido';
@@ -279,11 +274,18 @@ export async function getDraftData(
 		  };
 		}).filter(Boolean);
 
-		// 3) Rankings por experto (en paralelo)
+		// 3) Rankings por experto
 		const week = 0;
 		const rankingsByExpertRaw = await Promise.all(
 		  expertsData.map(async (ed) => {
-		    const r = await getRankings({ season, dynasty, scoring, expertData: ed, position: finalPosition, week });
+		    const r = await getRankings({
+		      season,
+		      dynasty,
+		      scoring,
+		      expertData: ed,
+		      position: finalPosition,
+		      week
+		    });
 		    return {
 		      expert_id: ed.id_experto ?? ed.id ?? null,
 		      expert_name: ed.experto ?? 'Desconocido',
@@ -312,105 +314,26 @@ export async function getDraftData(
 		}));
 		const adpDate = getLatestDateFromADP(normalizedAdp);
 
-		// 5) playersData SOLO para ADP
+		// 5) Players info para ADP
 		const adpPlayerIds = normalizedAdp.map(a => String(a.sleeper_player_id)).filter(Boolean);
 		const playersData = await getPlayersData(adpPlayerIds);
-		const playersMap = new Map(playersData.map(p => [String(toId(p.player_id)), p]));
-		const adpMap = new Map(normalizedAdp.map(a => [String(a.sleeper_player_id), a]));
 
-		// 6) Preparar myDraft para info extra
+		// 6) Draft picks (para info extra)
 		const drafted = leagueData.draft_id ? await getDraftPicks(leagueData.draft_id) : [];
 		const myDraft = getMainUserDraft(drafted || [], mainUserId) || [];
-		const myByeWeeksSet = new Set();
-		const myTeams = [];
-		for (const pick of myDraft) {
-		  const pid = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
-		  const pInfo = playersMap.get(pid);
-		  if (pInfo) {
-		    const bw = Number(pInfo.bye_week);
-		    if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
-		    if (pInfo.team) myTeams.push(pInfo.team);
-		  }
-		}
 
-		// 7) Calcular filas finales
-		const rows = [];
-
-		function extractRankFromExpertPlayer(p, index) {
-		  const n = Number(p?.rank ?? p?.overall_rank ?? p?.ecr);
-		  return Number.isFinite(n) ? n : (typeof index === 'number' ? index + 1 : null);
-		}
-
-		function averageNonNull(nums) {
-		  const filtered = nums.filter(n => Number.isFinite(n));
-		  return filtered.length ? filtered.reduce((a, b) => a + b, 0) / filtered.length : null;
-		}
-
-		for (const a of normalizedAdp) {
-		  const pid = String(a.sleeper_player_id);
-		  const playerInfo = playersMap.get(pid);
-		  if (!playerInfo) continue;
-
-		  const fullName = playerInfo.full_name || `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim();
-
-		  const expert_ranks = rankingsByExpertRaw.map(ex => {
-		    const found = ex.players.find((p, idx) => {
-		      const pidMatch = p?.player_id && String(toId(p.player_id)) === pid;
-		      if (pidMatch) return true;
-		      const name = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
-		      return name.toLowerCase() === fullName.toLowerCase();
-		    });
-		    const index = ex.players.indexOf(found);
-		    return {
-		      expert_id: ex.expert_id,
-		      expert: ex.expert_name,
-		      source: ex.source,
-		      published: ex.published,
-		      rank: extractRankFromExpertPlayer(found, index)
-		    };
-		  });
-
-		  const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
-		  const adp_rank = a.adp_rank ?? null;
-
-		  const isRookie = playerInfo?.years_exp === 0;
-		  const rookie = isRookie ? ' (R)' : '';
-		  const bye = Number(playerInfo?.bye_week ?? 0);
-		  const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
-		  const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
-		  const isGoodOffense = Array.isArray(goodOffense) ? goodOffense.includes(playerInfo?.team) : false;
-		  const teamGood = isGoodOffense ? ' ✔️' : '';
-
-		  rows.push({
-		    player_id: pid,
-		    name: fullName || null,
-		    position: playerInfo?.position || null,
-		    team: playerInfo?.team || playerInfo?.team_abbr || null,
-		    bye,
-		    isRookie,
-		    rookie,
-		    byeFound,
-		    teamFound,
-		    isGoodOffense,
-		    teamGood,
-		    player: playerInfo,
-		    adp_rank,
-		    experts: expert_ranks,
-		    avg_rank
-		  });
-		}
-
-		// 8) Orden final y return
-		rows.sort((a, b) => {
-		  if (a.avg_rank === null && b.avg_rank === null) {
-		    return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
-		  }
-		  if (a.avg_rank === null) return 1;
-		  if (b.avg_rank === null) return -1;
-		  if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
-		  return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
+		// 7) Calcular filas finales usando NUEVA FUNCIÓN
+		const rows = buildFinalPlayersConsensus({
+		  adpData: normalizedAdp,
+		  playersData,
+		  rankingsByExpert: rankingsByExpertRaw,
+		  drafted,
+		  myDraft,
+		  num_teams: numTeams,
+		  byeCondition
 		});
 
+		// 8) Return
 		return {
 		  mode: 'consensus_simple',
 		  params: {
@@ -431,7 +354,7 @@ export async function getDraftData(
 		  },
 		  data: rows
 		};
-		
+
   } catch (err) {
     console.error('Error en getDraftData:', err);
     throw new Error(`Error obteniendo datos del draft: ${err.message || err}`);

@@ -461,10 +461,10 @@ export function buildFinalPlayers({
   };
 }
 
-export function buildFinalPlayersSimple({
+export function buildFinalPlayersConsensus({
   adpData = [],
   playersData = [],
-  rankings = [],
+  rankingsByExpert = [],
   drafted = [],
   myDraft = [],
   num_teams = 10,
@@ -472,18 +472,28 @@ export function buildFinalPlayersSimple({
 }) {
   const draftedMap = new Map((drafted || []).map(p => [String(p.player_id), p]));
   const playersDataMap = new Map((playersData || []).map(p => [String(p.player_id), p]));
-  const rankingsMap = new Map((rankings || []).map(r => [String(r.player_id), r]));
 
+  // --- Info de mi equipo (para bye/teamFound) ---
   const myByeWeeksSet = new Set();
   const myTeams = [];
   for (const pick of (myDraft || [])) {
-    const playerId = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
-    const playerInfo = playersDataMap.get(playerId);
-    if (playerInfo) {
-      const bw = Number(playerInfo.bye_week);
+    const pid = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
+    const pInfo = playersDataMap.get(pid);
+    if (pInfo) {
+      const bw = Number(pInfo.bye_week);
       if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
-      if (playerInfo.team) myTeams.push(playerInfo.team);
+      if (pInfo.team) myTeams.push(pInfo.team);
     }
+  }
+
+  // Helpers
+  function extractRankFromExpertPlayer(p, index) {
+    const n = Number(p?.rank ?? p?.overall_rank ?? p?.ecr);
+    return Number.isFinite(n) ? n : (typeof index === 'number' ? index + 1 : null);
+  }
+  function averageNonNull(nums) {
+    const filtered = nums.filter(n => Number.isFinite(n));
+    return filtered.length ? filtered.reduce((a, b) => a + b, 0) / filtered.length : null;
   }
 
   const rows = [];
@@ -498,17 +508,35 @@ export function buildFinalPlayersSimple({
       if (!playerInfo || !playerInfo.full_name) continue;
 
       const fullName = playerInfo.full_name;
+
+      // --- Ranks de expertos ---
+      const expert_ranks = rankingsByExpert.map(ex => {
+        const found = ex.players.find((p, idx) => {
+          const pidMatch = p?.player_id && String(p.player_id) === playerId;
+          if (pidMatch) return true;
+          const name = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+          return name.toLowerCase() === fullName.toLowerCase();
+        });
+        const index = found ? ex.players.indexOf(found) : -1;
+        return {
+          expert_id: ex.expert_id,
+          expert: ex.expert_name,
+          source: ex.source,
+          published: ex.published,
+          rank: extractRankFromExpertPlayer(found, index)
+        };
+      });
+
+      const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
       const adp_rank = Number.isFinite(adp?.adp_rank) ? Number(adp.adp_rank) : null;
 
-      const ranking = rankingsMap.get(playerId) ?? {};
-      const rank = Number.isFinite(ranking?.rank) ? Number(ranking.rank) : null;
-
+      // --- Decoraciones ---
       const isRookie = (playerInfo?.years_exp === 0);
       const rookie = isRookie ? ' (R)' : '';
       const bye = Number(playerInfo?.bye_week ?? 0);
       const byeFound = myByeWeeksSet.has(bye) ? ' 👋' : '';
       const teamFound = myTeams.includes(playerInfo?.team) ? ' 🏈' : '';
-      const isGoodOffense = goodOffense.includes(playerInfo?.team);
+      const isGoodOffense = Array.isArray(goodOffense) ? goodOffense.includes(playerInfo?.team) : false;
       const teamGood = isGoodOffense ? ' ✔️' : '';
       const byeCond = (byeCondition > 0 && bye <= byeCondition) ? ' 🚫' : '';
 
@@ -521,23 +549,26 @@ export function buildFinalPlayersSimple({
         position: playerInfo?.position ?? 'UNK',
         team: playerInfo?.team ?? 'UNK',
         bye,
-        rank,
-        adp_rank,
         status,
-        valueOverADP: rank && adp_rank ? Number((rank / adp_rank).toFixed(2)) : null
+        adp_rank,
+        experts: expert_ranks,
+        avg_rank,
+        valueOverADP: avg_rank && adp_rank ? Number((avg_rank / adp_rank).toFixed(2)) : null
       });
     } catch (err) {
-      console.warn('Error en buildFinalPlayersSimple:', err?.message ?? err);
+      console.warn('Error en buildFinalPlayersConsensus:', err?.message ?? err);
     }
   }
 
+  // --- Orden ---
   rows.sort((a, b) => {
-    if (a.rank === null && b.rank === null) {
+    if (a.avg_rank === null && b.avg_rank === null) {
       return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
     }
-    if (a.rank === null) return 1;
-    if (b.rank === null) return -1;
-    return a.rank - b.rank;
+    if (a.avg_rank === null) return 1;
+    if (b.avg_rank === null) return -1;
+    if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
+    return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
   });
 
   return rows;
