@@ -1,118 +1,481 @@
-// frontend/src/views/draftConsenso.js
-import { showSuccess, showError, showLoadingBar } from '../../components/alerts.js';
-import { getAccessTokenFromClient } from '../../../components/authHelpers.js';
-import { positions } from '../../components/constants.js';
-import { renderLeagueSelect } from '../../components/selectLeagues.js';
+// frontend/src/views/consensusDraft.js (REWRITE)
+// Estructura visual basada en la primera vista, pero usando filtros de la segunda vista.
+// IMPORTANTES:
+//  - No se envía idExperto al backend.
+//  - Se usa fetchConsensusData (nueva función en api.js) con: leagueId, position, byeCondition, sleeperADP.
+//  - Filtros locales: status (LIBRE/TODOS), búsqueda, sort, position chips.
+
+import { showSuccess, showError } from '../../../components/alerts.js';
+import { positions } from '../../../components/constants.js';
 import { fetchConsensusData } from '../api.js';
 
-// Ajusta si tu base cambia
-const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
-const DRAFT_API_PATH = '/draft/consensus'; // endpoint consenso (no idExperto)
+// === State ===
+let STATE = {
+  leagueId: null,
+  position: 'ALL',          // UI chips (ALL|QB|RB|WR|TE|K|DST). En request se mapea a 'TODAS' o a la posición.
+  search: '',
+  sortBy: 'avg_rank',       // avg_rank | adp_rank | valueOverADP
+  sortDir: 'asc',           // asc | desc
+  loading: false,
+  players: [],
+  myDrafted: [],            // sin backend por ahora (queda vacío)
+  status: 'LIBRE',          // LIBRE | TODOS (filtro local)
+  byeCondition: 0,          // número; se envía al backend
+  sleeperADP: false,        // boolean; se envía al backend
+};
 
-export default async function renderConsensusDraft() {
-  // --- Render chrome (estructura similar a tu primera vista, con controles de la segunda) ---
-  const content = document.getElementById('content-container');
-  if (!content) return showError('No se encontró el contenedor de contenido.');
+// === Utils ===
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+function getQueryParam(name, fallback = null) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name) ?? fallback;
+}
+function badgeClassForPos(pos) {
+  const p = String(pos || '').toUpperCase();
+  if (p === 'QB') return 'bg-warning text-dark';
+  if (p === 'RB') return 'bg-success';
+  if (p === 'WR') return 'bg-primary';
+  if (p === 'TE') return 'bg-info text-dark';
+  if (p === 'K') return 'bg-secondary';
+  if (p === 'DST') return 'bg-dark';
+  return 'bg-secondary';
+}
+function formatNum(n, dec = 0) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return v.toFixed(dec);
+}
+function debounce(fn, wait = 250) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(null, args), wait); };
+}
 
-  content.innerHTML = `
-    <style>
-      /* pequeños estilos locales (puedes mover a css) */
-      .draft-card { background:var(--bg-secondary,#1f2228); color:var(--text-primary,#e4e6eb); border:1px solid var(--border,#2f3033); border-radius:12px; padding:.75rem; height:100%;}
-      .pos-badge { padding:.2rem .5rem; border-radius:.35rem; font-weight:600; display:inline-block; }
-      .controls-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
-      .small-muted { font-size:.85rem; color:var(--text-secondary,#b0b3b8); }
-      .pagination-controls { display:flex; gap:.4rem; align-items:center; }
-      .page-btn { min-width:36px; text-align:center; padding:.2rem .5rem; cursor:pointer; border-radius:.35rem; border:1px solid rgba(255,255,255,.06); background:transparent; color:inherit; }
-      .page-btn[disabled] { opacity:.45; cursor:not-allowed; }
-    </style>
+// === Persistencia simple ===
+const LS_KEYS = {
+  status: 'consensusStatus',
+  sleeper: 'consensusSleeperADP',
+  position: 'consensusPosition',
+  sortBy: 'consensusSortBy',
+  sortDir: 'consensusSortDir',
+  search: 'consensusSearch',
+  bye: 'consensusBye',
+};
 
-    <div class="card border-0 shadow-sm rounded flock-card">
-      <div class="card-body d-flex flex-column min-h-0">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="m-0 d-flex align-items-center gap-2">
-            <i class="bi bi-list-stars text-warning"></i> Draft – Consenso (Inteligente)
-          </h4>
-          <div class="d-flex gap-2">
-            <button id="btn-refresh-draft" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
-          </div>
+function saveLS(k, v) { try { localStorage.setItem(k, String(v)); } catch {} }
+function readLS(k, def) { try { const v = localStorage.getItem(k); return v ?? def; } catch { return def; } }
+
+// === Fetch data ===
+async function loadConsensus() {
+  try {
+    STATE.loading = true;
+    renderLoading(true);
+
+    // Mapeo de posición: UI 'ALL' => backend espera 'TODAS'
+    const positionParam = STATE.position === 'ALL' ? 'TODAS' : STATE.position;
+    const byeCondition = Number(STATE.byeCondition) || 0; // <-- asegura que exista
+    const sleeperADP = !!STATE.sleeperADP;
+
+    const { players, params } = await fetchConsensusData(
+      STATE.leagueId,
+      positionParam,
+      byeCondition,
+      sleeperADP,
+    );
+
+    STATE.players = Array.isArray(players) ? players : [];
+
+    // (Opcional) si tu backend llegara a mandar my_drafted como en la 1a vista, mantenlo
+    // STATE.myDrafted = Array.isArray(payload?.data?.my_drafted) ? payload.data.my_drafted : [];
+  } catch (err) {
+    console.error('loadConsensus error', err);
+    showError('Error al cargar consenso: ' + (err?.message || err));
+  } finally {
+    STATE.loading = false;
+    renderAll();
+  }
+}
+
+// === Filtros / sorting ===
+const POSITIONS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DST'];
+
+function getVisiblePlayers() {
+  const term = STATE.search.trim().toLowerCase();
+  let list = STATE.players.slice();
+
+  // Filtro por posición (ya viene filtrado por backend, pero mantenemos por seguridad)
+  if (STATE.position && STATE.position !== 'ALL') {
+    list = list.filter(p => (String(p.position || '').toUpperCase() === STATE.position));
+  }
+
+  // Filtro por STATUS (local)
+  if (STATE.status && STATE.status !== 'TODOS') {
+    list = list.filter(p => (String(p.status || '').toUpperCase() === 'LIBRE'));
+  }
+
+  // Filtro por texto
+  if (term) {
+    list = list.filter(p => {
+      const name = String(p.nombre || '').toLowerCase();
+      const team = String(p.team || '').toLowerCase();
+      const pos = String(p.position || '').toLowerCase();
+      const tags = [p.valueTag, p.tier_global_label, p.tier_pos_label, ...(p.riskTags || [])]
+        .filter(Boolean).join(' ').toLowerCase();
+      return name.includes(term) || team.includes(term) || pos.includes(term) || tags.includes(term);
+    });
+  }
+
+  // Orden
+  const key = STATE.sortBy;
+  const dir = STATE.sortDir === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    const va = a?.[key];
+    const vb = b?.[key];
+
+    // nulls al final
+    const aNull = (va === null || va === undefined);
+    const bNull = (vb === null || vb === undefined);
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;
+    if (bNull) return -1;
+
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    // desempata con adp_rank si existe
+    const aa = a?.adp_rank ?? Number.POSITIVE_INFINITY;
+    const bb = b?.adp_rank ?? Number.POSITIVE_INFINITY;
+    if (aa < bb) return -1 * dir;
+    if (aa > bb) return  1 * dir;
+    return 0;
+  });
+
+  return list;
+}
+
+// === Render ===
+function loadStyles() {
+  if (!document.querySelector('link[data-style="draft-consensus"]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '../../css/draft-consensus.css'; // opcional
+    link.dataset.style = 'draft-consensus';
+    document.head.appendChild(link);
+  }
+}
+
+function renderLoading(show) {
+  const grid = document.getElementById('draft-grid');
+  const empty = document.getElementById('draft-empty');
+  const sk = document.getElementById('draft-skeleton');
+  if (!grid || !sk || !empty) return;
+
+  if (show) {
+    grid.innerHTML = '';
+    empty.classList.add('d-none');
+    sk.classList.remove('d-none');
+  } else {
+    sk.classList.add('d-none');
+  }
+}
+
+function renderControls() {
+  const wrap = document.getElementById('draft-controls');
+  if (!wrap) return;
+
+  const savedStatus = readLS(LS_KEYS.status, STATE.status);
+  const savedSleeper = readLS(LS_KEYS.sleeper, String(STATE.sleeperADP)) === 'true';
+  const savedSearch = readLS(LS_KEYS.search, STATE.search);
+  const savedSortBy = readLS(LS_KEYS.sortBy, STATE.sortBy);
+  const savedSortDir = readLS(LS_KEYS.sortDir, STATE.sortDir);
+  const savedBye = Number(readLS(LS_KEYS.bye, String(STATE.byeCondition))) || 0;
+  const savedPos = readLS(LS_KEYS.position, STATE.position);
+
+  // sincroniza STATE con LS (una vez por render inicial)
+  STATE.status = savedStatus;
+  STATE.sleeperADP = savedSleeper;
+  STATE.search = savedSearch;
+  STATE.sortBy = savedSortBy;
+  STATE.sortDir = savedSortDir;
+  STATE.byeCondition = savedBye;
+  STATE.position = savedPos;
+
+  wrap.innerHTML = `
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <h4 class="m-0 d-flex align-items-center gap-2">
+          <i class="bi bi-list-stars text-warning"></i> Draft – Consenso
+        </h4>
+        <span class="text-secondary small">League ID: <span class="text-white">${escapeHtml(STATE.leagueId || '-')}</span></span>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button id="btn-refresh-draft" type="button" class="btn btn-sm btn-outline-light">
+          <i class="bi bi-arrow-clockwise"></i> Actualizar
+        </button>
+        <button id="btn-open-drafted" type="button" class="btn btn-sm btn-accent" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDrafted">
+          <i class="bi bi-people-fill"></i> Mi equipo (${STATE.myDrafted?.length || 0})
+        </button>
+      </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+      <div class="col-12 col-xl-6">
+        <div class="d-flex flex-wrap gap-2">
+          ${POSITIONS.map(p => `
+            <button type="button"
+              class="btn btn-sm ${STATE.position === p ? 'btn-primary' : 'btn-outline-light'} pos-chip"
+              data-pos="${p}">
+              ${p.replace('_', ' ')}
+            </button>
+          `).join('')}
         </div>
+      </div>
 
-        <form class="row g-3 mb-3">
-          <div class="col-md-3">
-            <label class="form-label">Liga</label>
-            <select id="select-league" class="form-select"></select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Posición</label>
-            <select id="select-position" class="form-select">
-              <option value="ALL">ALL</option>
-              ${positions.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('')}
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Status</label>
-            <select id="select-status" class="form-select">
-              <option value="LIBRE">LIBRE</option>
-              <option value="TODOS">TODOS</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Bye condición</label>
-            <input id="input-bye" type="number" class="form-control" placeholder="0">
-          </div>
-          <div class="col-md-2 d-flex align-items-end">
-            <div class="form-check">
-              <input id="chk-sleeperADP" class="form-check-input" type="checkbox">
-              <label class="form-check-label">Sleeper ADP</label>
+      <div class="col-12 col-sm-6 col-md-3 col-xl-2">
+        <input id="draft-search" class="form-control" placeholder="Buscar por nombre, equipo o posición..." value="${escapeHtml(STATE.search)}" />
+      </div>
+
+      <div class="col-6 col-md-2 col-xl-1">
+        <select id="draft-sort-by" class="form-select">
+          <option value="avg_rank" ${STATE.sortBy === 'avg_rank' ? 'selected' : ''}>Avg Rank</option>
+          <option value="adp_rank" ${STATE.sortBy === 'adp_rank' ? 'selected' : ''}>ADP Rank</option>
+          <option value="valueOverADP" ${STATE.sortBy === 'valueOverADP' ? 'selected' : ''}>Value/ADP</option>
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2 col-xl-1">
+        <select id="draft-sort-dir" class="form-select">
+          <option value="asc" ${STATE.sortDir === 'asc' ? 'selected' : ''}>Asc</option>
+          <option value="desc" ${STATE.sortDir === 'desc' ? 'selected' : ''}>Desc</option>
+        </select>
+      </div>
+
+      <!-- Filtros extra de la segunda vista -->
+      <div class="col-6 col-md-2 col-xl-1">
+        <select id="select-status" class="form-select">
+          <option value="LIBRE" ${STATE.status === 'LIBRE' ? 'selected' : ''}>LIBRE</option>
+          <option value="TODOS" ${STATE.status === 'TODOS' ? 'selected' : ''}>TODOS</option>
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2 col-xl-1">
+        <input id="input-bye" type="number" min="0" step="1" class="form-control" placeholder="Bye ≤" value="${Number(STATE.byeCondition) || 0}" />
+      </div>
+
+      <div class="col-12 col-md-3 col-xl-2 d-flex align-items-center">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="chk-sleeperADP" ${STATE.sleeperADP ? 'checked' : ''} />
+          <label class="form-check-label" for="chk-sleeperADP">Sleeper ADP</label>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Bind chips
+  document.querySelectorAll('.pos-chip').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      STATE.position = btn.dataset.pos;
+      saveLS(LS_KEYS.position, STATE.position);
+      await loadConsensus();
+    });
+  });
+
+  // Bind búsqueda
+  document.getElementById('draft-search').addEventListener('input', (e) => {
+    STATE.search = e.target.value || '';
+    saveLS(LS_KEYS.search, STATE.search);
+    renderPlayersGrid();
+  });
+
+  // Bind orden
+  document.getElementById('draft-sort-by').addEventListener('change', (e) => {
+    STATE.sortBy = e.target.value;
+    saveLS(LS_KEYS.sortBy, STATE.sortBy);
+    renderPlayersGrid();
+  });
+  document.getElementById('draft-sort-dir').addEventListener('change', (e) => {
+    STATE.sortDir = e.target.value;
+    saveLS(LS_KEYS.sortDir, STATE.sortDir);
+    renderPlayersGrid();
+  });
+
+  // Botones header
+  document.getElementById('btn-refresh-draft').addEventListener('click', async () => {
+    await loadConsensus();
+    showSuccess('Lista actualizada');
+  });
+  document.getElementById('btn-open-drafted').addEventListener('click', () => {
+    renderDraftedOffcanvas();
+  });
+
+  // Filtros extra
+  const statusSel = document.getElementById('select-status');
+  const byeInp = document.getElementById('input-bye');
+  const sleeperChk = document.getElementById('chk-sleeperADP');
+
+  statusSel.addEventListener('change', () => {
+    STATE.status = statusSel.value || 'LIBRE';
+    saveLS(LS_KEYS.status, STATE.status);
+    renderPlayersGrid();
+  });
+
+  byeInp.addEventListener('input', debounce(() => {
+    const v = Number(byeInp.value) || 0;
+    STATE.byeCondition = v;
+    saveLS(LS_KEYS.bye, v);
+    loadConsensus();
+  }, 300));
+
+  sleeperChk.addEventListener('change', () => {
+    STATE.sleeperADP = !!sleeperChk.checked;
+    saveLS(LS_KEYS.sleeper, STATE.sleeperADP);
+    loadConsensus();
+  });
+}
+
+function iconFlags(p) {
+  const out = [];
+  if (p?.rookie) out.push('<span class="badge bg-dark-subtle text-white border">R</span>');
+  if (p?.goodOffense) out.push('<span title="Buena ofensiva">✔️</span>');
+  if (p?.byeFound) out.push('<span title="Coincide bye con tu equipo">👋</span>');
+  if (p?.teamFound) out.push('<span title="Mismo equipo que ya tienes">🏈</span>');
+  if (p?.byeConflict) out.push('<span title="Bye conflictivo">🚫</span>');
+  return out.join(' ');
+}
+
+function renderPlayersGrid() {
+  const grid = document.getElementById('draft-grid');
+  const empty = document.getElementById('draft-empty');
+  if (!grid) return;
+
+  const list = getVisiblePlayers();
+  if (!list.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('d-none');
+    return;
+  }
+  empty.classList.add('d-none');
+
+  grid.innerHTML = list.map(p => {
+    const posBadge = `<span class="badge ${badgeClassForPos(p.position)}">${escapeHtml(p.position || 'UNK')}</span>`;
+    const statusBadge = String(p.status || '').toUpperCase() === 'LIBRE'
+      ? '<span class="badge bg-success">LIBRE</span>'
+      : '<span class="badge bg-secondary">Tomado</span>';
+
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 border border-secondary draft-card">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="min-w-0">
+                <h5 class="card-title m-0 text-truncate">${escapeHtml(p.nombre || '')}</h5>
+                <div class="small text-secondary">
+                  ${posBadge}
+                  <span class="ms-1">${escapeHtml(p.team || 'UNK')}</span>
+                  <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
+                </div>
+              </div>
+              <div class="text-end">
+                ${statusBadge}
+              </div>
+            </div>
+
+            <div class="mt-2 d-flex flex-wrap gap-2 align-items-center small">
+              <span class="badge bg-primary">Avg: ${formatNum(p.avg_rank)}</span>
+              <span class="badge bg-info text-dark">ADP: ${formatNum(p.adp_rank)}</span>
+              <span class="badge bg-warning text-dark">Val/ADP: ${formatNum(p.valueOverADP, 2)}</span>
+              <span class="ms-auto d-flex align-items-center gap-2">${iconFlags(p)}</span>
+            </div>
+
+            <div class="mt-auto d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-light w-100" data-action="detail" data-id="${escapeHtml(p.player_id)}">
+                <i class="bi bi-zoom-in"></i> Detalles
+              </button>
             </div>
           </div>
-        </form>
-
-        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-          <div id="ranks-updated-label" class="small-muted"></div>
-          <div id="adp-updated-label" class="small-muted"></div>
         </div>
+      </div>
+    `;
+  }).join('');
 
-        <div class="controls-row mb-2">
-          <input id="draft-search" class="form-control form-control-sm" placeholder="Buscar por nombre, equipo, posición..." style="min-width:220px;">
-          <div style="margin-left:auto; display:flex; gap:.5rem; align-items:center;">
-            <label class="m-0">Mostrar
-              <select id="page-size" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-                <option value="8">8</option>
-                <option value="12" selected>12</option>
-                <option value="20">20</option>
-                <option value="40">40</option>
-              </select>
-            registros
-            </label>
-            <label class="m-0 ms-2">Ordenar
-              <select id="draft-sort-by" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-                <option value="avg_rank">Avg Rank</option>
-                <option value="adp_rank">ADP Rank</option>
-                <option value="valueOverADP">Value/ADP</option>
-                <option value="shark">SharkScore 🦈</option>
-              </select>
-            </label>
-            <label class="m-0 ms-2">Dir
-              <select id="draft-sort-dir" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
-                <option value="asc">Asc</option>
-                <option value="desc">Desc</option>
-              </select>
-            </label>
+  // Delegación para acciones en cards
+  grid.querySelectorAll('[data-action="detail"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.id;
+      const player = STATE.players.find(x => String(x.player_id) === String(pid));
+      if (!player) return;
+      showSuccess(`${player.nombre} · ${player.team} · ${player.position} (Bye ${player.bye})`);
+    });
+  });
+}
+
+function renderDraftedOffcanvas() {
+  const wrap = document.getElementById('drafted-list');
+  const countEl = document.getElementById('drafted-count');
+  if (!wrap) return;
+
+  const list = STATE.myDrafted || [];
+  countEl.textContent = String(list.length);
+
+  if (!list.length) {
+    wrap.innerHTML = `
+      <div class="text-secondary text-center py-3">
+        <i class="bi bi-inbox"></i>
+        <div class="mt-1">Aún no tienes jugadores drafteados.</div>
+      </div>
+    `;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <div class="list-group list-group-flush">
+      ${list.map(p => `
+        <div class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
+          <div class="min-w-0">
+            <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
+            <div class="small text-secondary">
+              <span class="badge ${badgeClassForPos(p.position)}">${escapeHtml(p.position || 'UNK')}</span>
+              <span class="ms-1">${escapeHtml(p.team || 'UNK')}</span>
+              <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
+            </div>
           </div>
         </div>
+      `).join('')}
+    </div>
+  `;
+}
 
-        <div id="ranksummary" class="mb-3"></div>
+function renderChrome() {
+  const content = document.getElementById('content-container');
+  if (!content) {
+    showError('No se encontró el contenedor de contenido.');
+    return;
+  }
+
+  content.innerHTML = `
+    <div class="card border-0 shadow-sm rounded flock-card h-100">
+      <div class="card-body d-flex flex-column min-h-0">
+        <div id="draft-controls" class="mb-3"></div>
+
+        <div id="draft-skeleton" class="d-none">
+          <div class="row g-3">
+            ${Array.from({ length: 9 }).map(() => `
+              <div class="col-12 col-md-6 col-lg-4">
+                <div class="placeholder-glow">
+                  <div class="placeholder col-12" style="height: 140px;"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
 
         <div id="draft-grid" class="row g-3"></div>
         <div id="draft-empty" class="text-center text-secondary py-4 d-none">
           <i class="bi bi-inbox"></i>
           <div class="mt-2">No hay jugadores que coincidan con los filtros.</div>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div id="cards-info" class="text-muted small"></div>
-          <div id="pagination" class="pagination-controls"></div>
         </div>
       </div>
     </div>
@@ -134,537 +497,38 @@ export default async function renderConsensusDraft() {
       </div>
     </div>
   `;
+}
 
-  // -------------------------
-  // Refs y estado
-  // -------------------------
-  const leagueSelect = document.getElementById('select-league');
-  const positionSelect = document.getElementById('select-position');
-  const statusSelect = document.getElementById('select-status');
-  const byeInput = document.getElementById('input-bye');
-  const sleeperADPCheckbox = document.getElementById('chk-sleeperADP');
-  const searchInput = document.getElementById('draft-search');
-  const pageSizeSel = document.getElementById('page-size');
-  const sortBySel = document.getElementById('draft-sort-by');
-  const sortDirSel = document.getElementById('draft-sort-dir');
-  const grid = document.getElementById('draft-grid');
-  const empty = document.getElementById('draft-empty');
-  const ranksUpdatedLabel = document.getElementById('ranks-updated-label');
-  const adpUpdatedLabel = document.getElementById('adp-updated-label');
-  const btnRefresh = document.getElementById('btn-refresh-draft');
-  const cardsInfo = document.getElementById('cards-info');
-  const paginationEl = document.getElementById('pagination');
-
-  let draftData = [];
-  let filtered = [];
-  let myDrafted = [];
-  let currentPage = 1;
-  let pageSize = Number(pageSizeSel.value) || 12;
-  let searchQuery = '';
-  let sortBy = sortBySel.value;
-  let sortDir = sortDirSel.value;
-
-  // Restaurar filtros desde localStorage (opcional)
-  try { positionSelect.value = localStorage.getItem('consensusPosition') || positionSelect.value; } catch(e){}
-  try { statusSelect.value = localStorage.getItem('consensusStatus') || statusSelect.value; } catch(e){}
-  try { sleeperADPCheckbox.checked = (localStorage.getItem('consensusSleeperADP') === 'true') || false; } catch(e){}
-
-  // -------------------------
-  // Utilidades (copiadas / adaptadas)
-  // -------------------------
-  function debounce(fn, wait = 200) {
-    let t;
-    return (...args) => {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), wait);
-    };
-  }
-
-  const safeNum = (v, decimals = 2) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
-  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
-  function getHeatColor(value, min, max) {
-    const v = Number(value);
-    if (!Number.isFinite(v) || max === min) return '#888';
-    const ratio = clamp((v - min) / (max - min), 0, 1);
-    const r = Math.floor(255 * (1 - ratio));
-    const g = Math.floor(255 * ratio);
-    return `rgb(${r},${g},0)`;
-  }
-
-  function getPositionColor(position) {
-    switch ((position || '').toUpperCase()) {
-      case 'QB': return '#ff2a6d';
-      case 'RB': return '#00ceb8';
-      case 'WR': return '#58a7ff';
-      case 'TE': return '#ffae58';
-      default:   return '#6c757d';
-    }
-  }
-  function getContrastTextColor(hex) {
-    hex = (hex || '').replace('#', '');
-    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-    const r = parseInt(hex.substr(0,2),16), g = parseInt(hex.substr(2,2),16), b = parseInt(hex.substr(4,2),16);
-    const luminance = (0.299*r + 0.587*g + 0.114*b)/255;
-    return luminance > 0.6 ? '#000' : '#fff';
-  }
-  function getPositionBadge(pos) {
-    const bg = getPositionColor(pos);
-    const textColor = getContrastTextColor(bg);
-    return `<span class="pos-badge" style="background:${bg};color:${textColor};">${pos ?? ''}</span>`;
-  }
-
-  function normalizePlayers(arr) {
-    const toNum = (v) => (Number.isFinite(+v) ? +v : null);
-    return arr.map(p => ({
-      ...p,
-      avg_rank: toNum(p.avg_rank),
-      adp_rank: toNum(p.adp_rank),
-      projection: toNum(p.projection),
-      priorityScore: toNum(p.priorityScore),
-      valueOverADP: toNum(p.valueOverADP),
-      vor: toNum(p.vor),
-      adjustedVOR: toNum(p.adjustedVOR),
-      dropoff: toNum(p.dropoff),
-      stealScore: toNum(p.stealScore),
-      volatility: toNum(p.volatility),
-      tier_global: toNum(p.tier_global),
-      tier_pos: toNum(p.tier_pos),
-    }));
-  }
-
-  // Ranges & shark score (copiado/adaptado)
-  function _rangeFrom(arr, pick) {
-    const vals = arr.map(pick).map(Number).filter(Number.isFinite);
-    if (!vals.length) return [0,1];
-    return [Math.min(...vals), Math.max(...vals)];
-  }
-  function _scale01(v, [min, max], def = 0) {
-    const x = Number(v);
-    if (!Number.isFinite(x)) return def;
-    if (max <= min) return 0.5;
-    return (x - min) / (max - min);
-  }
-  function _buildSharkRanges(source) {
-    const arr = source && source.length ? source : [];
-    return {
-      rank: _rangeFrom(arr, p => p.avg_rank),
-      adjustedVOR: _rangeFrom(arr, p => p.adjustedVOR),
-      projection: _rangeFrom(arr, p => p.projection),
-      valueOverADP: _rangeFrom(arr, p => p.valueOverADP),
-      stealScore: _rangeFrom(arr, p => p.stealScore),
-      volatility: _rangeFrom(arr, p => p.volatility),
-      tier_global: _rangeFrom(arr, p => p.tier_global),
-    };
-  }
-  function computeSharkScore(p, R) {
-    const rnkN = _scale01(p.avg_rank, R.rank, 1);
-    const adjVN = _scale01(p.adjustedVOR, R.adjustedVOR, 0);
-    const projN = _scale01(p.projection, R.projection, 0);
-    const voaN = _scale01(p.valueOverADP, R.valueOverADP, 0);
-    const stealN = _scale01(p.stealScore, R.stealScore, 0);
-    const boomN = Math.max(0, Math.min(1, Number(p.boomRate) / 100));
-    const bustN = Math.max(0, Math.min(1, Number(p.bustRate) / 100));
-    const consN = Math.max(0, Math.min(1, Number(p.consistency) / 100));
-    const volN = _scale01(p.volatility, R.volatility, 0.5);
-    const tierInvN = 1 - _scale01(p.tier_global, R.tier_global, 1);
-    const anchor = (1 - rnkN);
-    const valueEdge = voaN * (0.4 + 0.6 * anchor);
-
-    let score =
-      0.45 * anchor +
-      0.20 * adjVN +
-      0.10 * projN +
-      0.08 * valueEdge +
-      0.07 * boomN +
-      0.05 * consN +
-      0.03 * tierInvN +
-      0.02 * stealN -
-      0.10 * bustN -
-      0.05 * volN;
-
-    if (Number.isFinite(p.avg_rank) && p.avg_rank > 100) score -= 0.0025 * (p.avg_rank - 100);
-    return score;
-  }
-
-  // -------------------------
-  // Render / paginado
-  // -------------------------
-  function renderPlayersGrid() {
-    const list = filtered;
-    if (!list.length) {
-      grid.innerHTML = '';
-      empty.classList.remove('d-none');
-      cardsInfo.textContent = 'Mostrando 0 de 0';
-      return;
-    }
-    empty.classList.add('d-none');
-
-    const start = (currentPage - 1) * pageSize;
-    const pagePlayers = list.slice(start, start + pageSize);
-
-    const prios = list.map(p => Number(p.priorityScore)).filter(Number.isFinite);
-    const minPrio = prios.length ? Math.min(...prios) : 0;
-    const maxPrio = prios.length ? Math.max(...prios) : 1;
-    const maxProj = Math.max(...list.map(p => Number(p.projection) || 0), 1);
-
-    grid.innerHTML = pagePlayers.map(p => {
-      const posBadge = getPositionBadge(p.position);
-      const statusBadge = p.status === 'LIBRE' ? '<span class="badge bg-success">LIBRE</span>' : '<span class="badge bg-secondary">Tomado</span>';
-      const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:.1rem .5rem;border-radius:6px;font-weight:700;`;
-      const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
-
-      return `
-        <div class="col-12 col-md-6 col-lg-4">
-          <div class="draft-card h-100">
-            <div class="d-flex justify-content-between align-items-start">
-              <div class="min-w-0">
-                <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
-                <div class="small text-secondary mt-1">
-                  ${posBadge} <span class="ms-1">${escapeHtml(p.team || '')}</span>
-                  <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
-                </div>
-              </div>
-              <div class="text-end">
-                ${statusBadge}
-                <div class="mt-1"><span style="${prioStyle}">Prio ${safeNum(p.priorityScore)}</span></div>
-              </div>
-            </div>
-
-            <div class="mt-2 d-flex gap-2 align-items-center small">
-              <span class="badge bg-primary">Avg: ${safeNum(p.avg_rank,2)}</span>
-              <span class="badge bg-info text-dark">ADP: ${safeNum(p.adp_rank,2)}</span>
-              <span class="badge bg-warning text-dark">Val/ADP: ${safeNum(p.valueOverADP,2)}</span>
-              <div class="ms-auto small">${(p.riskTags||[]).join(', ')}</div>
-            </div>
-
-            <div class="mt-2">
-              <div class="small mb-1">Proyección</div>
-              <div class="progress" style="height:8px;background:rgba(255,255,255,.06)"><div class="progress-bar" style="width:${projPct}%;"></div></div>
-            </div>
-
-            <div class="mt-2 d-flex gap-2 flex-wrap">
-              ${p.valueTag ? `<span class="badge bg-success">${p.valueTag}</span>` : ''}
-              ${p.tier_global_label ? `<span class="badge bg-danger">${p.tier_global ?? ''} ${p.tier_global_label}</span>` : ''}
-              ${p.tier_pos_label ? `<span class="badge bg-primary">${p.tier_pos ?? ''} ${p.tier_pos_label}</span>` : ''}
-            </div>
-
-            <div class="mt-3 d-flex gap-2">
-              <button data-action="detail" data-id="${escapeHtml(p.player_id)}" class="btn btn-sm btn-outline-light w-100">
-                <i class="bi bi-zoom-in"></i> Detalles
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Delegación detalle
-    grid.querySelectorAll('[data-action="detail"]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const pid = btn.dataset.id;
-        const pl = draftData.find(x => String(x.player_id) === String(pid));
-        if (!pl) return;
-        showSuccess(`${pl.nombre} · ${pl.team} · ${pl.position} (Bye ${pl.bye})`);
-      });
-    });
-
-    cardsInfo.textContent = `Mostrando ${start + 1}-${Math.min(start + pageSize, list.length)} de ${list.length} jugadores`;
-  }
-
-  function renderPagination() {
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    const firstDisabled = currentPage === 1 ? 'disabled' : '';
-    const lastDisabled = currentPage === totalPages ? 'disabled' : '';
-
-    paginationEl.innerHTML = `
-      <button class="page-btn" id="btn-first" ${firstDisabled}>«</button>
-      <button class="page-btn" id="btn-prev" ${firstDisabled}>‹</button>
-      <div style="padding:0 .6rem">Página <strong>${currentPage}</strong> / ${totalPages}</div>
-      <button class="page-btn" id="btn-next" ${lastDisabled}>›</button>
-      <button class="page-btn" id="btn-last" ${lastDisabled}>»</button>
-    `;
-
-    document.getElementById('btn-first')?.addEventListener('click', () => { if (currentPage !== 1) { currentPage = 1; renderPlayersGrid(); renderPagination(); } });
-    document.getElementById('btn-prev')?.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderPlayersGrid(); renderPagination(); } });
-    document.getElementById('btn-next')?.addEventListener('click', () => { const tot = Math.ceil(filtered.length / pageSize); if (currentPage < tot) { currentPage++; renderPlayersGrid(); renderPagination(); }});
-    document.getElementById('btn-last')?.addEventListener('click', () => { const tot = Math.ceil(filtered.length / pageSize); if (currentPage !== tot) { currentPage = tot; renderPlayersGrid(); renderPagination(); }});
-  }
-
-  // -------------------------
-  // Filtrado local (igual que segunda vista)
-  // -------------------------
-  function isFreeStatus(s) {
-    const t = (s ?? '').toString().trim().toLowerCase();
-    if (!t) return true;
-    return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
-  }
-
-  function applyFiltersAndSort() {
-    const statusFilter = statusSelect.value || '';
-    const posFilter = positionSelect.value || 'ALL';
-    const byeCondition = Number(byeInput.value) || 0;
-    const q = (searchQuery || '').trim().toLowerCase();
-
-    filtered = draftData.filter(p => {
-      // STATUS
-      if (statusFilter && statusFilter !== 'TODOS') {
-        if (statusFilter === 'LIBRE') {
-          if (p.status !== 'LIBRE') return false;
-        } else {
-          if ((p.status || '').toUpperCase() !== statusFilter.toUpperCase()) return false;
-        }
-      }
-
-      // POS
-      if (posFilter && posFilter !== '' && posFilter !== 'ALL' && posFilter !== 'TODAS') {
-        if ((p.position || '').toLowerCase() !== posFilter.toLowerCase()) return false;
-      }
-
-      // BYE
-      if (byeCondition > 0 && (Number(p.bye) || 0) > byeCondition) return false;
-
-      // SEARCH
-      if (q) {
-        const haystack = [
-          p.nombre, p.team, p.position,
-          p.valueTag, p.tier_global_label, p.tier_pos_label,
-          ...(p.riskTags || [])
-        ].filter(Boolean).join(' ').toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-
-      return true;
-    });
-
-    // ORDEN
-    if (sortBySel.value === 'shark') {
-      const base = filtered.length ? filtered : draftData;
-      const R = _buildSharkRanges(base);
-      filtered.forEach(p => { p._shark = computeSharkScore(p, R); });
-      filtered.sort((a, b) => (b._shark ?? -Infinity) - (a._shark ?? -Infinity));
-    } else {
-      // soporta avg_rank, adp_rank, valueOverADP (como primera vista)
-      const key = sortBySel.value || 'avg_rank';
-      const dir = (sortDirSel.value === 'asc') ? 1 : -1;
-      filtered.sort((a, b) => {
-        const va = a?.[key], vb = b?.[key];
-        const aNull = va === null || va === undefined;
-        const bNull = vb === null || vb === undefined;
-        if (aNull && bNull) return 0;
-        if (aNull) return 1;
-        if (bNull) return -1;
-        if (va < vb) return -1 * dir;
-        if (va > vb) return 1 * dir;
-        // desempata con adp_rank
-        const aa = a?.adp_rank ?? Number.POSITIVE_INFINITY;
-        const bb = b?.adp_rank ?? Number.POSITIVE_INFINITY;
-        if (aa < bb) return -1 * dir;
-        if (aa > bb) return 1 * dir;
-        return 0;
-      });
-    }
-
-    // PAGINACIÓN
-    currentPage = 1;
-    renderPlayersGrid();
-    renderPagination();
-  }
-
-  // -------------------------
-  // Fetch: se obtiene consenso desde backend (NO enviar idExperto)
-  // -------------------------
-  async function fetchConsensusData({ leagueId, position = 'ALL', byeCondition = 0, sleeperADP = false }) {
-    const token = await getAccessTokenFromClient().catch(() => null);
-    const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-
-    const qs = new URLSearchParams({
-      leagueId: String(leagueId || ''),
-      position: String(position || 'ALL'),
-      bye: String(Number(byeCondition || 0)),
-      sleeperADP: sleeperADP ? '1' : '0'
-    });
-
-    const url = `${API_BASE}${DRAFT_API_PATH}?${qs.toString()}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      const t = await res.text().catch(() => '');
-      throw new Error(t || 'Error al descargar consenso');
-    }
-    const payload = await res.json();
-    // esperado: { data: { players, my_drafted }, params }
-    const players = payload?.data?.players ?? payload?.players ?? [];
-    const params = payload?.data?.params ?? payload?.params ?? payload?.params ?? {};
-    const my = payload?.data?.my_drafted ?? payload?.my_drafted ?? [];
-    return { players, params, myDrafted: my };
-  }
-
-  // -------------------------
-  // Carga principal
-  // -------------------------
-  async function loadConsensus() {
-    try {
-      // leagueId: prefer select; si existe query ?leagueId=... se preselecciona
-      const qsLeagueId = (() => {
-        try {
-          const url = new URL(window.location.href);
-          return url.searchParams.get('leagueId') ?? '';
-        } catch (e) { return ''; }
-      })();
-
-      const leagueId = (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || qsLeagueId || '').toString().trim();
-      if (!leagueId) {
-        showError('Selecciona una liga (o añade ?leagueId=... en la URL).');
-        return;
-      }
-
-      const position = positionSelect.value || 'ALL';
-      const byeCond = Number(byeInput.value || 0);
-      const sleeper = !!sleeperADPCheckbox.checked;
-
-      showLoadingBar('Cargando consenso', 'Descargando jugadores...');
-			const { players, params } = await fetchConsensusData(
-			  leagueId,
-			  position,
-			  byeCondition,
-			  sleeperADP
-			);
-      Swal.close();
-
-      if (!players || !players.length) {
-        draftData = [];
-        filtered = [];
-        myDrafted = [];
-        renderPlayersGrid();
-        showError('No se encontraron jugadores.');
-        return;
-      }
-
-      draftData = normalizePlayers(players);
-      myDrafted = Array.isArray(my) ? my : [];
-      // publicar etiquetas fecha
-      if (params?.ranks_published) {
-        const fecha = new Date(params.ranks_published);
-        ranksUpdatedLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill" style="background-color:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border);">
-          <i class="bi bi-calendar-check-fill text-success"></i> Ranks: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</div>`;
-      } else {
-        ranksUpdatedLabel.innerHTML = '';
-      }
-      if (params?.ADPdate) {
-        const adpDate = new Date(params.ADPdate);
-        adpUpdatedLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill" style="background-color:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border);">
-          <i class="bi bi-clock-history text-warning"></i> ADP: ${adpDate.toLocaleDateString('es-MX', { dateStyle: 'medium' })}</div>`;
-      } else {
-        adpUpdatedLabel.innerHTML = '';
-      }
-
-      applyFiltersAndSort();
-      renderDraftedOffcanvas();
-      showSuccess('Consenso actualizado');
-    } catch (err) {
-      Swal.close();
-      console.error('loadConsensus error', err);
-      showError('Error al cargar consenso: ' + (err?.message || err));
-    }
-  }
-
-  // -------------------------
-  // Offcanvas drafted
-  // -------------------------
-  function renderDraftedOffcanvas() {
-    const wrap = document.getElementById('drafted-list');
-    const countEl = document.getElementById('drafted-count');
-    if (!wrap) return;
-    const list = myDrafted || [];
-    countEl.textContent = String(list.length);
-    if (!list.length) {
-      wrap.innerHTML = `<div class="text-secondary text-center py-3"><i class="bi bi-inbox"></i><div class="mt-1">Aún no tienes jugadores drafteados.</div></div>`;
-      return;
-    }
-    wrap.innerHTML = `
-      <div class="list-group list-group-flush">
-        ${list.map(p => `
-          <div class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
-            <div class="min-w-0">
-              <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
-              <div class="small text-secondary">
-                <span class="badge" style="background:${getPositionColor(p.position)};color:${getContrastTextColor(getPositionColor(p.position))}">${escapeHtml(p.position || '')}</span>
-                <span class="ms-1">${escapeHtml(p.team || '')}</span>
-                <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  // -------------------------
-  // Helpers DOM / eventos
-  // -------------------------
-  function escapeHtml(str) {
-    return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
-  }
-
-  // Init selects: renderLeagueSelect (TomSelect)
-  let leagueTS = null;
-  try {
-    leagueTS = await renderLeagueSelect('#select-league', {
-      plugins: ['dropdown_input'],
-      dropdownInput: false,
-      create: false,
-      persist: false,
-      onChange() {
-        try { localStorage.setItem('consensusLeague', this.getValue?.() || ''); } catch(e) {}
-        if (this && typeof this.blur === 'function') this.blur();
-        loadConsensus();
-      }
-    });
-  } catch (e) {
-    // fallback: try again without async
-    await renderLeagueSelect('#select-league', { plugins: ['dropdown_input'], dropdownInput: false, create: false, persist: false });
-  }
-  if (!leagueTS && document.querySelector('#select-league')?.tomselect) leagueTS = document.querySelector('#select-league').tomselect;
-
-  // Aplicar saved league desde querystring o localStorage
-  try {
-    const url = new URL(window.location.href);
-    const qLeague = url.searchParams.get('leagueId');
-    const savedLeague = localStorage.getItem('consensusLeague') || qLeague || '';
-    if (savedLeague) {
-      if (leagueTS && typeof leagueTS.setValue === 'function') {
-        leagueTS.setValue(savedLeague);
-        leagueTS.blur?.();
-      } else if (leagueSelect) {
-        leagueSelect.value = savedLeague;
-        leagueSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  } catch (e) {}
-
-  // Eventos UI
-  statusSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusStatus', statusSelect.value); }catch{} applyFiltersAndSort(); });
-  positionSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusPosition', positionSelect.value); }catch{} applyFiltersAndSort(); });
-  byeInput.addEventListener('input', debounce(() => applyFiltersAndSort(), 200));
-  sleeperADPCheckbox.addEventListener('change', () => { try{ localStorage.setItem('consensusSleeperADP', sleeperADPCheckbox.checked); }catch{} loadConsensus(); });
-
-  pageSizeSel.addEventListener('change', () => { pageSize = Number(pageSizeSel.value) || 12; currentPage = 1; renderPlayersGrid(); renderPagination(); });
-  sortBySel.addEventListener('change', () => { sortBy = sortBySel.value; applyFiltersAndSort(); });
-  sortDirSel.addEventListener('change', () => { sortDir = sortDirSel.value; applyFiltersAndSort(); });
-
-  searchInput.addEventListener('input', debounce((e) => { searchQuery = e.target.value || ''; currentPage = 1; applyFiltersAndSort(); }, 250));
-
-  btnRefresh.addEventListener('click', loadConsensus);
-
-  // Inicial: lista vacía
-  filtered = [];
+function renderAll() {
+  renderControls();
   renderPlayersGrid();
-  renderPagination();
+  renderDraftedOffcanvas();
+  renderLoading(false);
+}
 
-  // Si existe liga ya seleccionada, carga
-  const initialLeague = (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || '').toString().trim();
-  if (initialLeague) await loadConsensus();
+// === Entry point ===
+export default async function renderConsensusDraft() {
+  loadStyles();
 
-  // Offcanvas open handler to refresh drafted list
-  document.getElementById('btn-refresh-draft')?.addEventListener('click', loadConsensus);
-  document.querySelector('[data-bs-target="#offcanvasDrafted"]')?.addEventListener('click', renderDraftedOffcanvas);
+  // leagueId desde querystring: ?leagueId=...
+  STATE.leagueId = getQueryParam('leagueId', '');
+  if (!STATE.leagueId) {
+    showError('Falta leagueId en la URL (?leagueId=...)');
+    return;
+  }
+
+  // Restaurar algunos valores útiles de LS antes de la primera carga
+  STATE.position = readLS(LS_KEYS.position, STATE.position);
+  STATE.status = readLS(LS_KEYS.status, STATE.status);
+  STATE.sleeperADP = (readLS(LS_KEYS.sleeper, String(STATE.sleeperADP)) === 'true');
+  STATE.search = readLS(LS_KEYS.search, STATE.search);
+  STATE.sortBy = readLS(LS_KEYS.sortBy, STATE.sortBy);
+  STATE.sortDir = readLS(LS_KEYS.sortDir, STATE.sortDir);
+  STATE.byeCondition = Number(readLS(LS_KEYS.bye, String(STATE.byeCondition))) || 0;
+
+  renderChrome();
+  renderControls();    // render inicial
+  renderLoading(true); // skeleton mientras trae
+
+  await loadConsensus();
 }
