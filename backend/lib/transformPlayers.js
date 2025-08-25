@@ -486,15 +486,42 @@ export function buildFinalPlayersConsensus({
     }
   }
 
-  // Helpers
-  function extractRankFromExpertPlayer(p, index) {
-    const n = Number(p?.rank ?? p?.overall_rank ?? p?.ecr);
-    return Number.isFinite(n) ? n : (typeof index === 'number' ? index + 1 : null);
-  }
-  function averageNonNull(nums) {
-    const filtered = nums.filter(n => Number.isFinite(n));
+  // --- Helpers ---
+  const normalizeName = (s = '') =>
+    String(s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quita acentos
+      .replace(/[^a-z0-9 ]/gi, ' ')    // quita signos
+      .replace(/\s+/g, ' ')            // colapsa espacios
+      .trim()
+      .toLowerCase();
+
+  const asValidRank = (val) => {
+    const n = Number(val);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  const getRankFromPlayerObj = (obj) => {
+    if (!obj) return null;
+    // intenta múltiples llaves comunes de fuentes
+    const candidates = [
+      obj.rank,
+      obj.overall_rank,
+      obj.overall,         // algunas fuentes
+      obj.overall_ecr,
+      obj.ecr
+    ];
+    for (const c of candidates) {
+      const r = asValidRank(c);
+      if (r !== null) return r;
+    }
+    return null;
+  };
+
+  const averageNonNull = (nums) => {
+    const filtered = nums.filter(n => Number.isFinite(n) && n > 0);
     return filtered.length ? filtered.reduce((a, b) => a + b, 0) / filtered.length : null;
-  }
+  };
 
   const rows = [];
 
@@ -508,27 +535,36 @@ export function buildFinalPlayersConsensus({
       if (!playerInfo || !playerInfo.full_name) continue;
 
       const fullName = playerInfo.full_name;
+      const fullNameNorm = normalizeName(fullName);
 
-      // --- Ranks de expertos ---
+      // --- Ranks de expertos robusto ---
       const expert_ranks = rankingsByExpert.map(ex => {
-        const found = ex.players.find((p, idx) => {
-          const pidMatch = p?.player_id && String(p.player_id) === playerId;
-          if (pidMatch) return true;
-          const name = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
-          return name.toLowerCase() === fullName.toLowerCase();
+        const idx = ex.players.findIndex(p => {
+          const pidVal = (typeof toId === 'function')
+            ? String(toId(p?.player_id ?? ''))
+            : String(p?.player_id ?? '');
+
+          if (pidVal && pidVal === playerId) return true;
+
+          const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+          return normalizeName(candidateName) === fullNameNorm;
         });
-        const index = found ? ex.players.indexOf(found) : -1;
+
+        const found = idx >= 0 ? ex.players[idx] : null;
+        const parsedRank = getRankFromPlayerObj(found);
+
         return {
           expert_id: ex.expert_id,
           expert: ex.expert_name,
           source: ex.source,
           published: ex.published,
-          rank: extractRankFromExpertPlayer(found, index)
+          // Solo usa fallback index+1 si lo encontró (idx >= 0). Jamás regreses 0.
+          rank: parsedRank ?? (idx >= 0 ? idx + 1 : null)
         };
       });
 
       const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
-      const adp_rank = Number.isFinite(adp?.adp_rank) ? Number(adp.adp_rank) : null;
+      const adp_rank = asValidRank(adp?.adp_rank);
 
       // --- Decoraciones ---
       const isRookie = (playerInfo?.years_exp === 0);
@@ -553,7 +589,9 @@ export function buildFinalPlayersConsensus({
         adp_rank,
         experts: expert_ranks,
         avg_rank,
-        valueOverADP: avg_rank && adp_rank ? Number((avg_rank / adp_rank).toFixed(2)) : null
+        valueOverADP: (Number.isFinite(avg_rank) && avg_rank > 0 && Number.isFinite(adp_rank) && adp_rank > 0)
+          ? Number((avg_rank / adp_rank).toFixed(2))
+          : null
       });
     } catch (err) {
       console.warn('Error en buildFinalPlayersConsensus:', err?.message ?? err);
@@ -562,11 +600,11 @@ export function buildFinalPlayersConsensus({
 
   // --- Orden ---
   rows.sort((a, b) => {
-    if (a.avg_rank === null && b.avg_rank === null) {
+    if ((a.avg_rank ?? null) === null && (b.avg_rank ?? null) === null) {
       return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
     }
-    if (a.avg_rank === null) return 1;
-    if (b.avg_rank === null) return -1;
+    if ((a.avg_rank ?? null) === null) return 1;
+    if ((b.avg_rank ?? null) === null) return -1;
     if (a.avg_rank !== b.avg_rank) return a.avg_rank - b.avg_rank;
     return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
   });
