@@ -7,7 +7,7 @@ import { fetchConsensusData } from '../api.js';
 
 // Ajusta si tu base cambia
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
-const DRAFT_API_PATH = '/draft/consensus'; // endpoint consenso (no idExperto)
+const DRAFT_API_PATH = '/draft'; // endpoint consenso (no idExperto)
 
 export default async function renderConsensusDraft() {
   // --- Render chrome (estructura similar a tu primera vista, con controles de la segunda) ---
