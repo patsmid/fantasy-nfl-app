@@ -528,9 +528,25 @@ export function buildFinalPlayersConsensus({
     for (let i = 0; i < playersArr.length; i++) {
       const p = playersArr[i];
       const pid = String(p?.player_id ?? '');
-      const candidateName = p?.name ?? `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
+      // --- nombre robusto ---
+      let candidateName =
+        p?.player_name ??
+        p?.name ??
+        [p?.first_name, p?.last_name].filter(Boolean).join(' ') ??
+        p?.player_short_name ??
+        '';
+
+      candidateName = String(candidateName).trim();
       const norm = normalizeName(candidateName);
-      const candPos = p?.position ?? p?.pos ?? p?.player_position ?? null;
+
+      // --- posición robusta ---
+      const candPos =
+        p?.player_positions ??
+        p?.position ??
+        p?.pos ??
+        p?.player_position ??
+        null;
+
       const cand = { ...p, __idx: i, __norm: norm, __position: candPos };
 
       if (pid) byId.set(pid, cand);
@@ -550,7 +566,7 @@ export function buildFinalPlayersConsensus({
     for (const c of candidates) {
       if (!c || !c.__norm) continue; // clave: ignorar candidatos sin nombre normalizado
       const candPos = c.__position ?? c.position ?? c.pos ?? null;
-      if (targetPos && candPos && candPos !== targetPos) continue;
+      if (targetPos && candPos && !String(candPos).includes(targetPos)) continue;
 
       const nombre = c.__norm.replace(/\./g, '');
       // 1) prefijo directo
@@ -617,7 +633,7 @@ export function buildFinalPlayersConsensus({
         const finalRank =
           parsedRank !== null
             ? parsedRank
-            : (found?.__idx !== undefined ? found.__idx + 1 : 9999);
+            : (found ? found.__idx + 5000 : 9999);
 
         return {
           expert_id: ex.expert_id,

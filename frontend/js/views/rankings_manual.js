@@ -103,8 +103,8 @@ export default async function renderManualRankingsView() {
             </button>`
         }
       ],
-      pageLength: -1,           // mostrar todos
-      lengthChange: false,
+      pageLength: 50,           // mostrar todos
+      //lengthChange: false,
       responsive: true,
       searching: true,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
@@ -240,7 +240,8 @@ export default async function renderManualRankingsView() {
         }
       ],
       rowId: row => `rank-${row.id}`,
-      pageLength: 50,
+      pageLength: -1,
+      lengthChange: false,
       responsive: true,
       searching: true,
       ordering: false,
