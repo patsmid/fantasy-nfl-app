@@ -8,6 +8,14 @@ export default async function renderConsensusDraft() {
   const content = document.getElementById('content-container');
   if (!content) return showError('No se encontró el contenedor de contenido.');
 
+  // Evitar doble inicialización si la vista se monta varias veces
+  if (content.dataset.consensusInitialized === 'true') {
+    // Re-render layout (limpia grid y reusa listeners existentes)
+    content.querySelector('#draft-grid')?.remove();
+    content.innerHTML = '';
+    content.dataset.consensusInitialized = '';
+  }
+
   content.innerHTML = `
     <style>
       .draft-card { background:var(--bg-secondary,#1f2228); color:var(--text-primary,#e4e6eb); border:1px solid var(--border,#2f3033); border-radius:12px; padding:.75rem; height:100%; }
@@ -18,6 +26,8 @@ export default async function renderConsensusDraft() {
       .page-btn { min-width:36px; text-align:center; padding:.2rem .5rem; cursor:pointer; border-radius:.35rem; border:1px solid rgba(255,255,255,.06); background:transparent; color:inherit; }
       .page-btn[disabled] { opacity:.45; cursor:not-allowed; }
       .expert-mini { font-size:0.82rem; color:var(--text-secondary,#b0b3b8); }
+      .flock-card { background: transparent; }
+      .flock-offcanvas { color:var(--text-primary); background:var(--bg-primary); }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -132,6 +142,9 @@ export default async function renderConsensusDraft() {
     </div>
   `;
 
+  // marcar inicializado para evitar doble binding
+  content.dataset.consensusInitialized = 'true';
+
   // -------------------------
   // Refs y estado
   // -------------------------
@@ -163,7 +176,7 @@ export default async function renderConsensusDraft() {
   // concurrency control
   let currentAbortController = null;
   let lastLoadSeq = 0;
-  let leagueSelectInitialized = false; // to prevent tomselect onChange during init
+  let leagueSelectInitialized = false; // para evitar onChange inicial
 
   // restore localstorage
   try { positionSelect.value = localStorage.getItem('consensusPosition') || positionSelect.value; } catch(e){}
@@ -171,7 +184,7 @@ export default async function renderConsensusDraft() {
   try { sleeperADPCheckbox.checked = (localStorage.getItem('consensusSleeperADP') === 'true') || false; } catch(e){}
 
   // -------------------------
-  // Helpers (escaped + numerics)
+  // Helpers
   // -------------------------
   function debounce(fn, wait = 200) {
     let t;
@@ -297,6 +310,7 @@ export default async function renderConsensusDraft() {
       grid.innerHTML = '';
       empty.classList.remove('d-none');
       cardsInfo.textContent = 'Mostrando 0 de 0';
+      paginationEl.innerHTML = '';
       return;
     }
     empty.classList.add('d-none');
@@ -344,7 +358,7 @@ export default async function renderConsensusDraft() {
 
             <div class="mt-2">
               <div class="small mb-1">Proyección</div>
-              <div class="progress" style="height:8px;background:rgba(255,255,255,.06)"><div class="progress-bar" style="width:${projPct}%;"></div></div>
+              <div class="progress" style="height:8px;background:rgba(255,255,255,.06)"><div class="progress-bar" style="width:${projPct}%;" role="progressbar" aria-valuenow="${projPct}" aria-valuemin="0" aria-valuemax="100"></div></div>
             </div>
 
             <div class="mt-2 d-flex gap-2 flex-wrap">
@@ -365,7 +379,7 @@ export default async function renderConsensusDraft() {
       `;
     }).join('');
 
-    // attach detail handlers
+    // attach detail handlers (delegation: remove previous to avoid dups)
     grid.querySelectorAll('[data-action="detail"]').forEach(btn => {
       btn.addEventListener('click', () => {
         const pid = btn.dataset.id;
@@ -376,6 +390,7 @@ export default async function renderConsensusDraft() {
     });
 
     cardsInfo.textContent = `Mostrando ${start + 1}-${Math.min(start + pageSize, list.length)} de ${list.length} jugadores`;
+    renderPagination();
   }
 
   function renderPagination() {
@@ -482,14 +497,17 @@ export default async function renderConsensusDraft() {
     const signal = currentAbortController.signal;
     const mySeq = ++lastLoadSeq;
 
-    // ensure any previous Swal closed, then open a new loading UI
-    try { Swal.close(); } catch(e) {}
-    try {
-      showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos');
-    } catch (e) {
-      // fallback in case showLoadingBar throws
+    // show loading (try app helper, fallback to Swal)
+    try { showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos'); } catch (e) {
       try { Swal.fire({ title: 'Cargando consenso', text: 'Esto puede tardar unos segundos', allowOutsideClick:false, didOpen: () => Swal.showLoading() }); } catch(e2) {}
     }
+
+    const safeHideLoading = () => {
+      // cerrar solo si esta llamada sigue siendo la última
+      if (mySeq !== lastLoadSeq) return;
+      try { Swal.close(); } catch(e) {}
+      try { showLoadingBar(false); } catch(e) {}
+    };
 
     try {
       const qsLeagueId = (() => {
@@ -501,8 +519,8 @@ export default async function renderConsensusDraft() {
 
       const leagueId = (document.querySelector('#select-league')?.tomselect?.getValue?.() || leagueSelect.value || qsLeagueId || '').toString().trim();
       if (!leagueId) {
-        showError('Selecciona una liga (o añade ?leagueId=... en la URL).');
-        return;
+        safeHideLoading();
+        return showError('Selecciona una liga (o añade ?leagueId=... en la URL).');
       }
 
       const position = positionSelect.value || 'ALL';
@@ -510,20 +528,21 @@ export default async function renderConsensusDraft() {
       const byeCond = Number(byeInput.value || 0);
       const sleeper = !!sleeperADPCheckbox.checked;
 
-      // Try passing the signal as last arg (fetchConsensusData may ignore it; seq protects results)
       const maybeOptions = { signal };
       const result = await fetchConsensusData(leagueId, apiPosition, byeCond, sleeper, maybeOptions);
 
       // if some other load started after this one, discard results
       if (mySeq !== lastLoadSeq) {
+        safeHideLoading();
         return;
       }
 
       const players = result?.data || result?.players || [];
-      const params = result?.params || {};
-      const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.my_drafted || result?.myDrafted || result?.myDrafted; // tolerate formats
-      // normalize
+      const params = result?.params || result?.query || {};
+      const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDraftedList || result?.myDrafted || [];
+
       draftData = normalizePlayers(players || []);
+
       // default ordering by avg_rank asc
       draftData.sort((a,b) => {
         const aa = a?.avg_rank ?? Number.POSITIVE_INFINITY;
@@ -533,16 +552,22 @@ export default async function renderConsensusDraft() {
         return 0;
       });
 
-      myDrafted = result?.my_drafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || result?.myDrafted || [];
+      myDrafted = Array.isArray(apiMyDrafted) ? apiMyDrafted : [];
 
       // publish dates
       if (params?.ranks_published) {
         const fecha = new Date(params.ranks_published);
         ranksUpdatedLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill" style="background-color:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border);">
           <i class="bi bi-calendar-check-fill text-success"></i> Ranks: ${fecha.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</div>`;
+      } else if (params?.experts_used && Array.isArray(params.experts_used) && params.experts_used.length) {
+        // fallback: pick latest published from experts_used
+        const lastPub = params.experts_used.map(e => new Date(e.published)).sort((a,b)=>b-a)[0];
+        if (lastPub) ranksUpdatedLabel.textContent = `Ranks: ${lastPub.toLocaleString('es-MX')}`;
+        else ranksUpdatedLabel.innerHTML = '';
       } else {
         ranksUpdatedLabel.innerHTML = '';
       }
+
       if (params?.ADPdate) {
         const adpDate = new Date(params.ADPdate);
         adpUpdatedLabel.innerHTML = `<div class="px-3 py-1 small rounded-pill" style="background-color:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border);">
@@ -562,12 +587,8 @@ export default async function renderConsensusDraft() {
       console.error('loadConsensus error', err);
       showError('Error al cargar consenso: ' + (err?.message || err));
     } finally {
-      // only close the loading UI if this is the last completed call
-      if (mySeq === lastLoadSeq) {
-        try { Swal.close(); } catch(e) {}
-        try { showLoadingBar(false); } catch(e) {}
-        currentAbortController = null;
-      }
+      safeHideLoading();
+      currentAbortController = null;
     }
   }
 
@@ -584,6 +605,7 @@ export default async function renderConsensusDraft() {
       wrap.innerHTML = `<div class="text-secondary text-center py-3"><i class="bi bi-inbox"></i><div class="mt-1">Aún no tienes jugadores drafteados.</div></div>`;
       return;
     }
+
     wrap.innerHTML = `
       <div class="list-group list-group-flush">
         ${list.map(p => `
@@ -603,7 +625,7 @@ export default async function renderConsensusDraft() {
   }
 
   // -------------------------
-  // Events
+  // Events (debounced where needed)
   // -------------------------
   statusSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusStatus', statusSelect.value); }catch{} applyFiltersAndSort(); });
   positionSelect.addEventListener('change', () => { try{ localStorage.setItem('consensusPosition', positionSelect.value); }catch{} applyFiltersAndSort(); });
@@ -628,7 +650,7 @@ export default async function renderConsensusDraft() {
       create: false,
       persist: false,
       onChange() {
-        // avoid triggering on initial setValue while we initialize
+        // evitar trigger en init
         if (!leagueSelectInitialized) return;
         try { localStorage.setItem('consensusLeague', this.getValue?.() || ''); } catch(e) {}
         if (this && typeof this.blur === 'function') this.blur();
@@ -656,7 +678,7 @@ export default async function renderConsensusDraft() {
     }
   } catch (e) {}
 
-  // allow onChange to run now
+  // allow onChange to run ahora
   leagueSelectInitialized = true;
 
   // initial render
