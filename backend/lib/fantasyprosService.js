@@ -8,6 +8,12 @@ const TYPES = {
   'standard': 'std'
 };
 
+const SCORING = {
+  'half-ppr': 'HALF',
+  'ppr': 'PPR',
+  'standard': 'STD'
+};
+
 export async function getFantasyProsADPDataSimple({
   adp_type = null,
   date = null,
@@ -95,54 +101,33 @@ function parsePlayerRaw(raw) {
 }
 
 export async function getFantasyProsADP(type = 'half-ppr') {
-  if (!(type in TYPES)) throw Error('Tipo inválido');
+  if (!(type in SCORING)) throw Error('Tipo inválido');
 
-  const suffix = TYPES[type] ? `/${TYPES[type]}` : '';
-  const url = `https://www.fantasypros.com/nfl/real-time-adp${suffix}`;
+  const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?id=7556&position=ALL&type=adp&scoring=${SCORING[type]}`;
+  console.log('👉 URL usada:', url);
 
-  const html = await fetch(url, {
+  const json = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0' }
-  }).then(r => r.text());
+  }).then(r => r.json());
 
-  const $ = cheerio.load(html);
-  const table = $('#data');
-  const headers = table.find('thead th').map((i, el) => normalizeHeader($(el).text())).get();
+  if (!json.players) {
+    console.error('❌ No se encontró players en respuesta:', json);
+    return [];
+  }
 
-  console.log('👉 Headers detectados:', headers);
-
-  const players = [];
-
-  table.find('tbody tr').each((_, tr) => {
-    const cols = $(tr).find('td');
-    const obj = {};
-    cols.each((i, td) => {
-      obj[headers[i]] = $(td).text().trim();
-    });
-
-    const raw = obj['player'] || obj['player team (bye)'] || obj['player (team bye)'] || '';
-    const { name, team, bye } = parsePlayerRaw(raw);
-
-    const adpRaw =
-      obj['real-time'] ||
-      obj['real time'] ||
-      obj['rt'] ||
-      obj['avg'] || null;
-
-    players.push({
-      rank: parseInt(obj['#'] || obj['rank']) || null,
-      name,
-      team,
-      position: obj['pos'] || obj['position'] || null,
-      bye,
-      adp: adpRaw ? parseFloat(adpRaw) : null
-    });
-  });
+  const players = json.players.map(p => ({
+    rank: parseInt(p.rank_ecr) || null,   // rank de consenso
+    name: p.player_name,
+    team: p.team,
+    position: p.position,
+    bye: p.bye_week ? parseInt(p.bye_week) : null,
+    adp: p.rank_adp_raw ? parseFloat(p.rank_adp_raw) : null  // 👈 el que necesitas
+  }));
 
   console.log('✅ Ejemplo primer jugador:', players[0]);
 
   return players;
 }
-
 
 export async function getFantasyProsADPData(req, res) {
   try {
