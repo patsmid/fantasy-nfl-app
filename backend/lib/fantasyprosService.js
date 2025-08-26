@@ -226,107 +226,281 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   const today = new Date().toISOString().split('T')[0];
   const records = [];
   const notFound = [];
+  const debug = []; // guardamos trazas para retornar (opcional)
 
   try {
+    // 1) Obtener ADP
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
     if (!Array.isArray(adpList) || adpList.length === 0) {
       throw new Error('❌ No se obtuvieron datos de FantasyPros');
     }
+    console.log(`📥 ADP recibidos: ${adpList.length}`);
 
+    // 2) Cargar jugadores locales
     const playersData = await fetchAllPlayers(15000);
     if (!Array.isArray(playersData) || playersData.length === 0) {
       throw new Error('❌ No se pudieron cargar los jugadores desde Supabase');
     }
     console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
 
-    // 🔑 Índice por (nombre + posición)
-    const nameIndex = new Map();
+    // 3) Construir índices:
+    //    - byName: normalizedName -> [players]
+    //    - byNamePos: normalizedName|POS -> [players]
+    //    - byNamePosTeam: normalizedName|POS|TEAM -> player (first)
+    const byName = new Map();
+    const byNamePos = new Map();
+    const byNamePosTeam = new Map();
+
+    const normalizeTeam = (t) => (t || '').toString().trim().toUpperCase();
+
     for (const p of playersData) {
-      const normalized = normalizeName(p.full_name);
-      if (normalized && p.position) {
-        const key = `${normalized}|${p.position.toUpperCase()}`;
-        if (!nameIndex.has(key)) {
-          nameIndex.set(key, p);
-        }
-      }
+      const fullName = (p.full_name || '').toString().trim();
+      if (!fullName) continue;
+      const norm = normalizeName(fullName);
+      const pos = (p.position || '').toString().trim().toUpperCase();
+      const team = normalizeTeam(p.team || p.team_abbreviation || p.sleeper_team || '');
+
+      // byName
+      if (!byName.has(norm)) byName.set(norm, []);
+      byName.get(norm).push(p);
+
+      // byNamePos
+      const keyNP = `${norm}|${pos}`;
+      if (!byNamePos.has(keyNP)) byNamePos.set(keyNP, []);
+      byNamePos.get(keyNP).push(p);
+
+      // byNamePosTeam (first wins)
+      const keyNPT = `${norm}|${pos}|${team}`;
+      if (!byNamePosTeam.has(keyNPT)) byNamePosTeam.set(keyNPT, p);
     }
 
-    for (const player of adpList) {
-      const rawName = player.name?.trim();
-      const pos = player.position?.toUpperCase();
-      if (!rawName || !pos) {
-        notFound.push(`Nombre/pos inválido: ${JSON.stringify(player)}`);
+    console.log('🔎 Índices construidos:', {
+      names: byName.size,
+      namePos: byNamePos.size,
+      namePosTeam: byNamePosTeam.size
+    });
+
+    // Para evitar insertar duplicados por accidente
+    const insertedIds = new Set();
+
+    // 4) Procesar cada jugador de ADP
+    for (const src of adpList) {
+      const rawName = (src.name || '').toString().trim();
+      const srcPos = (src.position || '').toString().trim().toUpperCase();
+      const srcTeam = normalizeTeam(src.team);
+      const srcAdpRaw = src.adp;
+      const srcAdp = (srcAdpRaw !== undefined && srcAdpRaw !== null && srcAdpRaw !== '') ? Number(srcAdpRaw) : NaN;
+
+      // log entrada
+      console.log(`\n➡️ Procesando: "${rawName}" pos="${srcPos}" team="${srcTeam}" adp="${srcAdpRaw}"`);
+      debug.push({ rawName, srcPos, srcTeam, srcAdpRaw });
+
+      if (!rawName) {
+        notFound.push({ reason: 'sin nombre', raw: src });
+        continue;
+      }
+      const norm = normalizeName(rawName);
+
+      // 4.1 Intento exacto: name|pos|team
+      const keyNPT = `${norm}|${srcPos}|${srcTeam}`;
+      let matched = byNamePosTeam.get(keyNPT);
+      if (matched) {
+        console.log(`   ✅ Match exacto por name|pos|team -> ${matched.full_name} [${matched.position} - ${matched.team || 'sin equipo'}]`);
+      } else {
+        // 4.2 Intento exacto por name|pos (puede devolver varios)
+        const keyNP = `${norm}|${srcPos}`;
+        const candidatesNP = byNamePos.get(keyNP) || [];
+        if (candidatesNP.length === 1) {
+          matched = candidatesNP[0];
+          console.log(`   ✅ Match exacto por name|pos (único candidato) -> ${matched.full_name} [${matched.position}]`);
+        } else if (candidatesNP.length > 1) {
+          // si hay múltiples candidatos con mismo name+pos, tratar de elegir por team
+          const byTeam = candidatesNP.find(c => normalizeTeam(c.team) === srcTeam);
+          if (byTeam) {
+            matched = byTeam;
+            console.log(`   ✅ Entre múltiples name|pos, matched por team -> ${matched.full_name} [${matched.position} - ${matched.team}]`);
+          } else {
+            console.log(`   ⚠️ Múltiples candidatos por name|pos (${candidatesNP.length}). Candidates:`, candidatesNP.map(c => `${c.full_name} [${c.position}|${c.team}]`));
+            // dejamos matched = null; vamos a intentar fuzzy más abajo sobre estos candidatos
+          }
+        } else {
+          // 4.3 Intento por name solo (filtrando por posición si hay coincidencias)
+          const candidatesName = byName.get(norm) || [];
+          if (candidatesName.length === 1) {
+            // si sólo uno existe con ese nombre, lo usamos sólo si la posición coincide o si adpList no tiene posición
+            const only = candidatesName[0];
+            if (!srcPos || (only.position || '').toUpperCase() === srcPos) {
+              matched = only;
+              console.log(`   ✅ Match por name único -> ${matched.full_name} [${matched.position}]`);
+            } else {
+              console.log(`   ⚠️ Nombre único pero posición difiere: ${only.full_name} tiene ${only.position} vs source ${srcPos}`);
+            }
+          } else if (candidatesName.length > 1) {
+            // filtrar por posición entre los mismos nombre
+            const candidatesNamePos = candidatesName.filter(c => (c.position || '').toUpperCase() === srcPos);
+            if (candidatesNamePos.length === 1) {
+              matched = candidatesNamePos[0];
+              console.log(`   ✅ Entre mismos nombres, matched por posición -> ${matched.full_name} [${matched.position}]`);
+            } else if (candidatesNamePos.length > 1) {
+              // si hay varios mismo name+pos, intentar por equipo
+              const byTeam = candidatesNamePos.find(c => normalizeTeam(c.team) === srcTeam);
+              if (byTeam) {
+                matched = byTeam;
+                console.log(`   ✅ Entre mismos name+pos, matched por team -> ${matched.full_name} [${matched.position} - ${matched.team}]`);
+              } else {
+                console.log(`   ⚠️ Varios jugadores con mismo nombre y posición (${candidatesNamePos.length}). Candidates:`, candidatesNamePos.map(c => `${c.full_name} [${c.position}|${c.team}]`));
+              }
+            } else {
+              // no hay candidatos con la misma posición -> los candidatesName (otros puestos) mostrarlos
+              console.log(`   ⚠️ Hay jugadores con ese nombre pero sin coincidencia de posición:`, candidatesName.map(c => `${c.full_name} [${c.position}|${c.team}]`));
+            }
+          } else {
+            // no hay por name
+            console.log('   ❌ No hay candidatos por normalized name en Supabase');
+          }
+        }
+      }
+
+      // 4.4 Si no hay matched todavía, intentar fuzzy **entre candidatos que compartan la posición**.
+      if (!matched && typeof fuzzySearch === 'function') {
+        // priorizar: candidatesNP (name+pos), si vacíos -> todos playersData filtrando por pos
+        let fuzzyCandidates = byNamePos.get(`${norm}|${srcPos}`) || [];
+        if (!fuzzyCandidates.length) {
+          // si no hay name+pos, tomar todos con la posición (reduce scope)
+          fuzzyCandidates = playersData.filter(p => (p.position || '').toUpperCase() === srcPos);
+        }
+        // si aún no hay candidatos, ampliar al dataset completo (pero esto puede false-positive)
+        if (!fuzzyCandidates.length) {
+          fuzzyCandidates = playersData;
+        }
+
+        console.log(`   🔎 Usando fuzzySearch entre ${fuzzyCandidates.length} candidatos (filtrados por pos si fue posible).`);
+        let fuzzyResults;
+        try {
+          fuzzyResults = fuzzySearch(rawName, fuzzyCandidates, {
+            key: p => p.full_name,
+            normalize: normalizeName
+          });
+        } catch (e) {
+          console.warn('   ⚠️ fuzzySearch lanzó error:', e);
+          fuzzyResults = null;
+        }
+
+        let best = null;
+        if (Array.isArray(fuzzyResults) && fuzzyResults.length > 0) {
+          // fuzzySearch puede devolver objetos directos o estructuras; intentar normalizar
+          best = fuzzyResults[0];
+          // si el resultado tiene formato {item,score} o similar, normalizar:
+          if (best && best.item) best = best.item;
+          console.log('   🤖 Resultado fuzzy top:', best ? `${best.full_name} [${best.position}|${best.team}]` : best);
+        } else {
+          console.log('   ❌ fuzzySearch no devolvió resultados útiles.');
+        }
+
+        if (best) {
+          // asegurar que la posición coincide (protección extra)
+          if (!srcPos || (best.position || '').toUpperCase() === srcPos) {
+            matched = best;
+            console.log(`   ✅ Selected fuzzy -> ${matched.full_name} [${matched.position} - ${matched.team}]`);
+          } else {
+            console.log(`   ⚠️ Best fuzzy tiene posición distinta (${best.position}) vs source ${srcPos}. Ignorando.`);
+          }
+        }
+      }
+
+      // 4.5 Si aún no matched, añadir a notFound (junto con contexto)
+      if (!matched) {
+        // recopilar candidatos cercanos para depuración
+        const nearby = (byName.get(norm) || []).slice(0, 6).map(c => `${c.full_name} [${c.position}|${c.team}]`);
+        console.warn(`   ❌ No matched para "${rawName}" (${srcPos}). Nearby:`, nearby);
+        notFound.push({ name: rawName, pos: srcPos, team: srcTeam, nearby });
         continue;
       }
 
-      const normalizedName = normalizeName(rawName);
-      const key = `${normalizedName}|${pos}`;
-      let matched = nameIndex.get(key);
-
-      // 🔍 Fuzzy match si no hay exacto
-      if (!matched && typeof fuzzySearch === 'function') {
-        const candidates = playersData.filter(p => p.position?.toUpperCase() === pos);
-        const [fuzzy] = fuzzySearch(rawName, candidates, {
-          key: p => p.full_name,
-          normalize: normalizeName
-        }) || [];
-        if (fuzzy) {
-          matched = fuzzy;
-          console.log(`🤖 Fuzzy match: "${rawName}" ➜ "${matched.full_name}" [${pos}]`);
-        }
+      // 4.6 Matcheado: validar adp y push
+      if (!matched.player_id) {
+        console.warn(`   ⚠️ Matched sin player_id: ${JSON.stringify(matched)}`);
+        notFound.push({ name: rawName, pos: srcPos, reason: 'matched sin player_id' });
+        continue;
+      }
+      if (isNaN(srcAdp)) {
+        console.warn(`   ⚠️ ADP inválido para ${rawName}: ${srcAdpRaw}`);
+        notFound.push({ name: rawName, pos: srcPos, team: srcTeam, reason: 'adp inválido' });
+        continue;
       }
 
-      if (matched?.player_id && !isNaN(Number(player.adp))) {
-        records.push({
-          adp_type,
-          sleeper_player_id: matched.player_id,
-          adp_value: Number(player.adp),
-          adp_value_prev: 0,
-          date: today
-        });
-      } else {
-        notFound.push(`${rawName} (${pos})`);
+      if (insertedIds.has(matched.player_id)) {
+        console.log(`   ℹ️ Ya se agregó ${matched.full_name} (player_id=${matched.player_id}), salto duplicado.`);
+        continue;
       }
-    }
+
+      records.push({
+        adp_type,
+        sleeper_player_id: matched.player_id,
+        adp_value: Number(srcAdp),
+        adp_value_prev: 0,
+        date: today
+      });
+      insertedIds.add(matched.player_id);
+
+      console.log(`   ➕ Preparado registro: ${matched.full_name} id=${matched.player_id} adp=${srcAdp}`);
+    } // end for each adp player
+
+    console.log(`\n📊 Total ADP: ${adpList.length}`);
+    console.log(`✅ A insertar: ${records.length}`);
+    console.log(`⚠️ No encontrados: ${notFound.length}`);
 
     if (records.length === 0) {
-      return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
+      return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato', debug: { notFound, debug } };
     }
 
-    // 🔄 Reemplazar datos anteriores
+    // 5) Borrar previos y subir nuevos
+    console.log(`🧹 Borrando ADP previos de tipo ${adp_type}...`);
     const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
       .eq('adp_type', adp_type);
-    if (delError) throw new Error(`Error al borrar ADP previos: ${delError.message}`);
 
+    if (delError) {
+      console.error('🧨 Error al borrar previos:', delError);
+      throw delError;
+    }
+
+    console.log('📤 Insertando nuevos registros...');
     const { error: insertError } = await supabase
       .from('sleeper_adp_data')
       .insert(records);
-    if (insertError) throw new Error(`Error al insertar en Supabase: ${insertError.message}`);
 
-    console.log(`✅ Insertados ${records.length} registros de ADP [${adp_type}]`);
+    if (insertError) {
+      console.error('🧨 Error al insertar en Supabase:', insertError);
+      throw insertError;
+    }
+
+    console.log(`✅ Insertados ${records.length} registros [${adp_type}]`);
     if (notFound.length > 0) {
-      console.warn(`⚠️ Sin match (${notFound.length}): ${notFound.slice(0, 10).join(', ')}${notFound.length > 10 ? ', …' : ''}`);
+      console.warn(`⚠️ Sin match (${notFound.length}). Ejemplos:`, notFound.slice(0, 10));
     }
 
     return {
       adp_type,
       inserted: records.length,
       skipped: notFound.length,
-      message: 'ADP cargado exitosamente'
+      message: 'ADP cargado exitosamente',
+      debug: { notFound: notFound.slice(0, 50), samples: debug.slice(0, 20) } // opcional, quita si no quieres retorno grande
     };
 
   } catch (err) {
-    console.error('❌ Error al subir datos de FantasyPros:', err.message || err);
+    console.error('❌ Error al subir datos de FantasyPros:', err);
     return {
       adp_type,
       inserted: 0,
       skipped: 0,
-      message: `Error: ${err.message || err}`
+      message: `Error: ${err.message || err}`,
+      debug: { error: String(err) }
     };
   }
 }
+
 
 
 export async function uploadAllFantasyProsADP() {
