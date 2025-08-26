@@ -470,10 +470,11 @@ export function buildFinalPlayersConsensus({
   num_teams = 10,
   byeCondition = 0
 }) {
+  // --- Maps básicos ---
   const draftedMap = new Map((drafted || []).map(p => [String(p.player_id), p]));
   const playersDataMap = new Map((playersData || []).map(p => [String(p.player_id), p]));
 
-  // --- Info de mi equipo (para bye/teamFound) ---
+  // --- Mi equipo: byeWeeks y teams ---
   const myByeWeeksSet = new Set();
   const myTeams = [];
   for (const pick of (myDraft || [])) {
@@ -490,9 +491,9 @@ export function buildFinalPlayersConsensus({
   const normalizeName = (s = '') =>
     String(s)
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // quita acentos
-      .replace(/[^a-z0-9 ]/gi, ' ')    // quita signos
-      .replace(/\s+/g, ' ')            // colapsa espacios
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9 ]/gi, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
 
@@ -503,11 +504,10 @@ export function buildFinalPlayersConsensus({
 
   const getRankFromPlayerObj = (obj) => {
     if (!obj) return null;
-    // intenta múltiples llaves comunes de fuentes
     const candidates = [
       obj.rank,
       obj.overall_rank,
-      obj.overall,         // algunas fuentes
+      obj.overall,
       obj.overall_ecr,
       obj.ecr
     ];
@@ -520,8 +520,28 @@ export function buildFinalPlayersConsensus({
 
   const averageNonNull = (nums) => {
     const filtered = nums.filter(n => Number.isFinite(n) && n > 0);
-    return filtered.length ? filtered.reduce((a, b) => a + b, 0) / filtered.length : null;
+    return filtered.length
+      ? filtered.reduce((a, b) => a + b, 0) / filtered.length
+      : null;
   };
+
+  // --- Preprocesar rankings por experto en estructuras rápidas ---
+  const expertLookups = rankingsByExpert.map(ex => {
+    const byId = new Map();
+    const byName = new Map();
+    for (let i = 0; i < (ex.players || []).length; i++) {
+      const p = ex.players[i];
+      const pid = String(p?.player_id ?? '');
+      if (pid) byId.set(pid, { ...p, __idx: i });
+
+      const candidateName =
+        p?.name ||
+        `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+      const norm = normalizeName(candidateName);
+      if (norm) byName.set(norm, { ...p, __idx: i });
+    }
+    return { ...ex, byId, byName };
+  });
 
   const rows = [];
 
@@ -537,99 +557,77 @@ export function buildFinalPlayersConsensus({
       const fullName = playerInfo.full_name;
       const fullNameNorm = normalizeName(fullName);
 
-      // --- Ranks de expertos robusto ---
-			const expert_ranks = rankingsByExpert.map(ex => {
-			  let found = null;
-			  let idx = -1;
+      // --- Ranks de expertos optimizados ---
+      const expert_ranks = expertLookups.map(ex => {
+        let found = ex.byId.get(playerId) || ex.byName.get(fullNameNorm);
 
-			  // 1) Intentar por player_id
-			  idx = ex.players.findIndex(p => {
-			    const pidVal = (typeof toId === 'function')
-			      ? String(toId(p?.player_id ?? ''))
-			      : String(p?.player_id ?? '');
-			    return pidVal && pidVal === playerId;
-			  });
-			  if (idx >= 0) {
-			    found = ex.players[idx];
-			  }
+        // fallback fuzzy
+        if (!found) {
+          const fuzzyMatches = fuzzySearch(fullName, ex.players || []);
+          if (fuzzyMatches.length) found = fuzzyMatches[0];
+        }
 
-			  // 2) Intentar por nombre normalizado exacto
-			  if (!found) {
-			    idx = ex.players.findIndex(p => {
-			      const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
-			      return normalizeName(candidateName) === fullNameNorm;
-			    });
-			    if (idx >= 0) {
-			      found = ex.players[idx];
-			    }
-			  }
+        // rank parseado
+        const parsedRank = getRankFromPlayerObj(found);
+        const finalRank =
+          parsedRank ??
+          (found?.__idx !== undefined ? found.__idx + 1 : 9999);
 
-			  // 3) Fallback fuzzy si nada de lo anterior funcionó
-			  if (!found) {
-			    const fuzzyMatches = fuzzySearch(fullName, ex.players || []);
-			    if (fuzzyMatches.length) {
-			      found = fuzzyMatches[0];
-			      //console.log(`[CONSENSUS][${ex.source}] Fuzzy match usado para "${fullName}" → "${found?.name}"`);
-			    }
-			  }
+        if (finalRank === 9999) {
+          console.warn(
+            `[CONSENSUS][${ex.source}] Rank no encontrado para "${fullName}" → asignado 9999`
+          );
+        }
 
-			  // 4) Parsear rank
-			  const parsedRank = getRankFromPlayerObj(found);
-			  if (!parsedRank && !found) {
-			    console.warn(`[CONSENSUS][${ex.source}] No se encontró rank para "${fullName}"`);
-			  }
-
-			  return {
-			    expert_id: ex.expert_id,
-			    expert: ex.expert_name,
-			    source: ex.source,
-			    published: ex.published,
-			    rank: parsedRank ?? (idx >= 0 ? idx + 1 : null)
-			  };
-			});
+        return {
+          expert_id: ex.expert_id,
+          expert: ex.expert_name,
+          source: ex.source,
+          published: ex.published,
+          rank: finalRank
+        };
+      });
 
       const avg_rank = averageNonNull(expert_ranks.map(e => e.rank));
       const adp_rank = asValidRank(adp?.adp_rank);
 
-			const isRookie = (playerInfo?.years_exp === 0);
-			const rookie = isRookie ? true : false; // ahora será booleano
-			const bye = Number(playerInfo?.bye_week ?? 0);
+      const isRookie = (playerInfo?.years_exp === 0);
+      const bye = Number(playerInfo?.bye_week ?? 0);
 
-			const byeFound   = myByeWeeksSet.has(bye);                               // boolean
-			const teamFound  = myTeams.includes(playerInfo?.team);                   // boolean
-			const isGoodOffense = Array.isArray(goodOffense)
-			  ? goodOffense.includes(playerInfo?.team)
-			  : false;                                                               // boolean
-			const byeCond    = (byeCondition > 0 && bye <= byeCondition);            // boolean
+      const row = {
+        player_id: playerId,
+        nombre: fullName,
+        position: playerInfo?.position ?? 'UNK',
+        team: playerInfo?.team ?? 'UNK',
+        bye,
+        status: draftedMap.has(playerId) ? '' : 'LIBRE',
+        adp_rank,
+        experts: expert_ranks,
+        avg_rank,
+        valueOverADP:
+          Number.isFinite(avg_rank) &&
+          Number.isFinite(adp_rank) &&
+          avg_rank > 0 &&
+          adp_rank > 0
+            ? Number((avg_rank / adp_rank).toFixed(2))
+            : null,
+        rookie: isRookie,
+        byeFound: myByeWeeksSet.has(bye),
+        teamFound: myTeams.includes(playerInfo?.team),
+        goodOffense: Array.isArray(goodOffense)
+          ? goodOffense.includes(playerInfo?.team)
+          : false,
+        byeConflict: byeCondition > 0 && bye <= byeCondition
+      };
 
-			const nombre = fullName; // limpio, sin adornos
-			const status = draftedMap.has(playerId) ? '' : 'LIBRE';
-
-			rows.push({
-			  player_id: playerId,
-			  nombre,
-			  position: playerInfo?.position ?? 'UNK',
-			  team: playerInfo?.team ?? 'UNK',
-			  bye,
-			  status,
-			  adp_rank,
-			  experts: expert_ranks,
-			  avg_rank,
-			  valueOverADP: (Number.isFinite(avg_rank) && avg_rank > 0 && Number.isFinite(adp_rank) && adp_rank > 0)
-			    ? Number((avg_rank / adp_rank).toFixed(2))
-			    : null,
-			  rookie,        // true/false
-			  byeFound,      // true/false
-			  teamFound,     // true/false
-			  goodOffense: isGoodOffense, // true/false
-			  byeConflict: byeCond        // true/false
-			});
+      rows.push(row);
     } catch (err) {
       console.warn('Error en buildFinalPlayersConsensus:', err?.message ?? err);
     }
   }
 
-	rows.sort((a, b) => {
+  // --- Ordenado final ---
+  rows.sort((a, b) => {
     if ((a.avg_rank ?? null) === null && (b.avg_rank ?? null) === null) {
       return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
     }
@@ -639,10 +637,7 @@ export function buildFinalPlayersConsensus({
     return (a.adp_rank ?? Infinity) - (b.adp_rank ?? Infinity);
   });
 
-  // ===============================
-  // JUGADORES DE MI EQUIPO YA DRAFTEADOS
-  // ===============================
-  // Mapeamos mis picks por player_id para acceder a metadatos si faltan en playersData
+  // --- Jugadores ya drafteados (mi equipo) ---
   const myDraftMap = new Map((myDraft || []).map(p => [
     String(p?.player_id ?? p?.metadata?.player_id ?? ''),
     p
@@ -678,10 +673,8 @@ export function buildFinalPlayersConsensus({
     myDraftedPlayers.push({ nombre, team, position, bye });
   }
 
-  //console.log(`[CONSENSUS] Jugadores de mi equipo drafteados: ${myDraftedPlayers.length}`);
-
-	return {
-	  players: rows,
-	  my_drafted: myDraftedPlayers
-	};
+  return {
+    players: rows,
+    my_drafted: myDraftedPlayers
+  };
 }

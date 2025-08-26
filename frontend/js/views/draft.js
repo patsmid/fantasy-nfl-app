@@ -28,6 +28,22 @@ export default async function renderConsensusDraft() {
       .expert-mini { font-size:0.82rem; color:var(--text-secondary,#b0b3b8); }
       .flock-card { background: transparent; }
       .flock-offcanvas { color:var(--text-primary); background:var(--bg-primary); }
+
+      /* Badges de flags booleanos */
+      .flags-row { display:flex; flex-wrap:wrap; gap:.35rem; }
+      .flag-badge {
+        width:26px; height:26px; border-radius:999px;
+        display:inline-flex; align-items:center; justify-content:center;
+        border:1px solid rgba(255,255,255,.12);
+        background:rgba(255,255,255,.04);
+        font-size:1rem; line-height:1;
+      }
+      .flag-muted { color:#b0b3b8; }
+      .flag-green { color:#00d084; border-color:rgba(0,208,132,.35); background:rgba(0,208,132,.10); }
+      .flag-blue { color:#58a7ff; border-color:rgba(88,167,255,.35); background:rgba(88,167,255,.10); }
+      .flag-purple { color:#bd7bff; border-color:rgba(189,123,255,.35); background:rgba(189,123,255,.10); }
+      .flag-orange { color:#ffae58; border-color:rgba(255,174,88,.35); background:rgba(255,174,88,.10); }
+      .flag-red { color:#ff5a5f; border-color:rgba(255,90,95,.35); background:rgba(255,90,95,.10); }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -198,14 +214,6 @@ export default async function renderConsensusDraft() {
   }
   const safeNum = (v, decimals = 2) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
-  function getHeatColor(value, min, max) {
-    const v = Number(value);
-    if (!Number.isFinite(v) || max === min) return '#888';
-    const ratio = clamp((v - min) / (max - min), 0, 1);
-    const r = Math.floor(255 * (1 - ratio));
-    const g = Math.floor(255 * ratio);
-    return `rgb(${r},${g},0)`;
-  }
   function getPositionColor(position) {
     switch ((position || '').toUpperCase()) {
       case 'QB': return '#ff2a6d';
@@ -228,14 +236,36 @@ export default async function renderConsensusDraft() {
     return `<span class="pos-badge" style="background:${bg};color:${textColor};">${pos ?? ''}</span>`;
   }
 
+  // Badges booleanos
+  function flagBadge(val, icon, title, onClass, offClass = 'flag-muted') {
+    const cls = val ? onClass : offClass;
+    const state = val ? 'Sí' : 'No';
+    return `
+      <span class="flag-badge ${cls}" data-bs-toggle="tooltip" data-bs-placement="top" title="${escapeHtml(title)}: ${state}">
+        <i class="bi ${icon}"></i>
+      </span>`;
+  }
+  function renderBooleanFlags(p) {
+    // rookie (morado), byeFound (azul), teamFound (verde/teal), goodOffense (naranja), byeConflict (rojo cuando true)
+    return `
+      <div class="flags-row mt-2">
+        ${flagBadge(!!p.rookie, 'bi-stars', 'Rookie', 'flag-purple')}
+        ${flagBadge(!!p.byeFound, 'bi-calendar-check', 'Bye detectado', 'flag-blue')}
+        ${flagBadge(!!p.teamFound, 'bi-shield-check', 'Equipo confirmado', 'flag-green')}
+        ${flagBadge(!!p.goodOffense, 'bi-graph-up-arrow', 'Ofensiva favorable', 'flag-orange')}
+        ${flagBadge(!!p.byeConflict, 'bi-exclamation-octagon-fill', 'Conflicto de bye', 'flag-red')}
+      </div>
+    `;
+  }
+
   function normalizePlayers(arr = []) {
     const toNum = (v) => (Number.isFinite(+v) ? +v : null);
     return (arr || []).map(p => ({
       ...p,
       avg_rank: toNum(p.avg_rank),
       adp_rank: toNum(p.adp_rank),
+      // projection y priorityScore ya no se muestran; mantenemos projection para SharkScore.
       projection: toNum(p.projection),
-      priorityScore: toNum(p.priorityScore),
       valueOverADP: toNum(p.valueOverADP),
       vor: toNum(p.vor),
       adjustedVOR: toNum(p.adjustedVOR),
@@ -318,16 +348,9 @@ export default async function renderConsensusDraft() {
     const start = (currentPage - 1) * pageSize;
     const pagePlayers = list.slice(start, start + pageSize);
 
-    const prios = list.map(p => Number(p.priorityScore)).filter(Number.isFinite);
-    const minPrio = prios.length ? Math.min(...prios) : 0;
-    const maxPrio = prios.length ? Math.max(...prios) : 1;
-    const maxProj = Math.max(...list.map(p => Number(p.projection) || 0), 1);
-
     grid.innerHTML = pagePlayers.map(p => {
       const posBadge = getPositionBadge(p.position);
       const statusBadge = (p.status && !isFreeStatus(p.status)) ? '<span class="badge bg-secondary">Tomado</span>' : '<span class="badge bg-success">LIBRE</span>';
-      const prioStyle = `background-color:${getHeatColor(p.priorityScore, minPrio, maxPrio)};color:#fff;padding:.1rem .5rem;border-radius:6px;font-weight:700;`;
-      const projPct = Math.min(100, (Number(p.projection || 0) / maxProj) * 100);
 
       const expertsShort = (p.experts || []).slice(0,3).map(e => `${escapeHtml(e.expert)} (${safeNum(e.rank,2)})`).join(', ');
       const expertsMore = (p.experts || []).length > 3 ? ` +${(p.experts || []).length - 3} more` : '';
@@ -345,7 +368,6 @@ export default async function renderConsensusDraft() {
               </div>
               <div class="text-end">
                 ${statusBadge}
-                <div class="mt-1"><span style="${prioStyle}">Prio ${safeNum(p.priorityScore)}</span></div>
               </div>
             </div>
 
@@ -356,10 +378,7 @@ export default async function renderConsensusDraft() {
               <div class="ms-auto small">${(p.riskTags||[]).join(', ')}</div>
             </div>
 
-            <div class="mt-2">
-              <div class="small mb-1">Proyección</div>
-              <div class="progress" style="height:8px;background:rgba(255,255,255,.06)"><div class="progress-bar" style="width:${projPct}%;" role="progressbar" aria-valuenow="${projPct}" aria-valuemin="0" aria-valuemax="100"></div></div>
-            </div>
+            ${renderBooleanFlags(p)}
 
             <div class="mt-2 d-flex gap-2 flex-wrap">
               ${p.valueTag ? `<span class="badge bg-success">${escapeHtml(p.valueTag)}</span>` : ''}
@@ -367,27 +386,26 @@ export default async function renderConsensusDraft() {
               ${p.tier_pos_label ? `<span class="badge bg-primary">${escapeHtml(p.tier_pos ?? '')} ${escapeHtml(p.tier_pos_label)}</span>` : ''}
             </div>
 
-            ${ (p.experts && p.experts.length) ? `<div class="mt-2 expert-mini">Experts: ${expertsShort}${expertsMore}</div>` : '' }
+            ${(p.experts && p.experts.length) ? `<div class="mt-2 expert-mini">Experts: ${expertsShort}${expertsMore}</div>` : ''}
 
-            <div class="mt-3 d-flex gap-2">
-              <button data-action="detail" data-id="${escapeHtml(p.player_id)}" class="btn btn-sm btn-outline-light w-100">
-                <i class="bi bi-zoom-in"></i> Detalles
-              </button>
-            </div>
           </div>
         </div>
       `;
     }).join('');
 
-    // attach detail handlers (delegation: remove previous to avoid dups)
-    grid.querySelectorAll('[data-action="detail"]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const pid = btn.dataset.id;
-        const pl = draftData.find(x => String(x.player_id) === String(pid));
-        if (!pl) return;
-        showSuccess(`${pl.nombre} · ${pl.team} · ${pl.position} (Bye ${pl.bye})`);
+    // Inicializar tooltips de Bootstrap en los nuevos badges
+    try {
+      const tipEls = grid.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tipEls.forEach(el => {
+        try {
+          // Bootstrap 5.2+: getOrCreateInstance
+          window.bootstrap?.Tooltip?.getOrCreateInstance(el) || new bootstrap.Tooltip(el);
+        } catch {
+          // Fallback genérico
+          new bootstrap.Tooltip(el);
+        }
       });
-    });
+    } catch (e) {}
 
     cardsInfo.textContent = `Mostrando ${start + 1}-${Math.min(start + pageSize, list.length)} de ${list.length} jugadores`;
     renderPagination();
@@ -416,7 +434,7 @@ export default async function renderConsensusDraft() {
   function isFreeStatus(s) {
     const t = (s ?? '').toString().trim().toLowerCase();
     if (!t) return true;
-    return ['libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
+    return ['LIBRE', 'libre', 'free', 'free agent', 'fa', 'available', 'waiver', 'waivers', 'waiver wire', 'waiver-wire', 'wa'].includes(t);
   }
 
   function applyFiltersAndSort() {
@@ -498,7 +516,6 @@ export default async function renderConsensusDraft() {
     const mySeq = ++lastLoadSeq;
 
     // show loading (try app helper, fallback to Swal)
-    // show loading
     try {
       showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos');
     } catch (e) {
