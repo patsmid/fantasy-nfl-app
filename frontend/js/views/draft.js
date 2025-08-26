@@ -260,21 +260,38 @@ export default async function renderConsensusDraft() {
 
   function normalizePlayers(arr = []) {
     const toNum = (v) => (Number.isFinite(+v) ? +v : null);
-    return (arr || []).map(p => ({
-      ...p,
-      avg_rank: toNum(p.avg_rank),
-      adp_rank: toNum(p.adp_rank),
-      // projection y priorityScore ya no se muestran; mantenemos projection para SharkScore.
-      projection: toNum(p.projection),
-      valueOverADP: toNum(p.valueOverADP),
-      vor: toNum(p.vor),
-      adjustedVOR: toNum(p.adjustedVOR),
-      dropoff: toNum(p.dropoff),
-      stealScore: toNum(p.stealScore),
-      volatility: toNum(p.volatility),
-      tier_global: toNum(p.tier_global),
-      tier_pos: toNum(p.tier_pos),
-    }));
+
+    return (arr || []).map(p => {
+      // Normalizar status
+      let status = (p.status || '').trim().toUpperCase();
+      if (status === 'LIBRE') {
+        status = 'LIBRE';      // jugador disponible
+      } else {
+        status = 'DRAFTED';    // cualquier otro valor vacío → Drafted
+      }
+
+      return {
+        ...p,
+        status,                 // agregamos status normalizado
+        avg_rank: toNum(p.avg_rank),
+        adp_rank: toNum(p.adp_rank),
+        projection: toNum(p.projection),   // se mantiene solo para SharkScore
+        valueOverADP: toNum(p.valueOverADP),
+        vor: toNum(p.vor),
+        adjustedVOR: toNum(p.adjustedVOR),
+        dropoff: toNum(p.dropoff),
+        stealScore: toNum(p.stealScore),
+        volatility: toNum(p.volatility),
+        tier_global: toNum(p.tier_global),
+        tier_pos: toNum(p.tier_pos),
+        // badges nuevos: rookie, byeFound, teamFound, goodOffense, byeConflict
+        rookie: !!p.rookie,
+        byeFound: !!p.byeFound,
+        teamFound: !!p.teamFound,
+        goodOffense: !!p.goodOffense,
+        byeConflict: !!p.byeConflict
+      };
+    });
   }
 
   // shark helpers (intact)
@@ -350,7 +367,9 @@ export default async function renderConsensusDraft() {
 
     grid.innerHTML = pagePlayers.map(p => {
       const posBadge = getPositionBadge(p.position);
-      const statusBadge = (p.status && !isFreeStatus(p.status)) ? '<span class="badge bg-secondary">Tomado</span>' : '<span class="badge bg-success">LIBRE</span>';
+      const statusBadge = p.status === 'LIBRE'
+      ? '<span class="badge bg-success">Libre</span>'
+      : '<span class="badge bg-secondary">Drafted</span>';
 
       const expertsShort = (p.experts || []).slice(0,3).map(e => `${escapeHtml(e.expert)} (${safeNum(e.rank,2)})`).join(', ');
       const expertsMore = (p.experts || []).length > 3 ? ` +${(p.experts || []).length - 3} more` : '';
