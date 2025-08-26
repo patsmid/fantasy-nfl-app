@@ -1,5 +1,5 @@
 // transformPlayers.fixed.v5.js
-import { fuzzySearch, simpleFuzzySearch } from '../utils/helpers.js';
+import { fuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
 
@@ -496,6 +496,8 @@ export function buildFinalPlayersConsensus({
       .trim()
       .toLowerCase();
 
+  const normalizeSimpleName = (s = '') => String(s).toLowerCase().replace(/\./g, '');
+
   const asValidRank = (val) => {
     const n = Number(val);
     return Number.isFinite(n) && n > 0 ? n : null;
@@ -535,9 +537,7 @@ export function buildFinalPlayersConsensus({
         [p?.first_name, p?.last_name].filter(Boolean).join(' ') ??
         p?.player_short_name ??
         '';
-
       candidateName = String(candidateName).trim();
-      const norm = normalizeName(candidateName);
 
       // --- posición robusta ---
       const candPos =
@@ -547,53 +547,61 @@ export function buildFinalPlayersConsensus({
         p?.player_position ??
         null;
 
-      const cand = { ...p, __idx: i, __norm: norm, __position: candPos };
+      const cand = { ...p, __idx: i, __norm: normalizeName(candidateName), __position: candPos };
 
       if (pid) byId.set(pid, cand);
-      if (norm) byName.set(norm, cand);
+      if (cand.__norm) byName.set(cand.__norm, cand);
       candidates.push(cand);
     }
 
-    return { ...ex, byId, byName, candidates };
+    // --- Build initial map para ultra fuzzy ---
+    const candidatesMap = new Map();
+    for (const c of candidates) {
+      if (!c.__norm) continue;
+      const key = c.__norm[0] || '';
+      if (!candidatesMap.has(key)) candidatesMap.set(key, []);
+      candidatesMap.get(key).push(c);
+    }
+
+    return { ...ex, byId, byName, candidates, candidatesMap };
   });
 
-  // --- simple fuzzy (estilo Apps Script) pero seguro y con scoring ---
-  function simpleFuzzySearch(targetNorm, candidates, targetPos) {
-    if (!targetNorm) return [];
-    const str = targetNorm.replace(/\./g, '');
-    const results = [];
+  // --- Ultra-fuzzy: devuelve solo el mejor candidato ---
+  function simpleFuzzySearchBest(targetNorm, candidatesMap, targetPos) {
+    if (!targetNorm) return null;
+    const str = normalizeSimpleName(targetNorm);
+    const initial = str[0] || '';
+    const candidates = candidatesMap.get(initial) || [];
+    let bestCandidate = null;
+    let bestScore = Infinity;
 
     for (const c of candidates) {
-      if (!c || !c.__norm) continue; // clave: ignorar candidatos sin nombre normalizado
       const candPos = c.__position ?? c.position ?? c.pos ?? null;
       if (targetPos && candPos && !String(candPos).includes(targetPos)) continue;
 
-      const nombre = c.__norm.replace(/\./g, '');
-      // 1) prefijo directo
-      if (nombre.startsWith(str)) {
-        results.push({ c, score: 0 });
-        continue;
+      const nombre = normalizeSimpleName(c.__norm);
+      let score = null;
+
+      if (nombre.startsWith(str)) score = 0;
+      else if (nombre.includes(str)) score = 1;
+      else {
+        const len = Math.min(str.length, nombre.length);
+        let diffs = 0;
+        for (let i = 0; i < len; i++) {
+          if (str[i] !== nombre[i]) diffs++;
+          if (diffs > 2) break;
+        }
+        if (diffs <= 2) score = 2;
       }
 
-      // 2) comparar solo hasta la longitud del target
-      const len = Math.min(str.length, nombre.length);
-      if (len === 0) continue;
-      let diffs = 0;
-      for (let i = 0; i < len; i++) {
-        if (nombre[i] !== str[i]) {
-          diffs++;
-          if (diffs > 1) break;
-        }
-      }
-      if (diffs <= 1) {
-        results.push({ c, score: diffs });
+      if (score !== null && score < bestScore) {
+        bestCandidate = c;
+        bestScore = score;
+        if (bestScore === 0) break; // prefijo perfecto
       }
     }
 
-    if (!results.length) return [];
-    // ordenar por mejor score (menos diferencias) y luego por índice del experto (mejor rank primero)
-    results.sort((a, b) => a.score - b.score || a.c.__idx - b.c.__idx);
-    return results.map(r => r.c);
+    return bestCandidate;
   }
 
   // --- Cache para fuzzy ---
@@ -623,8 +631,7 @@ export function buildFinalPlayersConsensus({
           if (fuzzyCache.has(cacheKey)) {
             found = fuzzyCache.get(cacheKey);
           } else {
-            const fuzzyMatches = simpleFuzzySearch(fullNameNorm, ex.candidates, pos);
-            found = fuzzyMatches.length ? fuzzyMatches[0] : null;
+            found = simpleFuzzySearchBest(fullNameNorm, ex.candidatesMap, pos);
             fuzzyCache.set(cacheKey, found || null);
           }
         }
