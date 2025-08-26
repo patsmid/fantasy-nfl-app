@@ -118,13 +118,11 @@ export async function getFantasyProsADP(type = 'half-ppr') {
   const players = json.players.map(p => ({
     rank: parseInt(p.rank_ecr) || null,   // rank de consenso
     name: p.player_name,
-    team: p.team,
-    position: p.position,
+    team: p.player_team_id,
+    position: p.player_positions,
     bye: p.bye_week ? parseInt(p.bye_week) : null,
     adp: p.rank_adp_raw ? parseFloat(p.rank_adp_raw) : null  // 👈 el que necesitas
   }));
-
-  console.log('✅ Ejemplo primer jugador:', players[0]);
 
   return players;
 }
@@ -223,7 +221,6 @@ async function fetchAllPlayers(limit = 15000, chunkSize = 1000) {
   return allPlayers;
 }
 
-// Función principal
 export async function uploadFantasyProsADP(tipo = 'ppr') {
   const adp_type = `FP_${tipo}`;
   const today = new Date().toISOString().split('T')[0];
@@ -231,69 +228,60 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
   const notFound = [];
 
   try {
+    // 1. Obtener ADP desde FantasyPros
     const adpList = await getFantasyProsADP(tipo); // [{ rank, name, team, position, bye, adp }]
     if (!Array.isArray(adpList) || adpList.length === 0) {
       throw new Error('❌ No se obtuvieron datos de FantasyPros');
     }
 
+    // 2. Cargar jugadores locales desde Supabase
     const playersData = await fetchAllPlayers(15000);
-    console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
-
     if (!Array.isArray(playersData) || playersData.length === 0) {
       throw new Error('❌ No se pudieron cargar los jugadores desde Supabase');
     }
+    console.log(`🎯 Jugadores cargados desde Supabase: ${playersData.length}`);
 
-    // Crear índice por nombre normalizado
+    // 3. Índice por nombre normalizado
     const nameIndex = new Map();
     for (const p of playersData) {
-      const name = p.full_name?.trim();
-      if (name) {
-        const normalized = normalizeName(name);
-        if (!nameIndex.has(normalized)) {
-          nameIndex.set(normalized, p);
-        }
+      const normalized = normalizeName(p.full_name);
+      if (normalized && !nameIndex.has(normalized)) {
+        nameIndex.set(normalized, p);
       }
     }
 
+    // 4. Procesar cada jugador de FantasyPros
     for (const player of adpList) {
       const rawName = player.name?.trim();
-      if (!rawName) {
-        notFound.push(`Nombre inválido: ${JSON.stringify(player)}`);
-        continue;
-      }
+      if (!rawName) continue;
 
       const normalizedName = normalizeName(rawName);
       let matched = nameIndex.get(normalizedName);
 
-      // Fuzzy match si no hay exacto
+      // 4b. Intento de fuzzy solo si no hay match exacto
       if (!matched && typeof fuzzySearch === 'function') {
         const candidates = playersData.filter(p => p.position === player.position);
-        const fuzzy = fuzzySearch(rawName, candidates, {
+        const [fuzzy] = fuzzySearch(rawName, candidates, {
           key: p => p.full_name,
-          normalize: normalizeName,
-          expectedPosition: player.position
-        });
-        if (fuzzy?.[0]) {
-          matched = fuzzy[0];
-          console.log(`🤖 Fuzzy match: "${rawName}" ➜ "${matched.full_name}" [${matched.position}]`);
+          normalize: normalizeName
+        }) || [];
+        if (fuzzy) {
+          matched = fuzzy;
+          console.log(`🤖 Fuzzy match: "${rawName}" ➜ "${matched.full_name}"`);
         }
       }
 
-      if (matched?.player_id) {
-        const adpValue = Number(player.adp);
-        if (!isNaN(adpValue)) {
-          records.push({
-            adp_type,
-            sleeper_player_id: matched.player_id,
-            adp_value: adpValue,
-            adp_value_prev: 0,
-            date: today
-          });
-        } else {
-          console.warn(`⚠️ ADP inválido para ${rawName}:`, player.adp);
-        }
+      // 4c. Crear registro si hay match válido
+      if (matched?.player_id && !isNaN(Number(player.adp))) {
+        records.push({
+          adp_type,
+          sleeper_player_id: matched.player_id,
+          adp_value: Number(player.adp),
+          adp_value_prev: 0,
+          date: today
+        });
       } else {
-        notFound.push(`${rawName} (→ ${normalizedName})`);
+        notFound.push(rawName);
       }
     }
 
@@ -305,22 +293,17 @@ export async function uploadFantasyProsADP(tipo = 'ppr') {
       return { adp_type, inserted: 0, skipped: notFound.length, message: 'No se insertó ningún dato' };
     }
 
-    // Eliminar anteriores
+    // 5. Limpiar datos anteriores e insertar nuevos
     const { error: delError } = await supabase
       .from('sleeper_adp_data')
       .delete()
       .eq('adp_type', adp_type);
-
     if (delError) throw new Error(`Error al borrar ADP previos: ${delError.message}`);
 
     const { error: insertError } = await supabase
       .from('sleeper_adp_data')
       .insert(records);
-
-    if (insertError) {
-      console.error('🧨 Error al insertar en Supabase:', insertError);
-      throw insertError;
-    }
+    if (insertError) throw new Error(`Error al insertar en Supabase: ${insertError.message}`);
 
     console.log(`✅ Insertados ${records.length} registros de ADP [${adp_type}]`);
     if (notFound.length > 0) {
