@@ -498,15 +498,23 @@ export default async function renderConsensusDraft() {
     const mySeq = ++lastLoadSeq;
 
     // show loading (try app helper, fallback to Swal)
-    try { showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos'); } catch (e) {
-      try { Swal.fire({ title: 'Cargando consenso', text: 'Esto puede tardar unos segundos', allowOutsideClick:false, didOpen: () => Swal.showLoading() }); } catch(e2) {}
+    // show loading
+    try {
+      showLoadingBar('Cargando consenso', 'Esto puede tardar unos segundos');
+    } catch (e) {
+      try {
+        Swal.fire({
+          title: 'Cargando consenso',
+          text: 'Esto puede tardar unos segundos',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+      } catch (e2) {}
     }
 
     const safeHideLoading = () => {
-      // cerrar solo si esta llamada sigue siendo la última
       if (mySeq !== lastLoadSeq) return;
       try { Swal.close(); } catch(e) {}
-      try { showLoadingBar(false); } catch(e) {}
     };
 
     try {
