@@ -3,8 +3,9 @@ import * as cheerio from 'cheerio';
 import { supabase } from '../supabaseClient.js';
 
 const TYPES = {
-  'half-ppr': 'half-point-ppr-overall',
-  'ppr': 'ppr-overall'
+  'half-ppr': '',       // default
+  'ppr': 'ppr',
+  'standard': 'std'
 };
 
 export async function getFantasyProsADPDataSimple({
@@ -62,20 +63,42 @@ export async function getFantasyProsADPDataSimple({
   }
 }
 
-function normalizeHeader(str) {
-  return str.toLowerCase().replace(/\s+/g, ' ').trim();
+function normalizeHeader(header) {
+  return header.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function parsePlayerRaw(raw) {
-  const match = raw.match(/^(.*?)\s+([A-Z]{2,3})\s*\((\d{1,2})\)$/);
-  return match
-    ? { name: match[1].trim(), team: match[2], bye: match[3] }
-    : { name: raw.trim(), team: null, bye: null };
+  let name = raw;
+  let team = null;
+  let bye = null;
+
+  // Extraer bye week
+  const byeMatch = raw.match(/\(Bye:\s*(\d+)\)/i);
+  if (byeMatch) {
+    bye = parseInt(byeMatch[1], 10);
+    name = raw.replace(byeMatch[0], '').trim();
+  }
+
+  // Extraer team abreviado tipo "MIN"
+  const teamMatch = raw.match(/\(([A-Z]{2,3})\s*-\s*[A-Z]+\)/);
+  if (teamMatch) {
+    team = teamMatch[1];
+  } else {
+    const teamOnlyMatch = raw.match(/\b([A-Z]{2,3})\b/);
+    if (teamOnlyMatch) team = teamOnlyMatch[1];
+  }
+
+  // Limpiar paréntesis sobrantes
+  name = name.replace(/\(.*?\)/g, '').trim();
+
+  return { name, team, bye };
 }
 
 export async function getFantasyProsADP(type = 'half-ppr') {
-  if (!TYPES[type]) throw Error('Tipo inválido');
-  const url = `https://www.fantasypros.com/nfl/adp/${TYPES[type]}.php`;
+  if (!(type in TYPES)) throw Error('Tipo inválido');
+
+  const suffix = TYPES[type] ? `/${TYPES[type]}` : '';
+  const url = `https://www.fantasypros.com/nfl/real-time-adp${suffix}`;
 
   const html = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -103,7 +126,7 @@ export async function getFantasyProsADP(type = 'half-ppr') {
       team,
       position: obj['pos'] || obj['position'] || null,
       bye,
-      adp: parseFloat(obj['adp'] || obj['ppr adp'] || obj['avg']) || null
+      adp: parseFloat(obj['real-time']) || null   // 👈 ahora usa REAL-TIME
     });
   });
 
