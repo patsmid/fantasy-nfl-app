@@ -1,5 +1,5 @@
 // transformPlayers.fixed.v5.js
-import { fuzzySearch } from '../utils/helpers.js';
+import { fuzzySearch, simpleFuzzySearch } from '../utils/helpers.js';
 import { goodOffense } from '../utils/constants.js';
 import { assignTiers } from '../utils/tiering.js';
 
@@ -475,14 +475,14 @@ export function buildFinalPlayersConsensus({
 
   // --- Mi equipo ---
   const myByeWeeksSet = new Set();
-  const myTeams = [];
+  const myTeamsSet = new Set();
   for (const pick of (myDraft || [])) {
     const pid = String(pick?.player_id ?? pick?.metadata?.player_id ?? '');
     const pInfo = playersDataMap.get(pid);
     if (pInfo) {
       const bw = Number(pInfo.bye_week);
       if (Number.isFinite(bw)) myByeWeeksSet.add(bw);
-      if (pInfo.team) myTeams.push(pInfo.team);
+      if (pInfo.team) myTeamsSet.add(pInfo.team);
     }
   }
 
@@ -503,14 +503,7 @@ export function buildFinalPlayersConsensus({
 
   const getRankFromPlayerObj = (obj) => {
     if (!obj) return null;
-    const candidates = [
-      obj.rank,
-      obj.overall_rank,
-      obj.overall,
-      obj.overall_ecr,
-      obj.ecr
-    ];
-    for (const c of candidates) {
+    for (const c of [obj.rank, obj.overall_rank, obj.overall, obj.overall_ecr, obj.ecr]) {
       const r = asValidRank(c);
       if (r !== null) return r;
     }
@@ -518,35 +511,32 @@ export function buildFinalPlayersConsensus({
   };
 
   const averageNonNull = (nums) => {
-    const filtered = nums.filter(n => Number.isFinite(n) && n > 0);
-    return filtered.length
-      ? filtered.reduce((a, b) => a + b, 0) / filtered.length
-      : null;
+    let sum = 0, count = 0;
+    for (const n of nums) {
+      if (Number.isFinite(n) && n > 0) { sum += n; count++; }
+    }
+    return count ? sum / count : null;
   };
 
   // --- Preprocesar rankings por experto ---
   const expertLookups = rankingsByExpert.map(ex => {
     const byId = new Map();
     const byName = new Map();
-    const byFirstLetter = new Map(); // para fuzzy reducido
+    const candidates = [];
 
     for (let i = 0; i < (ex.players || []).length; i++) {
       const p = ex.players[i];
       const pid = String(p?.player_id ?? '');
-      if (pid) byId.set(pid, { ...p, __idx: i });
-
-      const candidateName =
-        p?.name ||
-        `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+      const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
       const norm = normalizeName(candidateName);
-      if (norm) {
-        byName.set(norm, { ...p, __idx: i });
-        const first = norm[0];
-        if (!byFirstLetter.has(first)) byFirstLetter.set(first, []);
-        byFirstLetter.get(first).push({ ...p, __idx: i, __norm: norm });
-      }
+      const cand = { ...p, __idx: i, __norm: norm };
+
+      if (pid) byId.set(pid, cand);
+      if (norm) byName.set(norm, cand);
+      candidates.push(cand);
     }
-    return { ...ex, byId, byName, byFirstLetter };
+
+    return { ...ex, byId, byName, candidates };
   });
 
   // --- Cache para fuzzy ---
@@ -570,28 +560,15 @@ export function buildFinalPlayersConsensus({
       const expert_ranks = expertLookups.map(ex => {
         let found = ex.byId.get(playerId) || ex.byName.get(fullNameNorm);
 
-        // fallback fuzzy optimizado
+        // fallback fuzzy optimizado con filtro por posición
         if (!found) {
-          const cacheKey = `${ex.expert_id}:${fullNameNorm}`;
+          const pos = playerInfo?.position ?? 'UNK';
+          const cacheKey = `${ex.expert_id}:${fullNameNorm}:${pos}`;
           if (fuzzyCache.has(cacheKey)) {
             found = fuzzyCache.get(cacheKey);
           } else {
-            const first = fullNameNorm[0];
-            const candidates = ex.byFirstLetter.get(first) || [];
-            let best = null;
-            let bestScore = Infinity;
-
-            for (const c of candidates) {
-              // distancia de Levenshtein simple (puedes mejorar con librería)
-              const score = levenshtein(fullNameNorm, c.__norm);
-              if (score < bestScore) {
-                best = c;
-                bestScore = score;
-              }
-            }
-            if (best && bestScore <= 3) { // umbral razonable
-              found = best;
-            }
+            const fuzzyMatches = simpleFuzzySearch(fullNameNorm, ex.candidates, pos);
+            found = fuzzyMatches.length ? fuzzyMatches[0] : null;
             fuzzyCache.set(cacheKey, found || null);
           }
         }
@@ -635,7 +612,7 @@ export function buildFinalPlayersConsensus({
             : null,
         rookie: isRookie,
         byeFound: myByeWeeksSet.has(bye),
-        teamFound: myTeams.includes(playerInfo?.team),
+        teamFound: myTeamsSet.has(playerInfo?.team),
         goodOffense: Array.isArray(goodOffense)
           ? goodOffense.includes(playerInfo?.team)
           : false,
@@ -697,19 +674,4 @@ export function buildFinalPlayersConsensus({
     players: rows,
     my_drafted: myDraftedPlayers
   };
-}
-
-// --- util distancia rápida ---
-function levenshtein(a, b) {
-  const m = [];
-  for (let i = 0; i <= b.length; i++) m[i] = [i];
-  for (let j = 0; j <= a.length; j++) m[0][j] = j;
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      m[i][j] = b.charAt(i - 1) === a.charAt(j - 1)
-        ? m[i - 1][j - 1]
-        : Math.min(m[i - 1][j - 1] + 1, m[i][j - 1] + 1, m[i - 1][j] + 1);
-    }
-  }
-  return m[b.length][a.length];
 }

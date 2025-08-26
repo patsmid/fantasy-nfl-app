@@ -69,6 +69,37 @@ export function fuzzySearch(name, list, field = 'player_name') {
     const value = player?.[field];
     return value && norm(value).includes(nameNorm);
   });
+}// --- fuzzy estilo Apps Script optimizado ---
+
+// --- fuzzy estilo Apps Script optimizado con filtro por posición ---
+export function simpleFuzzySearch(targetNorm, candidates, targetPos) {
+  const str = targetNorm.replaceAll('.', '');
+  const results = [];
+
+  for (const c of candidates) {
+    if (targetPos && c.position && c.position !== targetPos) continue; // filtro posición
+
+    let nombre = c.__norm.replaceAll('.', '');
+
+    // 1) match directo por prefijo
+    if (nombre.startsWith(str)) {
+      results.push(c);
+      continue;
+    }
+
+    // 2) comparar solo hasta la longitud de str
+    const slice = nombre.slice(0, str.length).split('');
+    let diffs = 0;
+    slice.forEach((letter, i) => {
+      if (letter !== str[i]) diffs++;
+    });
+
+    if (diffs <= 1) {
+      results.push(c);
+    }
+  }
+
+  return results;
 }
 
 export function getStarterPositions(leagueData) {
