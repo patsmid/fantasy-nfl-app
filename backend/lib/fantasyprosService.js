@@ -108,6 +108,8 @@ export async function getFantasyProsADP(type = 'half-ppr') {
   const table = $('#data');
   const headers = table.find('thead th').map((i, el) => normalizeHeader($(el).text())).get();
 
+  console.log('👉 Headers detectados:', headers);
+
   const players = [];
 
   table.find('tbody tr').each((_, tr) => {
@@ -120,18 +122,27 @@ export async function getFantasyProsADP(type = 'half-ppr') {
     const raw = obj['player'] || obj['player team (bye)'] || obj['player (team bye)'] || '';
     const { name, team, bye } = parsePlayerRaw(raw);
 
+    const adpRaw =
+      obj['real-time'] ||
+      obj['real time'] ||
+      obj['rt'] ||
+      obj['avg'] || null;
+
     players.push({
       rank: parseInt(obj['#'] || obj['rank']) || null,
       name,
       team,
       position: obj['pos'] || obj['position'] || null,
       bye,
-      adp: parseFloat(obj['real-time']) || null   // 👈 ahora usa REAL-TIME
+      adp: adpRaw ? parseFloat(adpRaw) : null
     });
   });
 
+  console.log('✅ Ejemplo primer jugador:', players[0]);
+
   return players;
 }
+
 
 export async function getFantasyProsADPData(req, res) {
   try {
