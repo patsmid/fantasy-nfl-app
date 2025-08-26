@@ -50,7 +50,7 @@ export default async function renderConsensusDraft() {
       <div class="card-body d-flex flex-column min-h-0">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="m-0 d-flex align-items-center gap-2">
-            <i class="bi bi-list-stars text-warning"></i> Draft – Consenso (Inteligente)
+            <i class="bi bi-list-stars text-warning"></i> Draft Simple
           </h4>
           <div class="d-flex gap-2">
             <button id="btn-open-drafted" class="btn btn-sm btn-outline-light" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDrafted" aria-controls="offcanvasDrafted">
@@ -113,7 +113,6 @@ export default async function renderConsensusDraft() {
                 <option value="avg_rank">Avg Rank</option>
                 <option value="adp_rank">ADP Rank</option>
                 <option value="valueOverADP">Value/ADP</option>
-                <option value="shark">SharkScore 🦈</option>
               </select>
             </label>
             <label class="m-0 ms-2">Dir

@@ -103,7 +103,8 @@ export default async function renderManualRankingsView() {
             </button>`
         }
       ],
-      pageLength: 50,
+      pageLength: -1,           // mostrar todos
+      lengthChange: false,
       responsive: true,
       searching: true,
       language: { url: '//cdn.datatables.net/plug-ins/2.3.2/i18n/es-MX.json' }
