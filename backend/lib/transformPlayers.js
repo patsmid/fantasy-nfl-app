@@ -518,18 +518,20 @@ export function buildFinalPlayersConsensus({
     return count ? sum / count : null;
   };
 
-  // --- Preprocesar rankings por experto ---
-  const expertLookups = rankingsByExpert.map(ex => {
+  // --- Preprocesar rankings por experto (byId, byName, candidates con __norm y __idx) ---
+  const expertLookups = (rankingsByExpert || []).map(ex => {
     const byId = new Map();
     const byName = new Map();
     const candidates = [];
 
-    for (let i = 0; i < (ex.players || []).length; i++) {
-      const p = ex.players[i];
+    const playersArr = ex.players || [];
+    for (let i = 0; i < playersArr.length; i++) {
+      const p = playersArr[i];
       const pid = String(p?.player_id ?? '');
-      const candidateName = p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+      const candidateName = p?.name ?? `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
       const norm = normalizeName(candidateName);
-      const cand = { ...p, __idx: i, __norm: norm };
+      const candPos = p?.position ?? p?.pos ?? p?.player_position ?? null;
+      const cand = { ...p, __idx: i, __norm: norm, __position: candPos };
 
       if (pid) byId.set(pid, cand);
       if (norm) byName.set(norm, cand);
@@ -539,12 +541,51 @@ export function buildFinalPlayersConsensus({
     return { ...ex, byId, byName, candidates };
   });
 
+  // --- simple fuzzy (estilo Apps Script) pero seguro y con scoring ---
+  function simpleFuzzySearch(targetNorm, candidates, targetPos) {
+    if (!targetNorm) return [];
+    const str = targetNorm.replace(/\./g, '');
+    const results = [];
+
+    for (const c of candidates) {
+      if (!c || !c.__norm) continue; // clave: ignorar candidatos sin nombre normalizado
+      const candPos = c.__position ?? c.position ?? c.pos ?? null;
+      if (targetPos && candPos && candPos !== targetPos) continue;
+
+      const nombre = c.__norm.replace(/\./g, '');
+      // 1) prefijo directo
+      if (nombre.startsWith(str)) {
+        results.push({ c, score: 0 });
+        continue;
+      }
+
+      // 2) comparar solo hasta la longitud del target
+      const len = Math.min(str.length, nombre.length);
+      if (len === 0) continue;
+      let diffs = 0;
+      for (let i = 0; i < len; i++) {
+        if (nombre[i] !== str[i]) {
+          diffs++;
+          if (diffs > 1) break;
+        }
+      }
+      if (diffs <= 1) {
+        results.push({ c, score: diffs });
+      }
+    }
+
+    if (!results.length) return [];
+    // ordenar por mejor score (menos diferencias) y luego por índice del experto (mejor rank primero)
+    results.sort((a, b) => a.score - b.score || a.c.__idx - b.c.__idx);
+    return results.map(r => r.c);
+  }
+
   // --- Cache para fuzzy ---
   const fuzzyCache = new Map();
 
   const rows = [];
 
-  for (const adp of adpData) {
+  for (const adp of (adpData || [])) {
     try {
       const rawId = adp?.sleeper_player_id ?? adp?.player_id ?? adp?.id;
       if (!rawId) continue;
@@ -555,15 +596,14 @@ export function buildFinalPlayersConsensus({
 
       const fullName = playerInfo.full_name;
       const fullNameNorm = normalizeName(fullName);
+      const pos = playerInfo?.position ?? playerInfo?.pos ?? playerInfo?.player_position ?? null;
 
       // --- Ranks de expertos ---
       const expert_ranks = expertLookups.map(ex => {
         let found = ex.byId.get(playerId) || ex.byName.get(fullNameNorm);
 
-        // fallback fuzzy optimizado con filtro por posición
         if (!found) {
-          const pos = playerInfo?.position ?? 'UNK';
-          const cacheKey = `${ex.expert_id}:${fullNameNorm}:${pos}`;
+          const cacheKey = `${ex.expert_id}:${fullNameNorm}:${pos ?? ''}`;
           if (fuzzyCache.has(cacheKey)) {
             found = fuzzyCache.get(cacheKey);
           } else {
@@ -575,8 +615,9 @@ export function buildFinalPlayersConsensus({
 
         const parsedRank = getRankFromPlayerObj(found);
         const finalRank =
-          parsedRank ??
-          (found?.__idx !== undefined ? found.__idx + 1 : 9999);
+          parsedRank !== null
+            ? parsedRank
+            : (found?.__idx !== undefined ? found.__idx + 1 : 9999);
 
         return {
           expert_id: ex.expert_id,
@@ -636,8 +677,7 @@ export function buildFinalPlayersConsensus({
 
   // --- Jugadores ya drafteados ---
   const myDraftMap = new Map((myDraft || []).map(p => [
-    String(p?.player_id ?? p?.metadata?.player_id ?? ''),
-    p
+    String(p?.player_id ?? p?.metadata?.player_id ?? ''), p
   ]));
 
   const myDraftedPlayers = [];
