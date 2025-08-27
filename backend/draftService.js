@@ -345,6 +345,7 @@ export async function getDraftData(
 		    dynasty,
 		    superFlex,
 		    ADPdate: adpDate,
+        starterPositions,
 		    experts_used: rankingsByExpertRaw.map(ex => ({
 		      expert_id: ex.expert_id,
 		      expert: ex.expert_name,
