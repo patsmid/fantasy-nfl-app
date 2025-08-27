@@ -613,6 +613,7 @@ export default async function renderConsensusDraft() {
       const params = result?.params || result?.query || {};
       const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDraftedList || result?.myDrafted || [];
 
+      // normalizar draftData (ya lo tenías)
       draftData = normalizePlayers(players || []);
 
       // default ordering by avg_rank asc
@@ -624,34 +625,35 @@ export default async function renderConsensusDraft() {
         return 0;
       });
 
-      // normalize myDrafted to keep formato consistente
-      myDrafted = normalizePlayers(Array.isArray(apiMyDrafted) ? apiMyDrafted : []);
-
-      // 🔹 helper para asegurar que siempre obtenemos un array válido
-      function parseStarterSlots(result, params) {
-        let slots = result?.starterPositions || result?.starter_positions || params?.starterPositions;
-
-        // si viene como string JSON → parsear
-        if (typeof slots === "string") {
-          try {
-            slots = JSON.parse(slots);
-          } catch (e) {
-            console.warn("No se pudo parsear starterPositions:", slots);
-            slots = null;
-          }
+      // --- normalizar myDrafted de forma robusta (acepta array o JSON string) ---
+      let apiMyDraftedRaw = result?.my_drafted ?? result?.myDrafted ?? result?.myDraftedList ?? params?.myDrafted ?? [];
+      if (typeof apiMyDraftedRaw === 'string') {
+        try {
+          apiMyDraftedRaw = JSON.parse(apiMyDraftedRaw);
+        } catch (e) {
+          console.warn('[loadConsensus] no se pudo parsear myDrafted:', apiMyDraftedRaw, e);
+          apiMyDraftedRaw = [];
         }
-
-        // si es array válido → usar
-        if (Array.isArray(slots) && slots.length) {
-          return slots.slice();
-        }
-
-        // fallback default
-        return ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
       }
+      myDrafted = normalizePlayers(Array.isArray(apiMyDraftedRaw) ? apiMyDraftedRaw : []);
 
-      // 🔹 asignación en vez de tu bloque anterior
-      starterSlots = parseStarterSlots(result, params);
+      // --- starterPositions desde endpoint (parse seguro y soporta snake_case o JSON string) ---
+      let slotsRaw = result?.starterPositions ?? result?.starter_positions ?? params?.starterPositions ?? params?.starter_positions;
+      if (typeof slotsRaw === 'string') {
+        try {
+          slotsRaw = JSON.parse(slotsRaw);
+        } catch (e) {
+          console.warn('[loadConsensus] no se pudo parsear starterPositions:', slotsRaw, e);
+          slotsRaw = null;
+        }
+      }
+      starterSlots = Array.isArray(slotsRaw) && slotsRaw.length
+        ? slotsRaw.slice()
+        : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
+
+      // DEBUG: mostrar en consola para verificar qué llegó
+      console.log('[loadConsensus] starterSlots final:', starterSlots);
+      console.log('[loadConsensus] myDrafted length:', Array.isArray(myDrafted) ? myDrafted.length : 0);
 
 
       // publish dates
@@ -705,9 +707,16 @@ export default async function renderConsensusDraft() {
   // Offcanvas drafted renderer (slot-based: starters + bench)
   // -------------------------
   function renderDraftedOffcanvas() {
+    console.log('[renderDraftedOffcanvas] called — starterSlots:', starterSlots, ' myDrafted.length:', Array.isArray(myDrafted) ? myDrafted.length : 0);
     const wrap = document.getElementById('drafted-list');
     const countEl = document.getElementById('drafted-count');
-    if (!wrap) return;
+    if (!wrap) {
+      console.warn('[renderDraftedOffcanvas] #drafted-list no encontrado en DOM');
+      return;
+    }
+    if (!countEl) {
+      console.warn('[renderDraftedOffcanvas] #drafted-count no encontrado en DOM');
+    }
 
     // copia mutable de mis drafteados
     const drafted = Array.isArray(myDrafted) ? myDrafted.slice() : [];
