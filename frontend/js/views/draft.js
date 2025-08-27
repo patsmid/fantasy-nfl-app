@@ -166,6 +166,21 @@ export default async function renderConsensusDraft() {
       </div>
     </div>
 
+    <style>
+      /* Offcanvas drafted cards */
+      #drafted-list .draft-card {
+        padding: .5rem .75rem;
+        border-radius: 10px;
+        font-size: 0.9rem;
+      }
+      #drafted-list .draft-card .fw-semibold {
+        font-size: 1rem;
+      }
+      #drafted-list .draft-card .small {
+        font-size: 0.8rem;
+      }
+    </style>
+
     <!-- Offcanvas: Mis drafteados -->
     <div class="offcanvas offcanvas-end flock-offcanvas" tabindex="-1" id="offcanvasDrafted">
       <div class="offcanvas-header border-secondary">
@@ -176,7 +191,7 @@ export default async function renderConsensusDraft() {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body">
-        <div id="drafted-list"></div>
+        <div id="drafted-list" class="row g-2"></div>
       </div>
       <div class="offcanvas-footer p-3 border-top border-secondary d-flex gap-2 justify-content-end">
         <button class="btn btn-outline-light" data-bs-dismiss="offcanvas">Cerrar</button>
@@ -403,7 +418,7 @@ export default async function renderConsensusDraft() {
       const expertsMore = (p.experts || []).length > 3 ? ` +${(p.experts || []).length - 3} more` : '';
 
       return `
-        <div class="col-12 col-md-6 col-lg-4">
+        <div class="col-12">
           <div class="draft-card h-100 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-start">
               <div class="min-w-0">
