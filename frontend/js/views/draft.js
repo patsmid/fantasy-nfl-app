@@ -612,8 +612,8 @@ export default async function renderConsensusDraft() {
       const players = result?.data || result?.players || [];
       const params = result?.params || result?.query || {};
       const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDraftedList || result?.myDrafted || [];
-
-      // normalizar draftData (ya lo tenías)
+      const starters = result.starterPositions;
+      console.log(starters);
       draftData = normalizePlayers(players || []);
 
       // default ordering by avg_rank asc
@@ -625,36 +625,15 @@ export default async function renderConsensusDraft() {
         return 0;
       });
 
-      // --- normalizar myDrafted de forma robusta (acepta array o JSON string) ---
-      let apiMyDraftedRaw = result?.my_drafted ?? result?.myDrafted ?? result?.myDraftedList ?? params?.myDrafted ?? [];
-      if (typeof apiMyDraftedRaw === 'string') {
-        try {
-          apiMyDraftedRaw = JSON.parse(apiMyDraftedRaw);
-        } catch (e) {
-          console.warn('[loadConsensus] no se pudo parsear myDrafted:', apiMyDraftedRaw, e);
-          apiMyDraftedRaw = [];
-        }
-      }
-      myDrafted = normalizePlayers(Array.isArray(apiMyDraftedRaw) ? apiMyDraftedRaw : []);
+      // normalize myDrafted to keep formato consistente
+      myDrafted = normalizePlayers(Array.isArray(apiMyDrafted) ? apiMyDrafted : []);
 
-      // --- starterPositions desde endpoint (parse seguro y soporta snake_case o JSON string) ---
-      let slotsRaw = result?.starterPositions ?? result?.starter_positions ?? params?.starterPositions ?? params?.starter_positions;
-      if (typeof slotsRaw === 'string') {
-        try {
-          slotsRaw = JSON.parse(slotsRaw);
-        } catch (e) {
-          console.warn('[loadConsensus] no se pudo parsear starterPositions:', slotsRaw, e);
-          slotsRaw = null;
-        }
-      }
-      starterSlots = Array.isArray(slotsRaw) && slotsRaw.length
-        ? slotsRaw.slice()
-        : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
-
-      // DEBUG: mostrar en consola para verificar qué llegó
-      console.log('[loadConsensus] starterSlots final:', starterSlots);
-      console.log('[loadConsensus] myDrafted length:', Array.isArray(myDrafted) ? myDrafted.length : 0);
-
+      // starterPositions desde endpoint (guardamos el array)
+      starterSlots = Array.isArray(result?.starterPositions)
+        ? result.starterPositions.slice()
+        : Array.isArray(params?.starterPositions)
+          ? params.starterPositions.slice()
+          : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
 
       // publish dates
       if (params?.ranks_published) {
@@ -707,16 +686,9 @@ export default async function renderConsensusDraft() {
   // Offcanvas drafted renderer (slot-based: starters + bench)
   // -------------------------
   function renderDraftedOffcanvas() {
-    console.log('[renderDraftedOffcanvas] called — starterSlots:', starterSlots, ' myDrafted.length:', Array.isArray(myDrafted) ? myDrafted.length : 0);
     const wrap = document.getElementById('drafted-list');
     const countEl = document.getElementById('drafted-count');
-    if (!wrap) {
-      console.warn('[renderDraftedOffcanvas] #drafted-list no encontrado en DOM');
-      return;
-    }
-    if (!countEl) {
-      console.warn('[renderDraftedOffcanvas] #drafted-count no encontrado en DOM');
-    }
+    if (!wrap) return;
 
     // copia mutable de mis drafteados
     const drafted = Array.isArray(myDrafted) ? myDrafted.slice() : [];
