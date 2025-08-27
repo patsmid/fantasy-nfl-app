@@ -111,7 +111,7 @@ export default async function renderConsensusDraft() {
             <label class="m-0 ms-2">Ordenar
               <select id="draft-sort-by" class="form-select form-select-sm ms-1" style="width:auto; display:inline-block;">
                 <option value="avg_rank">Avg Rank</option>
-                <option value="adp_rank">ADP Rank</option>
+                <option value="adpRound">ADP Round</option>
                 <option value="valueOverADP">Value/ADP</option>
               </select>
             </label>
@@ -273,7 +273,7 @@ export default async function renderConsensusDraft() {
         ...p,
         status,                 // agregamos status normalizado
         avg_rank: toNum(p.avg_rank),
-        adp_rank: toNum(p.adp_rank),
+        adpRound: toNum(p.adpRound),
         projection: toNum(p.projection),   // se mantiene solo para SharkScore
         valueOverADP: toNum(p.valueOverADP),
         vor: toNum(p.vor),
@@ -391,7 +391,7 @@ export default async function renderConsensusDraft() {
 
             <div class="mt-2 d-flex gap-2 align-items-center small">
               <span class="badge bg-primary">Avg: ${safeNum(p.avg_rank,2)}</span>
-              <span class="badge bg-info text-dark">ADP: ${safeNum(p.adp_rank,2)}</span>
+              <span class="badge bg-info text-dark">ADP: ${safeNum(p.adpRound,2)}</span>
               <span class="badge bg-warning text-dark">Val/ADP: ${safeNum(p.valueOverADP,2)}</span>
               <div class="ms-auto small">${(p.riskTags||[]).join(', ')}</div>
             </div>
@@ -510,8 +510,8 @@ export default async function renderConsensusDraft() {
         if (bNull) return -1;
         if (va < vb) return -1 * dir;
         if (va > vb) return 1 * dir;
-        const aa = a?.adp_rank ?? Number.POSITIVE_INFINITY;
-        const bb = b?.adp_rank ?? Number.POSITIVE_INFINITY;
+        const aa = a?.adpRound ?? Number.POSITIVE_INFINITY;
+        const bb = b?.adpRound ?? Number.POSITIVE_INFINITY;
         if (aa < bb) return -1 * dir;
         if (aa > bb) return 1 * dir;
         return 0;
