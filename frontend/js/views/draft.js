@@ -66,6 +66,27 @@ export default async function renderConsensusDraft() {
 
       /* Scoring pill visible en header */
       .scoring-pill { display:inline-flex; gap:.45rem; align-items:center; padding:.25rem .6rem; border-radius:999px; border:1px solid var(--border,#2f3033); background:rgba(255,255,255,.02); color:var(--text-secondary,#b0b3b8); font-weight:600; }
+
+      /* Variante compacta para items del offcanvas */
+      .drafted-card {
+        padding: .5rem .75rem;
+        border-radius: 10px;
+        border: 1px solid var(--border,#2f3033);
+        background: var(--bg-secondary,#1f2228);
+        font-size: .95rem;
+      }
+      .drafted-card .small { font-size: .8rem; }
+
+      /* Si el item viene desde list-group, asegúrate de que gane esta apariencia */
+      .bench-list .list-group-item.drafted-card {
+        background: var(--bg-secondary,#1f2228);
+        border-color: var(--border,#2f3033);
+        padding: .5rem .75rem;
+        border-radius: 10px;
+      }
+
+      /* Separación vertical limpia en la lista de banca */
+      .bench-list { display:flex; flex-direction:column; gap:.5rem; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -166,21 +187,6 @@ export default async function renderConsensusDraft() {
       </div>
     </div>
 
-    <style>
-      /* Offcanvas drafted cards */
-      #drafted-list .draft-card {
-        padding: .5rem .75rem;
-        border-radius: 10px;
-        font-size: 0.9rem;
-      }
-      #drafted-list .draft-card .fw-semibold {
-        font-size: 1rem;
-      }
-      #drafted-list .draft-card .small {
-        font-size: 0.8rem;
-      }
-    </style>
-
     <!-- Offcanvas: Mis drafteados -->
     <div class="offcanvas offcanvas-end flock-offcanvas" tabindex="-1" id="offcanvasDrafted">
       <div class="offcanvas-header border-secondary">
@@ -191,7 +197,7 @@ export default async function renderConsensusDraft() {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body">
-        <div id="drafted-list" class="row g-2"></div>
+        <div id="drafted-list"></div>
       </div>
       <div class="offcanvas-footer p-3 border-top border-secondary d-flex gap-2 justify-content-end">
         <button class="btn btn-outline-light" data-bs-dismiss="offcanvas">Cerrar</button>
@@ -418,7 +424,7 @@ export default async function renderConsensusDraft() {
       const expertsMore = (p.experts || []).length > 3 ? ` +${(p.experts || []).length - 3} more` : '';
 
       return `
-        <div class="col-12">
+        <div class="col-12 col-md-6 col-lg-4">
           <div class="draft-card h-100 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-start">
               <div class="min-w-0">
@@ -795,7 +801,7 @@ export default async function renderConsensusDraft() {
     };
 
     const benchItemHTML = (p) => `
-      <div class="list-group-item d-flex justify-content-between align-items-center">
+      <div class="list-group-item drafted-card d-flex justify-content-between align-items-center">
         <div class="min-w-0">
           <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
           <div class="small text-secondary">
