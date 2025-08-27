@@ -612,7 +612,7 @@ export default async function renderConsensusDraft() {
       const players = result?.data || result?.players || [];
       const params = result?.params || result?.query || {};
       const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDraftedList || result?.myDrafted || [];
-      const starters = result.starterPositions;
+      const starters = result?.starterPositions;
       console.log(starters);
       draftData = normalizePlayers(players || []);
 
