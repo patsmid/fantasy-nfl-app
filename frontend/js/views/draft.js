@@ -66,27 +66,6 @@ export default async function renderConsensusDraft() {
 
       /* Scoring pill visible en header */
       .scoring-pill { display:inline-flex; gap:.45rem; align-items:center; padding:.25rem .6rem; border-radius:999px; border:1px solid var(--border,#2f3033); background:rgba(255,255,255,.02); color:var(--text-secondary,#b0b3b8); font-weight:600; }
-
-      /* Variante compacta para items del offcanvas */
-      .drafted-card {
-        padding: .5rem .75rem;
-        border-radius: 10px;
-        border: 1px solid var(--border,#2f3033);
-        background: var(--bg-secondary,#1f2228);
-        font-size: .95rem;
-      }
-      .drafted-card .small { font-size: .8rem; }
-
-      /* Si el item viene desde list-group, asegúrate de que gane esta apariencia */
-      .bench-list .list-group-item.drafted-card {
-        background: var(--bg-secondary,#1f2228);
-        border-color: var(--border,#2f3033);
-        padding: .5rem .75rem;
-        border-radius: 10px;
-      }
-
-      /* Separación vertical limpia en la lista de banca */
-      .bench-list { display:flex; flex-direction:column; gap:.5rem; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -780,17 +759,17 @@ export default async function renderConsensusDraft() {
     const slotCardHTML = (s) => {
       if (!s.player) {
         return `
-          <div class="slot-card">
+          <div class="slot-card" style="width:100%;">
             <span class="slot-badge">${escapeHtml(s.label)}</span>
             <div class="slot-empty ms-2"><i class="bi bi-dash-circle me-1"></i>Vacío</div>
           </div>`;
       }
       const p = s.player;
       return `
-        <div class="slot-card">
+        <div class="slot-card" style="width:100%;">
           <span class="slot-badge">${escapeHtml(s.label)}</span>
-          <div class="slot-player ms-2">
-            <div class="name">${escapeHtml(p.nombre || '')}</div>
+          <div class="slot-player ms-2" style="min-width:0; flex:1 1 auto;">
+            <div class="name" style="white-space:normal; overflow:visible; text-overflow:clip;">${escapeHtml(p.nombre || '')}</div>
             <div class="slot-meta">
               ${posBadgeHTML(normPos(p.position))}
               <span>${escapeHtml(p.team || '')}</span>
@@ -801,9 +780,9 @@ export default async function renderConsensusDraft() {
     };
 
     const benchItemHTML = (p) => `
-      <div class="list-group-item drafted-card d-flex justify-content-between align-items-center">
+      <div class="list-group-item d-flex justify-content-between align-items-center">
         <div class="min-w-0">
-          <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
+          <div class="fw-semibold">${escapeHtml(p.nombre || '')}</div>
           <div class="small text-secondary">
             ${posBadgeHTML(normPos(p.position))}
             <span class="ms-1">${escapeHtml(p.team || '')}</span>
@@ -812,14 +791,14 @@ export default async function renderConsensusDraft() {
         </div>
       </div>`;
 
-    // Inyectar
+    // Inyectar (forzamos 1 columna con inline style para anular el CSS responsive previo)
     wrap.innerHTML = `
       <div class="lineup-section">
         <div class="d-flex align-items-center gap-2 mb-2">
           <i class="bi bi-play-fill text-success"></i>
           <span class="lineup-section-title">Titulares</span>
         </div>
-        <div class="lineup-grid">
+        <div class="lineup-grid" style="grid-template-columns: 1fr;">
           ${starters.map(slotCardHTML).join('')}
         </div>
       </div>
