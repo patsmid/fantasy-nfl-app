@@ -627,13 +627,33 @@ export default async function renderConsensusDraft() {
       // normalize myDrafted to keep formato consistente
       myDrafted = normalizePlayers(Array.isArray(apiMyDrafted) ? apiMyDrafted : []);
 
-      // starterPositions desde endpoint (guardamos el array)
-      starterSlots = Array.isArray(result?.starterPositions)
-        ? result.starterPositions.slice()
-        : Array.isArray(params?.starterPositions)
-          ? params.starterPositions.slice()
-          : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
-          console.log(starterSlots);
+      // 🔹 helper para asegurar que siempre obtenemos un array válido
+      function parseStarterSlots(result, params) {
+        let slots = result?.starterPositions || result?.starter_positions || params?.starterPositions;
+
+        // si viene como string JSON → parsear
+        if (typeof slots === "string") {
+          try {
+            slots = JSON.parse(slots);
+          } catch (e) {
+            console.warn("No se pudo parsear starterPositions:", slots);
+            slots = null;
+          }
+        }
+
+        // si es array válido → usar
+        if (Array.isArray(slots) && slots.length) {
+          return slots.slice();
+        }
+
+        // fallback default
+        return ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
+      }
+
+      // 🔹 asignación en vez de tu bloque anterior
+      starterSlots = parseStarterSlots(result, params);
+
+
       // publish dates
       if (params?.ranks_published) {
         const fecha = new Date(params.ranks_published);
