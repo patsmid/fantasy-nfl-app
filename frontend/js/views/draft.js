@@ -633,7 +633,7 @@ export default async function renderConsensusDraft() {
         : Array.isArray(params?.starterPositions)
           ? params.starterPositions.slice()
           : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
-
+          console.log(starterSlots);
       // publish dates
       if (params?.ranks_published) {
         const fecha = new Date(params.ranks_published);
