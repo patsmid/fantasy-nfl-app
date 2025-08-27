@@ -76,7 +76,7 @@ export async function fetchConsensusData(
     return {
       players: json.data,              // <- usar directamente json.data
       params: json.params || {},
-      myDrafted: json.my_drafted || [] // <- si existe
+      myDrafted: json.my_drafted || [], // <- si existe
       starterPositions: json.starterPositions || []
     };
   } catch (err) {
