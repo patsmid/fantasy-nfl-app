@@ -1,4 +1,3 @@
-// frontend/src/views/draftConsenso.js
 import { showSuccess, showError, showLoadingBar } from '../../components/alerts.js';
 import { positions } from '../../components/constants.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
@@ -44,6 +43,29 @@ export default async function renderConsensusDraft() {
       .flag-purple { color:#bd7bff; border-color:rgba(189,123,255,.35); background:rgba(189,123,255,.10); }
       .flag-orange { color:#ffae58; border-color:rgba(255,174,88,.35); background:rgba(255,174,88,.10); }
       .flag-red { color:#ff5a5f; border-color:rgba(255,90,95,.35); background:rgba(255,90,95,.10); }
+
+      /* ---- Offcanvas lineup / slots ---- */
+      .lineup-section-title { font-size:.85rem; color:var(--text-secondary,#b0b3b8); letter-spacing:.02em; text-transform:uppercase; }
+      .lineup-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6rem; }
+      @media (min-width: 768px){ .lineup-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+      .slot-card {
+        border:1px dashed rgba(255,255,255,.12);
+        background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+        border-radius:12px; padding:.6rem; min-height:72px; display:flex; gap:.6rem; align-items:flex-start;
+      }
+      .slot-badge {
+        align-self:flex-start; font-weight:700; font-size:.75rem; padding:.2rem .45rem;
+        border-radius:.5rem; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06);
+        color:var(--text-secondary,#b0b3b8);
+      }
+      .slot-empty { opacity:.7; font-size:.9rem; display:flex; align-items:center; color:var(--text-secondary,#b0b3b8); }
+      .slot-player { display:flex; flex-direction:column; min-width:0; }
+      .slot-player .name { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .slot-meta { font-size:.8rem; color:var(--text-secondary,#b0b3b8); display:flex; gap:.5rem; flex-wrap:wrap; }
+      .bench-list .list-group-item { background:transparent; color:var(--text-primary); border-color:rgba(255,255,255,.08); }
+
+      /* Scoring pill visible en header */
+      .scoring-pill { display:inline-flex; gap:.45rem; align-items:center; padding:.25rem .6rem; border-radius:999px; border:1px solid var(--border,#2f3033); background:rgba(255,255,255,.02); color:var(--text-secondary,#b0b3b8); font-weight:600; }
     </style>
 
     <div class="card border-0 shadow-sm rounded flock-card">
@@ -52,11 +74,15 @@ export default async function renderConsensusDraft() {
           <h4 class="m-0 d-flex align-items-center gap-2">
             <i class="bi bi-list-stars text-warning"></i> Draft Simple
           </h4>
-          <div class="d-flex gap-2">
-            <button id="btn-open-drafted" class="btn btn-sm btn-outline-light" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDrafted" aria-controls="offcanvasDrafted">
-              <i class="bi bi-people"></i>
-            </button>
-            <button id="btn-refresh-draft" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+          <div class="d-flex gap-2 align-items-center">
+            <!-- Scoring visible a simple vista -->
+            <div id="scoring-label" class="scoring-pill" title="Tipo de scoring">Scoring: —</div>
+            <div class="d-flex gap-2 ms-2">
+              <button id="btn-open-drafted" class="btn btn-sm btn-outline-light" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDrafted" aria-controls="offcanvasDrafted">
+                <i class="bi bi-people"></i>
+              </button>
+              <button id="btn-refresh-draft" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+            </div>
           </div>
         </div>
 
@@ -94,6 +120,7 @@ export default async function renderConsensusDraft() {
         <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
           <div id="ranks-updated-label" class="small-muted"></div>
           <div id="adp-updated-label" class="small-muted"></div>
+          <!-- scoring-label también existe en header, mantenemos este campo vacío: -->
         </div>
 
         <div class="controls-row mb-2">
@@ -176,6 +203,7 @@ export default async function renderConsensusDraft() {
   const empty = document.getElementById('draft-empty');
   const ranksUpdatedLabel = document.getElementById('ranks-updated-label');
   const adpUpdatedLabel = document.getElementById('adp-updated-label');
+  const scoringLabel = document.getElementById('scoring-label');
   const btnRefresh = document.getElementById('btn-refresh-draft');
   const btnOpenDrafted = document.getElementById('btn-open-drafted');
   const cardsInfo = document.getElementById('cards-info');
@@ -184,6 +212,7 @@ export default async function renderConsensusDraft() {
   let draftData = [];
   let filtered = [];
   let myDrafted = [];
+  let starterSlots = []; // array de posiciones titulares según el endpoint
   let currentPage = 1;
   let pageSize = Number(pageSizeSel.value) || 12;
   let searchQuery = '';
@@ -209,7 +238,7 @@ export default async function renderConsensusDraft() {
     };
   }
   function escapeHtml(str) {
-    return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+    return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
   }
   const safeNum = (v, decimals = 2) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v.toFixed(decimals)) : (Number.isFinite(+v) ? Number(Number(v).toFixed(decimals)) : '');
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -595,7 +624,15 @@ export default async function renderConsensusDraft() {
         return 0;
       });
 
-      myDrafted = Array.isArray(apiMyDrafted) ? apiMyDrafted : [];
+      // normalize myDrafted to keep formato consistente
+      myDrafted = normalizePlayers(Array.isArray(apiMyDrafted) ? apiMyDrafted : []);
+
+      // starterPositions desde endpoint (guardamos el array)
+      starterSlots = Array.isArray(result?.starterPositions)
+        ? result.starterPositions.slice()
+        : Array.isArray(params?.starterPositions)
+          ? params.starterPositions.slice()
+          : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
 
       // publish dates
       if (params?.ranks_published) {
@@ -619,6 +656,15 @@ export default async function renderConsensusDraft() {
         adpUpdatedLabel.innerHTML = '';
       }
 
+      // Scoring visible en header (params.scoring)
+      if (params?.scoring) {
+        try {
+          scoringLabel.innerHTML = `<i class="bi bi-list-check"></i> Scoring: ${escapeHtml(params.scoring)}`;
+        } catch (e) { scoringLabel.textContent = `Scoring: ${params.scoring}`; }
+      } else {
+        scoringLabel.innerHTML = 'Scoring: —';
+      }
+
       applyFiltersAndSort();
       renderDraftedOffcanvas();
       showSuccess('Consenso actualizado');
@@ -636,33 +682,141 @@ export default async function renderConsensusDraft() {
   }
 
   // -------------------------
-  // Offcanvas drafted renderer
+  // Offcanvas drafted renderer (slot-based: starters + bench)
   // -------------------------
   function renderDraftedOffcanvas() {
     const wrap = document.getElementById('drafted-list');
     const countEl = document.getElementById('drafted-count');
     if (!wrap) return;
-    const list = myDrafted || [];
-    countEl.textContent = String(list.length || 0);
-    if (!list.length) {
+
+    // copia mutable de mis drafteados
+    const drafted = Array.isArray(myDrafted) ? myDrafted.slice() : [];
+    countEl.textContent = String(drafted.length || 0);
+
+    if (!drafted.length) {
       wrap.innerHTML = `<div class="text-secondary text-center py-3"><i class="bi bi-inbox"></i><div class="mt-1">Aún no tienes jugadores drafteados.</div></div>`;
       return;
     }
 
-    wrap.innerHTML = `
-      <div class="list-group list-group-flush">
-        ${list.map(p => `
-          <div class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
-            <div class="min-w-0">
-              <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
-              <div class="small text-secondary">
-                <span class="badge" style="background:${getPositionColor(p.position)};color:${getContrastTextColor(getPositionColor(p.position))}">${escapeHtml(p.position || '')}</span>
-                <span class="ms-1">${escapeHtml(p.team || '')}</span>
-                <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
-              </div>
+    // Normalizadores de posición
+    const normPos = (s='') => {
+      const t = String(s||'').toUpperCase().trim();
+      if (!t) return '';
+      if (t === 'DST' || t === 'D/ST' || t === 'DEFENSE') return 'DEF';
+      if (t === 'PK' || t === 'K') return 'K';
+      return t.replace('.', '').replace('/', '');
+    };
+
+    const isFlexSlot = (s='') => /FLEX|WRT|WRT|WRRBTE|WRRB|WRTE/i.test(String(s));
+    const isSuperFlexSlot = (s='') => /SUPERFLEX|S-FLEX|SFLX|SF/i.test(String(s));
+    const FLEX_ALLOWED = new Set(['RB','WR','TE']);
+    const SUPERFLEX_ALLOWED = new Set(['QB','RB','WR','TE']);
+
+    // Construir lista de slots a renderizar
+    const rawSlots = Array.isArray(starterSlots) && starterSlots.length ? starterSlots.slice() : ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","FLEX","K","DEF"];
+    const counters = {};
+    const slots = rawSlots.map(slot => {
+      const key = isFlexSlot(slot) ? 'FLEX' : (isSuperFlexSlot(slot) ? 'SUPERFLEX' : normPos(slot));
+      counters[key] = (counters[key] || 0) + 1;
+      const idx = counters[key];
+      const label = (key === 'FLEX' || key === 'SUPERFLEX') ? `${key}${idx}` : `${key}${(idx>1?idx:'')}`;
+      return { key, label };
+    });
+
+    // funcion para sacar el primer jugador que cumpla predicado
+    const takeFirst = (pred) => {
+      const i = drafted.findIndex(pred);
+      if (i === -1) return null;
+      return drafted.splice(i,1)[0];
+    };
+
+    // inicializar starters
+    const starters = slots.map(s => ({ ...s, player: null }));
+
+    // 1) llenar slots exactos
+    for (const s of starters) {
+      if (s.key === 'FLEX' || s.key === 'SUPERFLEX') continue;
+      s.player = takeFirst(p => normPos(p.position) === s.key);
+    }
+
+    // 2) llenar FLEX/SUPERFLEX
+    for (const s of starters) {
+      if (s.key !== 'FLEX' && s.key !== 'SUPERFLEX') continue;
+      const allowed = s.key === 'SUPERFLEX' ? SUPERFLEX_ALLOWED : FLEX_ALLOWED;
+      s.player = takeFirst(p => allowed.has(normPos(p.position)));
+    }
+
+    // restantes -> bench
+    const bench = drafted;
+
+    // helpers visuales
+    const posBadgeHTML = (pos) => {
+      const bg = getPositionColor(pos);
+      const txt = getContrastTextColor(bg);
+      return `<span class="badge" style="background:${bg};color:${txt}">${escapeHtml(pos||'')}</span>`;
+    };
+
+    const slotCardHTML = (s) => {
+      if (!s.player) {
+        return `
+          <div class="slot-card">
+            <span class="slot-badge">${escapeHtml(s.label)}</span>
+            <div class="slot-empty ms-2"><i class="bi bi-dash-circle me-1"></i>Vacío</div>
+          </div>`;
+      }
+      const p = s.player;
+      return `
+        <div class="slot-card">
+          <span class="slot-badge">${escapeHtml(s.label)}</span>
+          <div class="slot-player ms-2">
+            <div class="name">${escapeHtml(p.nombre || '')}</div>
+            <div class="slot-meta">
+              ${posBadgeHTML(normPos(p.position))}
+              <span>${escapeHtml(p.team || '')}</span>
+              <span>Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
             </div>
           </div>
-        `).join('')}
+        </div>`;
+    };
+
+    const benchItemHTML = (p) => `
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <div class="min-w-0">
+          <div class="fw-semibold text-truncate">${escapeHtml(p.nombre || '')}</div>
+          <div class="small text-secondary">
+            ${posBadgeHTML(normPos(p.position))}
+            <span class="ms-1">${escapeHtml(p.team || '')}</span>
+            <span class="ms-2">Bye: <span class="text-white">${escapeHtml(p.bye ?? '—')}</span></span>
+          </div>
+        </div>
+      </div>`;
+
+    // Inyectar
+    wrap.innerHTML = `
+      <div class="lineup-section">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-play-fill text-success"></i>
+          <span class="lineup-section-title">Titulares</span>
+        </div>
+        <div class="lineup-grid">
+          ${starters.map(slotCardHTML).join('')}
+        </div>
+      </div>
+
+      <div class="lineup-section mt-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-collection"></i>
+            <span class="lineup-section-title">Banca</span>
+          </div>
+          <span class="badge bg-secondary">${bench.length}</span>
+        </div>
+        <div class="bench-list list-group list-group-flush">
+          ${bench.length ? bench.map(benchItemHTML).join('') :
+            `<div class="text-secondary text-center py-3">
+              <i class="bi bi-inbox"></i><div class="mt-1">Sin jugadores en la banca.</div>
+            </div>`}
+        </div>
       </div>
     `;
   }
