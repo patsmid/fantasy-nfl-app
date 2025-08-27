@@ -608,13 +608,12 @@ export default async function renderConsensusDraft() {
         safeHideLoading();
         return;
       }
-
+      console.log('[RAW result]', result);
+      console.log('[Keys]', Object.keys(result));
       const players = result?.data || result?.players || [];
       const params = result?.params || result?.query || {};
       const apiMyDrafted = result?.my_drafted || result?.myDrafted || result?.myDraftedList || result?.myDrafted || [];
       const starters = result?.starterPositions;
-      console.log(apiMyDrafted);
-      console.log(starters);
       draftData = normalizePlayers(players || []);
 
       // default ordering by avg_rank asc
