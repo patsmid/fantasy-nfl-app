@@ -28,8 +28,29 @@ export async function getADPData(adpType) {
 }
 
 export async function getPlayersData(playerIds) {
-  const { data } = await supabase.from('players').select('*').in('player_id', playerIds);
-  return data;
+  if (Array.isArray(playerIds) && playerIds.length > 0) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .in('player_id', playerIds);
+    if (error) throw error;
+    return data;
+  } else {
+    // Si no se pasan ids, devolvemos toda la tabla (equivalente a la hoja players_data)
+    const { data, error } = await supabase.from('players').select('*');
+    if (error) throw error;
+    return data;
+  }
+}
+
+export async function getPlayersByNames(names = []) {
+  if (!Array.isArray(names) || names.length === 0) return [];
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .in('full_name', names);
+  if (error) throw error;
+  return data || [];
 }
 
 export async function getRankings_prev({ season, dynasty, scoring, idExpert, position }) {
