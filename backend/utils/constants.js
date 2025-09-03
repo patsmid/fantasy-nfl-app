@@ -16,7 +16,7 @@ export const positions = [
   { nombre: 'RB', valor: 'RB' },
   { nombre: 'TE', valor: 'TE' },
   { nombre: 'KICKER', valor: 'K' },
-  { nombre: 'DEFENSA', valor: 'DST' },
+  { nombre: 'DEFENSE', valor: 'DST' },
   { nombre: 'FLEX', valor: 'FLX' },
 ];
 
