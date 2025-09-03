@@ -187,7 +187,7 @@ function extractNameFromRankingObj(obj) {
  */
 export async function getWaiversData(
   leagueId,
-  { idExpert = 3701, position = 'TODAS', week = 1 } = {}
+  { idExpert = null, position = 'TODAS', week = 1 } = {}
 ) {
   try {
     // 1) Datos de liga y config
@@ -361,7 +361,20 @@ export async function getWaiversData(
        console.log(`📦 PlayersData obtenido desde supabase: ${playersData.length} jugadores`);
      }
 
-     // 3) Filtrar pool: no tomados & posición válida
+     // 3) Preprocesar rankings con nombre normalizado
+     const normalizeRankings = arr =>
+       Array.isArray(arr)
+         ? arr.map(r => ({
+             ...r,
+             searchName: extractNameFromRankingObj(r) || r.player_name || r.full_name || ''
+           }))
+         : [];
+
+     const rankingsNorm = normalizeRankings(rankings);
+     const dstRankingsNorm = normalizeRankings(dstRankings);
+     const kickerRankingsNorm = normalizeRankings(kickerRankings);
+
+     // 4) Filtrar pool: no tomados & posición válida
      const freeAgentsPool = playersData.filter(p => {
        const pid = String(p.player_id ?? '');
        const pos = p.position ?? null;
@@ -369,7 +382,7 @@ export async function getWaiversData(
      });
      console.log(`✅ Free agents pool filtrado: ${freeAgentsPool.length} jugadores`);
 
-     // 4) Construir filas (igual que tu GAS)
+     // 5) Construir filas
      const rows = [];
 
      for (const info of freeAgentsPool) {
@@ -379,63 +392,66 @@ export async function getWaiversData(
        const status = info.injury_status || '';
        const rookie = info.years_exp === 0 ? ' (R)' : '';
 
-       // Ranking principal (nombre -> rankings)
-       const faRank = fuzzySearch(fullName, rankings);
-       if (
-         Array.isArray(faRank) &&
-         faRank.length > 0 &&
-         (
-           (typeof faRank[0].player_positions === 'string' &&
-             faRank[0].player_positions === position) ||
-           (Array.isArray(faRank[0].player_positions) &&
-             faRank[0].player_positions.includes(position))
-         )
-       ) {
-         rows.push({
-           rank: typeof faRank[0].rank === 'number' ? faRank[0].rank : parseInt(faRank[0].rank) || 9999,
-           nombre: `${fullName}${rookie}`,
-           position,
-           team,
-           matchup: faRank[0].matchup ?? 'N/D',
-           byeWeek: faRank[0].bye_week ?? info.bye_week ?? 'N/D',
-           status
-         });
+       // Ranking principal (por nombre)
+       const faRank = fuzzySearch(fullName, rankingsNorm, 'searchName');
+       if (Array.isArray(faRank) && faRank.length > 0) {
+         const r = faRank[0];
+         const posField = Array.isArray(r.player_positions)
+           ? r.player_positions.join(',')
+           : String(r.player_positions || '');
+         const posOk = posField ? posField.includes(position) : true;
+
+         if (posOk) {
+           rows.push({
+             rank: typeof r.rank === 'number' ? r.rank : parseInt(r.rank) || 9999,
+             nombre: `${fullName}${rookie}`,
+             position,
+             team,
+             matchup: r.matchup ?? 'N/D',
+             byeWeek: r.bye_week ?? info.bye_week ?? 'N/D',
+             status
+           });
+         }
+       } else {
+         console.log(`⚠️ No se encontró ranking para: ${fullName} (${position})`);
        }
 
-       // DEF
-       if (position === 'DEF' && Array.isArray(dstRankings) && dstRankings.length > 0) {
-         const faDSTRank = fuzzySearch(fullName, dstRankings);
+       // DEF (offset +10000)
+       if (position === 'DEF' && dstRankingsNorm.length > 0) {
+         const faDSTRank = fuzzySearch(fullName, dstRankingsNorm, 'searchName');
          if (Array.isArray(faDSTRank) && faDSTRank.length > 0) {
+           const r = faDSTRank[0];
            rows.push({
-             rank: 10000 + (parseInt(faDSTRank[0].rank) || 9999),
-             nombre: faDSTRank[0].player_name,
-             position: faDSTRank[0].player_positions,
-             team: faDSTRank[0].player_team_id,
-             matchup: faDSTRank[0].matchup ?? 'N/D',
-             byeWeek: faDSTRank[0].bye_week ?? 'N/D',
+             rank: 10000 + (parseInt(r.rank) || 9999),
+             nombre: r.player_name || fullName,
+             position: r.player_positions || position,
+             team: r.player_team_id || team,
+             matchup: r.matchup ?? 'N/D',
+             byeWeek: r.bye_week ?? 'N/D',
              status: ''
            });
          }
        }
 
-       // K
-       if (position === 'K' && Array.isArray(kickerRankings) && kickerRankings.length > 0) {
-         const faKRank = fuzzySearch(fullName, kickerRankings);
+       // K (offset +20000)
+       if (position === 'K' && kickerRankingsNorm.length > 0) {
+         const faKRank = fuzzySearch(fullName, kickerRankingsNorm, 'searchName');
          if (Array.isArray(faKRank) && faKRank.length > 0) {
+           const r = faKRank[0];
            rows.push({
-             rank: 20000 + (parseInt(faKRank[0].rank) || 9999),
-             nombre: `${faKRank[0].player_name}${rookie}`,
-             position: faKRank[0].player_positions,
-             team: faKRank[0].player_team_id,
-             matchup: faKRank[0].matchup ?? 'N/D',
-             byeWeek: faKRank[0].bye_week ?? 'N/D',
+             rank: 20000 + (parseInt(r.rank) || 9999),
+             nombre: `${r.player_name || fullName}${rookie}`,
+             position: r.player_positions || position,
+             team: r.player_team_id || team,
+             matchup: r.matchup ?? 'N/D',
+             byeWeek: r.bye_week ?? 'N/D',
              status: ''
            });
          }
        }
      }
 
-     // 5) Ordenar por rank ascendente y devolver
+     // 6) Ordenar por rank ascendente y devolver
      rows.sort((a, b) => {
        const ar = typeof a.rank === 'number' ? a.rank : parseInt(a.rank) || 9999;
        const br = typeof b.rank === 'number' ? b.rank : parseInt(b.rank) || 9999;
