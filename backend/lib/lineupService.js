@@ -246,6 +246,8 @@ export async function getLineupData(
   // 5) Construir FA: no owned + posición válida + match (incluye checks especiales para DST/K)
   const byIdBest = new Map(); // sleeperId -> candidate (con mejor rank)
 
+	console.log('dstRankings:');
+	console.log(dstRankings);
   for (const info of allPlayers) {
     const sleeperId = String(info.player_id || '');
     const pos = String((info.position || '')).toUpperCase();
@@ -254,8 +256,6 @@ export async function getLineupData(
     if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
     // Realizamos las tres búsquedas como hacía tu GAS
-		console.log('dstRankings:');
-		console.log(dstRankings);
 		const mainRanked = Array.isArray(rankings) && rankings.length ? fuzzySearch(info.full_name, rankings) : [];
     const dstRanked = Array.isArray(dstRankings) && dstRankings.length ? fuzzySearch(info.full_name, dstRankings) : [];
 		console.log('dstRanked:');
