@@ -189,7 +189,6 @@ export async function getLineupData(
 
    // 2) Experto y rankings
    const expertData = await getExpertData(idExpert);
-   console.log('▶ ExpertData:', expertData);
 
    const rankingsResponse = await getRankings({
      season,
@@ -263,10 +262,13 @@ export async function getLineupData(
      // DST: usar directamente el campo team
      let dstRanked = [];
      if (pos === 'DEF' && dstRankings.length) {
+			 console.log('info');
+			 console.log(info);
+			 console.log('player');
+			 console.log(p);
        dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
      }
-		 console.log('dstRanked');
-		 console.log(dstRanked);
+
      // K: por fuzzySearch
      const kRanked = kickerRankings.length ? fuzzySearch(info.full_name, kickerRankings) : [];
 
