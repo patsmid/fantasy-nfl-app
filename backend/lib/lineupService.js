@@ -88,7 +88,7 @@ export async function getLineupData(
 
   // 4. Info de jugadores
   const playersData = await getPlayersData(playerIds);
-	console.log(playersData);
+	// console.log(playersData);
   // 5. Construir arreglo de jugadores con ranking asignado
   const players = playerIds
     .map(sleeperId => {
