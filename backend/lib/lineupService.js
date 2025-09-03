@@ -162,105 +162,103 @@ export async function getLineupData(
  *  - injuryStatus: estado de lesión ("Out", "Questionable", etc)
  *  - sleeperId: id de Sleeper si se pudo resolver
  */
- export async function getFreeAgentsData(leagueId, { idExpert = null, position = 'TODAS', week = 1 } = {}) {
-   // 1. Datos de la liga y configuración
-   const leagueData = await getSleeperLeague(leagueId);
-   const starterPositions = getStarterPositions(leagueData);
+ export async function getFreeAgentsData(
+  leagueId,
+  { idExpert = null, position = 'TODAS', week = 1 } = {}
+) {
+  // 1. Datos de la liga
+  const leagueData = await getSleeperLeague(leagueId);
+  const starterPositions = getStarterPositions(leagueData);
 
-   const scoring =
-     leagueData.scoring_settings?.rec === 1
-       ? 'PPR'
-       : leagueData.scoring_settings?.rec === 0.5
-       ? 'HALF'
-       : 'STANDARD';
+  const scoring =
+    leagueData.scoring_settings?.rec === 1
+      ? 'PPR'
+      : leagueData.scoring_settings?.rec === 0.5
+      ? 'HALF'
+      : 'STANDARD';
 
-   const season = await getConfigValue('season');
-   const expertData = await getExpertData(idExpert);
+  const season = await getConfigValue('season');
+  const expertData = await getExpertData(idExpert);
 
-   // 2. Rankings principales
-   const rankingsResponse = await getRankings({
-     season,
-     scoring,
-     expertData,
-     position,
-     week
-   });
+  // 2. Rankings principales
+  const rankingsResponse = await getRankings({
+    season,
+    scoring,
+    expertData,
+    position,
+    week
+  });
 
-   const rankings = Array.isArray(rankingsResponse?.players)
-     ? rankingsResponse.players
-     : [];
+  const rankings = Array.isArray(rankingsResponse?.players)
+    ? rankingsResponse.players
+    : [];
 
-   // DST & K con offsets (solo si es fantasypros)
-   let dstRankings = [];
-   let kickerRankings = [];
+  // DST & K con offsets (solo si es fantasypros)
+  let dstRankings = [];
+  let kickerRankings = [];
 
-   if (expertData?.source === 'fantasypros') {
-     if (starterPositions.includes('DEF')) {
-       dstRankings =
-         (await getDSTRankings({ season, expertData, week }))?.players?.map(p => ({
-           ...p,
-           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
-         })) || [];
-     }
-     if (starterPositions.includes('K')) {
-       kickerRankings =
-         (await getKickerRankings({ season, expertData, week }))?.players?.map(p => ({
-           ...p,
-           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
-         })) || [];
-     }
-   }
+  if (expertData?.source === 'fantasypros') {
+    if (starterPositions.includes('DEF')) {
+      dstRankings =
+        (await getDSTRankings({ season, expertData, week }))?.players?.map(p => ({
+          ...p,
+          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
+        })) || [];
+    }
+    if (starterPositions.includes('K')) {
+      kickerRankings =
+        (await getKickerRankings({ season, expertData, week }))?.players?.map(p => ({
+          ...p,
+          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
+        })) || [];
+    }
+  }
 
-   // 3. Todos los jugadores de la DB (supabase)
-   const { data: allPlayersFromDB, error } = await supabase
-     .from('players')
-     .select('*');
+  // 3. Traer todos los jugadores (ya resuelto en tu proyecto)
+  //    Nota: aquí NO limitamos por rosterId, sino que pedimos todos
+  const playersData = await getPlayersData(); // ⚡ sin playerIds → trae toda la base
 
-   if (error) {
-     throw new Error(`Error cargando jugadores: ${error.message}`);
-   }
+  // 4. Construir arreglo de free agents con filtro
+  const freeAgents = playersData
+    .map(info => {
+      const name = info.full_name;
+      const isDST = info.position === 'DEF';
+      const isK = info.position === 'K';
 
-   // 4. Construcción de free agents con filtro
-   const freeAgents = allPlayersFromDB
-     .map(info => {
-       const name = info.full_name;
-       const isDST = info.position === 'DEF';
-       const isK = info.position === 'K';
+      const rankingList = isDST
+        ? dstRankings
+        : isK
+        ? kickerRankings
+        : rankings;
 
-       const rankingList = isDST
-         ? dstRankings
-         : isK
-         ? kickerRankings
-         : rankings;
+      const ranked = fuzzySearch(name, rankingList);
 
-       const ranked = fuzzySearch(name, rankingList);
+      if (!ranked || ranked.length === 0) {
+        // 🔴 No hay coincidencia → no incluir
+        return null;
+      }
 
-       if (!ranked || ranked.length === 0) {
-         // 🔴 No hay coincidencia -> no incluir
-         return null;
-       }
+      const playerRank = ranked[0];
 
-       const playerRank = ranked[0];
+      return {
+        rank: playerRank.rank,
+        nombre: info.full_name,
+        position: info.position,
+        team: info.team,
+        matchup: playerRank.matchup || 'N/D',
+        byeWeek: playerRank.bye_week || info.bye_week || 'N/D',
+        injuryStatus: info.injury_status || '',
+        sleeperId: info.player_id
+      };
+    })
+    .filter(Boolean) // 🔴 elimina nulos
+    .sort((a, b) => a.rank - b.rank);
 
-       return {
-         rank: playerRank.rank,
-         nombre: info.full_name,
-         position: info.position,
-         team: info.team,
-         matchup: playerRank.matchup || 'N/D',
-         byeWeek: playerRank.bye_week || info.bye_week || 'N/D',
-         injuryStatus: info.injury_status || '',
-         sleeperId: info.player_id
-       };
-     })
-     .filter(Boolean) // 🔴 Solo jugadores con ranking válido
-     .sort((a, b) => a.rank - b.rank);
-
-   return {
-     success: true,
-     freeAgents
-   };
- }
+  return {
+    success: true,
+    freeAgents
+  };
+}
 
 function isAllowedPosition(pos, starterPositions, superFlex) {
   const allowedPositions = new Set(starterPositions.map(s => s.replace('SUPER_', '')));
