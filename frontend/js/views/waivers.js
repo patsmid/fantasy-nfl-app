@@ -39,7 +39,7 @@ export default async function renderWaiversView() {
               <option value="WR">WR</option>
               <option value="TE">TE</option>
               <option value="K">K</option>
-              <option value="DST">DST</option>
+              <option value="DEF">DST</option>
             </select>
           </div>
           <div class="col-md-3">
@@ -182,21 +182,38 @@ export default async function renderWaiversView() {
     }
   }
 
-  function renderCards(players) {
-    players.sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
-    const totalPages = Math.ceil(players.length / pageSize);
-    if (currentPage > totalPages) currentPage = totalPages || 1;
-    const start = (currentPage - 1) * pageSize;
-    const pageData = players.slice(start, start + pageSize);
+	function getPositionColor(position) {
+	  switch ((position || '').toUpperCase()) {
+	    case 'QB': return '#ff2a6d';   // Rosa fuerte
+	    case 'RB': return '#00ceb8';   // Verde aqua
+	    case 'WR': return '#58a7ff';   // Azul celeste
+	    case 'TE': return '#ffae58';   // Naranja
+			default:   return '#6c757d';   // Gris neutro
+	  }
+	}
 
-    const container = document.getElementById('waiversCards');
-    container.innerHTML = pageData.map(p => renderCard(p)).join('');
-
-    document.getElementById('pagination-info').textContent =
-      `Página ${currentPage} de ${totalPages || 1}`;
-    document.getElementById('prev-page').disabled = currentPage <= 1;
-    document.getElementById('next-page').disabled = currentPage >= totalPages;
-  }
+	function renderCard(p) {
+	  const color = getPositionColor(p.position);
+	  return `
+	    <div class="col-12 col-md-6 col-lg-4">
+	      <div class="card shadow-sm border-0 h-100">
+	        <div class="card-body d-flex flex-column">
+	          <h6 class="card-title mb-1 fw-bold">
+	            <span class="badge me-2"
+	                  style="background-color:${color}; color:#fff;">
+	              ${p.position || ''}
+	            </span>
+	            ${p.nombre}
+	          </h6>
+	          <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
+	          <div class="mt-auto d-flex justify-content-between align-items-center">
+	            <span class="badge bg-dark">Rank ${p.rank ?? '-'}</span>
+	            ${renderStatus(p.injuryStatus)}
+	          </div>
+	        </div>
+	      </div>
+	    </div>`;
+	}
 
   function renderTable(players) {
     const table = $('#waiversTable');
