@@ -27,20 +27,42 @@ export async function getADPData(adpType) {
   return data;
 }
 
-export async function getPlayersData(playerIds) {
+export async function getPlayersData(playerIds = null, chunkSize = 1000) {
+  // Caso 1: hay playerIds → filtramos por in()
   if (Array.isArray(playerIds) && playerIds.length > 0) {
     const { data, error } = await supabase
       .from('players')
       .select('*')
       .in('player_id', playerIds);
+
     if (error) throw error;
-    return data;
-  } else {
-    // Si no se pasan ids, devolvemos toda la tabla (equivalente a la hoja players_data)
-    const { data, error } = await supabase.from('players').select('*');
-    if (error) throw error;
-    return data;
+    return data || [];
   }
+
+  // Caso 2: no hay playerIds → traer toda la tabla en chunks
+  let allPlayers = [];
+  let from = 0;
+  let to = chunkSize - 1;
+  let finished = false;
+
+  while (!finished) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      finished = true; // no hay más registros
+    } else {
+      allPlayers = allPlayers.concat(data);
+      from += chunkSize;
+      to += chunkSize;
+    }
+  }
+
+  return allPlayers;
 }
 
 export async function getPlayersByNames(names = []) {
