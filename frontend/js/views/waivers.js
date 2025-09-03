@@ -29,8 +29,8 @@ export default async function renderWaiversView() {
           </div>
         </form>
 
-        <!-- Controles de filtrado -->
-        <div class="row g-3 mb-4">
+        <!-- Controles de vista, filtros y buscador -->
+        <div class="row g-3 mb-4 align-items-end">
           <div class="col-md-3">
             <select id="filter-position" class="form-select">
               <option value="">Todas las posiciones</option>
@@ -48,19 +48,38 @@ export default async function renderWaiversView() {
             </select>
           </div>
           <div class="col-md-3">
-            <select id="sort-by" class="form-select">
-              <option value="rank">Ordenar por Rank</option>
-              <option value="nombre">Ordenar por Nombre</option>
-              <option value="position">Ordenar por Posición</option>
-            </select>
+            <input id="search-player" type="text" class="form-control" placeholder="Buscar jugador...">
+          </div>
+          <div class="col-md-3 text-end">
+            <div class="btn-group" role="group">
+              <button class="btn btn-outline-secondary active" id="toggle-cards">Cards</button>
+              <button class="btn btn-outline-secondary" id="toggle-table">Tabla</button>
+            </div>
           </div>
         </div>
 
         <!-- Contenedor de tarjetas -->
         <div id="waiversCards" class="row g-3"></div>
 
-        <!-- Paginación -->
-        <div class="d-flex justify-content-between align-items-center mt-4">
+        <!-- Contenedor de tabla -->
+        <div id="waiversTableContainer" class="table-responsive d-none">
+          <table id="waiversTable" class="table table-dark table-hover align-middle w-100">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Jugador</th>
+                <th>Equipo</th>
+                <th>Posición</th>
+                <th>Bye</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Paginación (solo para cards) -->
+        <div id="pagination-controls" class="d-flex justify-content-between align-items-center mt-4">
           <button class="btn btn-outline-secondary btn-sm" id="prev-page">Anterior</button>
           <span id="pagination-info" class="small text-muted"></span>
           <button class="btn btn-outline-secondary btn-sm" id="next-page">Siguiente</button>
@@ -97,10 +116,11 @@ export default async function renderWaiversView() {
 
   document.getElementById('btn-update-waivers').addEventListener('click', loadWaiversData);
 
-  // Estado para paginación
+  // Estado global
   let currentPage = 1;
   const pageSize = 12;
   let allPlayers = [];
+  let viewMode = "cards"; // "cards" o "table"
 
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
@@ -119,7 +139,7 @@ export default async function renderWaiversView() {
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
-      renderCards();
+      render();
 
       Swal.close();
     } catch (err) {
@@ -135,26 +155,39 @@ export default async function renderWaiversView() {
       teams.map(t => `<option value="${t}">${t}</option>`).join('');
   }
 
-  function renderCards() {
+  function getFilteredPlayers() {
     const posFilter = document.getElementById('filter-position').value;
     const teamFilter = document.getElementById('filter-team').value;
-    const sortBy = document.getElementById('sort-by').value;
+    const search = document.getElementById('search-player').value.toLowerCase();
 
-    let filtered = allPlayers
+    return allPlayers
       .filter(p => !posFilter || p.position === posFilter)
-      .filter(p => !teamFilter || p.team === teamFilter);
+      .filter(p => !teamFilter || p.team === teamFilter)
+      .filter(p => !search || p.nombre.toLowerCase().includes(search));
+  }
 
-    filtered.sort((a, b) => {
-      if (sortBy === 'rank') return (a.rank ?? 9999) - (b.rank ?? 9999);
-      if (sortBy === 'nombre') return a.nombre.localeCompare(b.nombre);
-      if (sortBy === 'position') return a.position.localeCompare(b.position);
-      return 0;
-    });
+  function render() {
+    const filtered = getFilteredPlayers();
 
-    const totalPages = Math.ceil(filtered.length / pageSize);
+    if (viewMode === "cards") {
+      renderCards(filtered);
+      document.getElementById("waiversCards").classList.remove("d-none");
+      document.getElementById("waiversTableContainer").classList.add("d-none");
+      document.getElementById("pagination-controls").classList.remove("d-none");
+    } else {
+      renderTable(filtered);
+      document.getElementById("waiversCards").classList.add("d-none");
+      document.getElementById("waiversTableContainer").classList.remove("d-none");
+      document.getElementById("pagination-controls").classList.add("d-none");
+    }
+  }
+
+  function renderCards(players) {
+    players.sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
+    const totalPages = Math.ceil(players.length / pageSize);
     if (currentPage > totalPages) currentPage = totalPages || 1;
     const start = (currentPage - 1) * pageSize;
-    const pageData = filtered.slice(start, start + pageSize);
+    const pageData = players.slice(start, start + pageSize);
 
     const container = document.getElementById('waiversCards');
     container.innerHTML = pageData.map(p => renderCard(p)).join('');
@@ -163,6 +196,35 @@ export default async function renderWaiversView() {
       `Página ${currentPage} de ${totalPages || 1}`;
     document.getElementById('prev-page').disabled = currentPage <= 1;
     document.getElementById('next-page').disabled = currentPage >= totalPages;
+  }
+
+  function renderTable(players) {
+    const table = $('#waiversTable');
+    table.DataTable().destroy();
+    table.DataTable({
+      data: players.map(p => [
+        p.rank ?? '',
+        `<span class="fw-semibold">${p.nombre}</span>`,
+        p.team ?? '',
+        p.position ?? '',
+        p.byeWeek ?? '',
+        renderStatus(p.injuryStatus)
+      ]),
+      columns: [
+        { title: 'Rank' },
+        { title: 'Jugador' },
+        { title: 'Equipo' },
+        { title: 'Posición' },
+        { title: 'Bye' },
+        { title: 'Estatus' }
+      ],
+      paging: true,
+      searching: false,
+      info: false,
+      ordering: true,
+      pageLength: 15,
+      language: { emptyTable: 'Sin datos disponibles' }
+    });
   }
 
   function renderCard(p) {
@@ -190,12 +252,28 @@ export default async function renderWaiversView() {
     return `<span class="badge bg-warning text-dark">${status}</span>`;
   }
 
-  // Eventos de filtros y paginación
-  document.getElementById('filter-position').addEventListener('change', () => { currentPage = 1; renderCards(); });
-  document.getElementById('filter-team').addEventListener('change', () => { currentPage = 1; renderCards(); });
-  document.getElementById('sort-by').addEventListener('change', () => { currentPage = 1; renderCards(); });
-  document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderCards(); });
-  document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderCards(); });
+  // Eventos
+  document.getElementById('filter-position').addEventListener('change', () => { currentPage = 1; render(); });
+  document.getElementById('filter-team').addEventListener('change', () => { currentPage = 1; render(); });
+  document.getElementById('search-player').addEventListener('input', () => { currentPage = 1; render(); });
+  document.getElementById('prev-page').addEventListener('click', () => { currentPage--; render(); });
+  document.getElementById('next-page').addEventListener('click', () => { currentPage++; render(); });
+
+  document.getElementById('toggle-cards').addEventListener('click', (e) => {
+    e.preventDefault();
+    viewMode = "cards";
+    document.getElementById('toggle-cards').classList.add("active");
+    document.getElementById('toggle-table').classList.remove("active");
+    render();
+  });
+
+  document.getElementById('toggle-table').addEventListener('click', (e) => {
+    e.preventDefault();
+    viewMode = "table";
+    document.getElementById('toggle-table').classList.add("active");
+    document.getElementById('toggle-cards').classList.remove("active");
+    render();
+  });
 
   if (savedLeague && savedExpert) loadWaiversData();
 }
