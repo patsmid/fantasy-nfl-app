@@ -30,7 +30,7 @@ router.get('/:leagueId', async (req, res) => {
 });
 
 // === Waivers ===
-router.get('/waivers/:leagueId', async (req, res) => {
+router.get('/:leagueId/waivers', async (req, res) => {
   try {
     const { leagueId } = req.params;
     const { idExpert = null, position = 'TODAS', week = '1' } = req.query;
