@@ -54,5 +54,4 @@ router.get('/:leagueId/waivers', async (req, res) => {
   }
 });
 
-
 export default router;
