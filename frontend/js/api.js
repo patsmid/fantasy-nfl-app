@@ -12,9 +12,31 @@ export async function fetchLineupData(leagueId, idExpert) {
       throw new Error(res.error || 'Error al obtener alineación');
     }
 
-    return res.data; // <-- esto contiene starters y bench
+    return res.data;
   } catch (err) {
     console.error('Error en fetchLineupData:', err);
+    throw err;
+  }
+}
+
+/**
+ * Trae waivers / free agents de la liga y experto seleccionado
+ */
+export async function fetchWaiversData(leagueId, idExpert) {
+  const url = `${API_BASE}/lineup/${leagueId}/waivers?idExpert=${idExpert}`;
+
+  try {
+    const res = await fetch(url, { cache: 'no-cache' });
+    const data = await res.json();
+
+    if (!data.success || !data.data) {
+      throw new Error(data.error || 'Error al obtener waivers');
+    }
+
+    // data.data debería contener { freeAgents, meta }
+    return data.data;
+  } catch (err) {
+    console.error('Error en fetchWaiversData:', err);
     throw err;
   }
 }
