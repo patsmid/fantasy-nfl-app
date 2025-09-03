@@ -254,8 +254,12 @@ export async function getLineupData(
     if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
     // Realizamos las tres búsquedas como hacía tu GAS
-    const mainRanked = Array.isArray(rankings) && rankings.length ? fuzzySearch(info.full_name, rankings) : [];
+		console.log('dstRankings:');
+		console.log(dstRankings);
+		const mainRanked = Array.isArray(rankings) && rankings.length ? fuzzySearch(info.full_name, rankings) : [];
     const dstRanked = Array.isArray(dstRankings) && dstRankings.length ? fuzzySearch(info.full_name, dstRankings) : [];
+		console.log('dstRanked:');
+		console.log(dstRanked);
     const kRanked = Array.isArray(kickerRankings) && kickerRankings.length ? fuzzySearch(info.full_name, kickerRankings) : [];
 
     // 1) Intentamos match principal (para jugadores ofensivos y TE/QB/RB/WR)
