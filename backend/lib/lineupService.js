@@ -204,8 +204,6 @@ export async function getLineupData(
    const ranks_published = rankingsResponse?.published ?? null;
    const source = rankingsResponse?.source ?? null;
 
-   console.log('▶ Rankings main count:', rankings.length);
-
    // DST & K con offsets (solo si FP + si la liga usa esas posiciones)
    let dstRankings = [];
    let kickerRankings = [];
@@ -237,10 +235,6 @@ export async function getLineupData(
      }
    }
 
-   console.log('▶ DST count:', dstRankings.length, 'K count:', kickerRankings.length);
-   if (dstRankings.length) console.log('▶ DST sample:', dstRankings.slice(0, 3).map(d => d.player_name));
-   if (kickerRankings.length) console.log('▶ K sample:', kickerRankings.slice(0, 3).map(k => k.player_name));
-
    // 3) Jugadores ocupados en la liga
    const allRosters = await getRosters(leagueId);
    const ownedSet = new Set();
@@ -249,11 +243,9 @@ export async function getLineupData(
        for (const pid of r.players) ownedSet.add(String(pid));
      }
    }
-   console.log('▶ Owned players:', ownedSet.size);
 
    // 4) Traer base de jugadores (con chunks)
    const allPlayers = await getPlayersData();
-   console.log('▶ total players in DB:', allPlayers.length);
 
    // 5) Construir FA
    const byIdBest = new Map();
@@ -273,7 +265,8 @@ export async function getLineupData(
      if (pos === 'DEF' && dstRankings.length) {
        dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
      }
-
+		 console.log('dstRanked');
+		 console.log(dstRanked);
      // K: por fuzzySearch
      const kRanked = kickerRankings.length ? fuzzySearch(info.full_name, kickerRankings) : [];
 
