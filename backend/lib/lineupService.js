@@ -185,147 +185,211 @@ function extractNameFromRankingObj(obj) {
 /**
  * getWaiversData: obtiene rankings, extrae playerIds y llama a getFreeAgents con playersData
  */
-export async function getWaiversData(
-  leagueId,
-  { idExpert = null, position = 'TODAS', week = 1 } = {}
-) {
-  try {
-    // 1) Datos de liga y config
-    const leagueData = await getSleeperLeague(leagueId);
-    const starterPositions = getStarterPositions(leagueData);
-    const superFlex = starterPositions.includes('SUPER_FLEX');
+ export async function getWaiversData(
+   leagueId,
+   { idExpert = 3701, position = 'TODAS', week = 1 } = {}
+ ) {
+   try {
+     // 1) Datos de liga y config
+     const leagueData = await getSleeperLeague(leagueId);
+     const starterPositions = getStarterPositions(leagueData);
+     const superFlex = starterPositions.includes('SUPER_FLEX');
 
-    const scoring =
-      leagueData.scoring_settings?.rec >= 1
-        ? 'PPR'
-        : leagueData.scoring_settings?.rec === 0.5
-        ? 'HALF'
-        : 'STANDARD';
+     const scoring =
+       leagueData.scoring_settings?.rec >= 1
+         ? 'PPR'
+         : leagueData.scoring_settings?.rec === 0.5
+         ? 'HALF'
+         : 'STANDARD';
 
-    const tipoLiga = await getConfigValue('dynasty');
-    const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+     const tipoLiga = await getConfigValue('dynasty');
+     const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
 
-    const finalPosition =
-      superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
+     const finalPosition =
+       superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
-    const season = await getConfigValue('season');
+     const season = await getConfigValue('season');
 
-    // 2) Experto
-    const expertData = await getExpertData(idExpert);
+     // 2) Experto
+     const expertData = await getExpertData(idExpert);
 
-    // 3) Rankings principales (estilo draft: con week)
-    const rankingsResponse = await getRankings({
-      season,
-      dynasty,
-      scoring,
-      expertData,
-      position: finalPosition,
-      week
-    });
+     // 3) Rankings principales (estilo draft: con week)
+     const rankingsResponse = await getRankings({
+       season,
+       dynasty,
+       scoring,
+       expertData,
+       position: finalPosition,
+       week
+     });
 
-    const rankings = Array.isArray(rankingsResponse?.players)
-      ? rankingsResponse.players
-      : [];
-    const published = rankingsResponse?.published ?? null;
-    const source = rankingsResponse?.source ?? null;
+     let rankings = Array.isArray(rankingsResponse?.players)
+       ? rankingsResponse.players
+       : [];
+     const published = rankingsResponse?.published ?? null;
+     const source = rankingsResponse?.source ?? null;
 
-    // 4) DST & Kicker
-    let dstRankings = [];
-    let kickerRankings = [];
+     console.log(`🔎 Rankings base (${finalPosition}) -> ${rankings.length} jugadores. source=${source}`);
 
-    const needsDEF = starterPositions.includes('DEF');
-    const needsK = starterPositions.includes('K');
+     // 3.1) Si es fantasypros y pedimos TODAS, *ampliar cobertura* trayendo rankings por posición
+     if (source === 'fantasypros' && (finalPosition === 'TODAS' || finalPosition === 'ALL')) {
+       const extraPositions = ['QB', 'RB', 'WR', 'TE'];
+       for (const pos of extraPositions) {
+         try {
+           const rpos = await getRankings({
+             season,
+             dynasty,
+             scoring,
+             expertData,
+             position: pos,
+             week
+           });
+           const arr = Array.isArray(rpos?.players) ? rpos.players : [];
+           console.log(`➕ Rankings extra (${pos}) -> ${arr.length}`);
+           if (arr.length) {
+             // Mezclar evitando duplicados por player_name
+             const seen = new Set(
+               rankings.map(x => (x.player_name || x.full_name || '').toLowerCase())
+             );
+             for (const p of arr) {
+               const key = (p.player_name || p.full_name || '').toLowerCase();
+               if (key && !seen.has(key)) {
+                 rankings.push(p);
+                 seen.add(key);
+               }
+             }
+           }
+         } catch (err) {
+           console.warn(`⚠️ No se pudo obtener rankings de posición ${pos}:`, err?.message);
+         }
+       }
+       console.log(`📈 Rankings totales tras merge: ${rankings.length}`);
+     }
 
-    if (expertData?.source === 'fantasypros') {
-      if (needsDEF) {
-        dstRankings =
-          (await getDSTRankings({
-            season,
-            dynasty,
-            expertData,
-            weekStatic: null
-          }))?.players || [];
-      }
-      if (needsK) {
-        kickerRankings =
-          (await getKickerRankings({
-            season,
-            dynasty,
-            expertData,
-            weekStatic: null
-          }))?.players || [];
-      }
-    }
+     // 4) DST & Kicker
+     let dstRankings = [];
+     let kickerRankings = [];
 
-    // -----------------------
-    // EXTRAER playerIds desde todos los rankings (rankings, dstRankings, kickerRankings)
-    // -----------------------
-    const allRankArrays = [rankings, dstRankings, kickerRankings].filter(Boolean);
-    const idsSet = new Set();
-    const nameCandidates = new Set();
+     const needsDEF = starterPositions.includes('DEF');
+     const needsK = starterPositions.includes('K');
 
-    for (const arr of allRankArrays) {
-      for (const r of arr) {
-        const id = extractIdFromRankingObj(r);
-        if (id !== null && id !== undefined && id !== '') {
-          idsSet.add(String(id));
-        } else {
-          // si no hay id, colecciono candidato de nombre para fallback
-          const nm = extractNameFromRankingObj(r);
-          if (nm) nameCandidates.add(nm);
-        }
-      }
-    }
+     if (expertData?.source === 'fantasypros') {
+       if (needsDEF) {
+         dstRankings =
+           (await getDSTRankings({
+             season,
+             dynasty,
+             expertData,
+             weekStatic: null
+           }))?.players || [];
+       }
+       if (needsK) {
+         kickerRankings =
+           (await getKickerRankings({
+             season,
+             dynasty,
+             expertData,
+             weekStatic: null
+           }))?.players || [];
+       }
+     }
 
-    let playersData = [];
+     // -----------------------
+     // EXTRAER playerIds desde rankings (si existiera algún id) y si no, fallback por nombres
+     // -----------------------
+     const allRankArrays = [rankings, dstRankings, kickerRankings].filter(Boolean);
+     const idsSet = new Set();
+     const nameCandidates = new Set();
 
-    if (idsSet.size > 0) {
-      const playerIds = Array.from(idsSet);
-      playersData = await getPlayersData(playerIds);
-    } else if (nameCandidates.size > 0) {
-      // fallback: buscar por nombres exactos en la tabla players
-      const names = Array.from(nameCandidates);
-      const found = await getPlayersByNames(names); // retorna players que coincidan exactamente por full_name
-      if (Array.isArray(found) && found.length > 0) {
-        playersData = found;
-      } else {
-        // último fallback: pedir todos los players (behaviour seguro)
-        playersData = await getPlayersData();
-      }
-    } else {
-      // no ids ni nombres -> pedir todos los players
-      playersData = await getPlayersData();
-    }
+     const extractIdFromRankingObj = (obj) => {
+       if (!obj || typeof obj !== 'object') return null;
+       return (
+         obj.player_id ??
+         obj.playerId ??
+         obj.sleeper_id ??
+         obj.sleeperId ??
+         obj.sleeper_player_id ??
+         obj.player_id_sleeper ??
+         obj.id ??
+         obj.playerIdRaw ??
+         null
+       );
+     };
 
-    // 5) Free agents (ahora pasamos playersData para que NO vuelva a pedir toda la tabla)
-    const freeAgents = await getFreeAgents(
-      leagueId,
-      starterPositions,
-      rankings,
-      dstRankings,
-      kickerRankings,
-      playersData
-    );
+     const extractNameFromRankingObj = (obj) => {
+       if (!obj || typeof obj !== 'object') return null;
+       return (
+         obj.player_name ??
+         obj.playerName ??
+         obj.name ??
+         obj.player ??
+         obj.player_full_name ??
+         obj.full_name ??
+         null
+       );
+     };
 
-    return {
-      success: true,
-      meta: {
-        scoring,
-        dynasty,
-        superFlex,
-        published,
-        source
-      },
-      freeAgents
-    };
-  } catch (e) {
-    console.error('¡ERROR! getWaiversData:', e);
-    return {
-      success: false,
-      error: e.message || 'Error al obtener waivers'
-    };
-  }
-}
+     for (const arr of allRankArrays) {
+       for (const r of arr) {
+         const id = extractIdFromRankingObj(r);
+         if (id !== null && id !== undefined && id !== '') {
+           idsSet.add(String(id));
+         } else {
+           const nm = extractNameFromRankingObj(r);
+           if (nm) nameCandidates.add(nm);
+         }
+       }
+     }
+
+     console.log(`🧩 idsSet.size=${idsSet.size} | nameCandidates.size=${nameCandidates.size}`);
+
+     let playersData = [];
+
+     if (idsSet.size > 0) {
+       const playerIds = Array.from(idsSet);
+       console.log(`🎯 getPlayersData con ids: ${playerIds.length}`);
+       playersData = await getPlayersData(playerIds);
+     } else if (nameCandidates.size > 0) {
+       const names = Array.from(nameCandidates);
+       console.log(`🧾 getPlayersByNames con ${names.length} nombres (muestra: ${names.slice(0, 10).join(', ')})`);
+       const found = await getPlayersByNames(names);
+       playersData = Array.isArray(found) ? found : [];
+       console.log(`✅ getPlayersByNames encontró: ${playersData.length}`);
+     } else {
+       // NO llames getPlayersData() sin ids porque tu implementación lo requiere.
+       console.warn('⚠️ Sin ids ni nombres para mapear jugadores; no se puede llamar getPlayersData() sin ids.');
+       playersData = [];
+     }
+
+     // 5) Free agents
+     const freeAgents = await getFreeAgents(
+       leagueId,
+       starterPositions,
+       rankings,
+       dstRankings,
+       kickerRankings,
+       playersData
+     );
+
+     return {
+       success: true,
+       meta: {
+         scoring,
+         dynasty,
+         superFlex,
+         published,
+         source
+       },
+       freeAgents
+     };
+   } catch (e) {
+     console.error('¡ERROR! getWaiversData:', e);
+     return {
+       success: false,
+       error: e.message || 'Error al obtener waivers'
+     };
+   }
+ }
 
 /**
  * getFreeAgents actualizado: ahora acepta playersData como parámetro opcional.
@@ -351,30 +415,69 @@ export async function getWaiversData(
      );
      console.log(`🛑 Jugadores ya tomados: ${ownedSet.size}`);
 
-     // 2) Obtener players: usar playersDataParam si viene, si no pedir todos
-     let playersData;
-     if (Array.isArray(playersDataParam) && playersDataParam.length > 0) {
-       playersData = playersDataParam;
-       console.log(`📦 Usando playersDataParam con ${playersData.length} jugadores`);
-     } else {
-       playersData = (await getPlayersData()) || [];
-       console.log(`📦 PlayersData obtenido desde supabase: ${playersData.length} jugadores`);
+     // 2) Players: usar playersDataParam si viene
+     if (!Array.isArray(playersDataParam) || playersDataParam.length === 0) {
+       console.warn('⚠️ playersDataParam vacío; no se puede llamar getPlayersData() sin ids en tu implementación.');
+       return [];
      }
+     const playersData = playersDataParam;
+     console.log(`📦 Usando playersDataParam con ${playersData.length} jugadores`);
 
-     // 3) Preprocesar rankings con nombre normalizado
-     const normalizeRankings = arr =>
-       Array.isArray(arr)
-         ? arr.map(r => ({
-             ...r,
-             searchName: extractNameFromRankingObj(r) || r.player_name || r.full_name || ''
-           }))
-         : [];
+     // === Helpers de normalización ===
+     const normalize = (s) =>
+       String(s || '')
+         .normalize('NFD')
+         .replace(/[\u0300-\u036f]/g, '') // quitar acentos
+         .toLowerCase()
+         .replace(/[.'’]/g, '')
+         .replace(/\b(jr|sr|ii|iii|iv)\b/g, '')
+         .replace(/\s+/g, ' ')
+         .trim();
 
-     const rankingsNorm = normalizeRankings(rankings);
-     const dstRankingsNorm = normalizeRankings(dstRankings);
-     const kickerRankingsNorm = normalizeRankings(kickerRankings);
+     const firstLast = (s) => {
+       const parts = String(s || '').trim().split(/\s+/);
+       if (parts.length === 0) return '';
+       if (parts.length === 1) return normalize(parts[0]);
+       return normalize(`${parts[0]} ${parts[parts.length - 1]}`);
+     };
 
-     // 4) Filtrar pool: no tomados & posición válida
+     const nameFromRank = (r) =>
+       r?.player_name || r?.playerName || r?.full_name || r?.name || r?.player_full_name || '';
+
+     // === Construir índices por nombre ===
+     const buildIndex = (arr = []) => {
+       const map = new Map();
+       for (const r of arr) {
+         const nm = nameFromRank(r);
+         if (!nm) continue;
+         const k1 = normalize(nm);
+         const k2 = firstLast(nm);
+         if (k1) map.set(k1, r);
+         if (k2) map.set(k2, r);
+       }
+       return map;
+     };
+
+     const rankIndex = buildIndex(rankings);
+     const dstIndex = buildIndex(dstRankings);
+     const kIndex = buildIndex(kickerRankings);
+
+     console.log(
+       `🗂️ Índices -> main:${rankIndex.size} dst:${dstIndex.size} k:${kIndex.size}`
+     );
+
+     const lookupRank = (name, list, index) => {
+       const k1 = normalize(name);
+       const k2 = firstLast(name);
+       // 1) intento exacto por índices
+       if (index.has(k1)) return [index.get(k1)];
+       if (index.has(k2)) return [index.get(k2)];
+       // 2) fallback: fuzzy en la lista original
+       const hit = fuzzySearch(name, list);
+       return Array.isArray(hit) ? hit : [];
+     };
+
+     // 3) Filtrar pool: no tomados & posición válida
      const freeAgentsPool = playersData.filter(p => {
        const pid = String(p.player_id ?? '');
        const pos = p.position ?? null;
@@ -382,7 +485,7 @@ export async function getWaiversData(
      });
      console.log(`✅ Free agents pool filtrado: ${freeAgentsPool.length} jugadores`);
 
-     // 5) Construir filas
+     // 4) Construir filas
      const rows = [];
 
      for (const info of freeAgentsPool) {
@@ -392,13 +495,16 @@ export async function getWaiversData(
        const status = info.injury_status || '';
        const rookie = info.years_exp === 0 ? ' (R)' : '';
 
-       // Ranking principal (por nombre)
-       const faRank = fuzzySearch(fullName, rankingsNorm, 'searchName');
+       // Ranking principal
+       const faRank = lookupRank(fullName, rankings, rankIndex);
        if (Array.isArray(faRank) && faRank.length > 0) {
          const r = faRank[0];
+
          const posField = Array.isArray(r.player_positions)
            ? r.player_positions.join(',')
            : String(r.player_positions || '');
+
+         // Validación de posición flexible
          const posOk = posField ? posField.includes(position) : true;
 
          if (posOk) {
@@ -413,12 +519,12 @@ export async function getWaiversData(
            });
          }
        } else {
-         console.log(`⚠️ No se encontró ranking para: ${fullName} (${position})`);
+         console.log(`⚠️ No se encontró ranking main para: ${fullName} (${position})`);
        }
 
        // DEF (offset +10000)
-       if (position === 'DEF' && dstRankingsNorm.length > 0) {
-         const faDSTRank = fuzzySearch(fullName, dstRankingsNorm, 'searchName');
+       if (position === 'DEF' && dstRankings?.length) {
+         const faDSTRank = lookupRank(fullName, dstRankings, dstIndex);
          if (Array.isArray(faDSTRank) && faDSTRank.length > 0) {
            const r = faDSTRank[0];
            rows.push({
@@ -434,8 +540,8 @@ export async function getWaiversData(
        }
 
        // K (offset +20000)
-       if (position === 'K' && kickerRankingsNorm.length > 0) {
-         const faKRank = fuzzySearch(fullName, kickerRankingsNorm, 'searchName');
+       if (position === 'K' && kickerRankings?.length) {
+         const faKRank = lookupRank(fullName, kickerRankings, kIndex);
          if (Array.isArray(faKRank) && faKRank.length > 0) {
            const r = faKRank[0];
            rows.push({
@@ -451,7 +557,7 @@ export async function getWaiversData(
        }
      }
 
-     // 6) Ordenar por rank ascendente y devolver
+     // 5) Ordenar por rank ascendente y devolver
      rows.sort((a, b) => {
        const ar = typeof a.rank === 'number' ? a.rank : parseInt(a.rank) || 9999;
        const br = typeof b.rank === 'number' ? b.rank : parseInt(b.rank) || 9999;
