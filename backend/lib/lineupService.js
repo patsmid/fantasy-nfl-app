@@ -248,8 +248,6 @@ export async function getLineupData(
 
    // 5) Construir FA
    const byIdBest = new Map();
-console.log('dstRankings');	 
-console.log(dstRankings);
    for (const info of allPlayers) {
      const sleeperId = String(info.player_id || '');
      const pos = String((info.position || '')).toUpperCase();
@@ -258,25 +256,23 @@ console.log(dstRankings);
      if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
      // Búsquedas
-     const mainRanked = rankings.length ? fuzzySearch(info.full_name, rankings) : [];
+     const mainRanked = rankings.length ? fuzzySearch(getDisplayName(info), rankings) : [];
 
      // DST: usar directamente el campo team
      let dstRanked = [];
      if (pos === 'DEF' && dstRankings.length) {
-			 console.log('info');
-			 console.log(info);
        dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
      }
 
      // K: por fuzzySearch
-     const kRanked = kickerRankings.length ? fuzzySearch(info.full_name, kickerRankings) : [];
+     const kRanked = kickerRankings.length ? fuzzySearch(getDisplayName(info), kickerRankings) : [];
 
      // Selección
      let chosenTop = null;
      if (mainRanked.length > 0) {
        const top = mainRanked[0];
        if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
-         if (!top.player_name || namesLikelySame(info.full_name, top.player_name)) {
+         if (!top.player_name || namesLikelySame(getDisplayName(info), top.player_name)) {
            chosenTop = top;
          }
        }
@@ -292,7 +288,7 @@ console.log(dstRankings);
      const rookie = info.years_exp === 0 ? ' (R)' : '';
      const candidate = {
        rank: rankVal,
-       nombre: `${info.full_name}${rookie}`,
+       nombre: `${getDisplayName(info)}${rookie}`,
        position: pos,
        team: info.team || top.player_team_id || 'FA',
        matchup: top.matchup || 'N/D',
@@ -328,6 +324,13 @@ console.log(dstRankings);
    if (superFlex && (P === 'QB' || P === 'RB' || P === 'WR' || P === 'TE')) return true;
 
    return false;
+ }
+
+ function getDisplayName(info) {
+   if (info.full_name) return info.full_name;
+   const first = info.first_name || '';
+   const last = info.last_name || '';
+   return `${first} ${last}`.trim();
  }
 
  /** Comparación de nombres (solo ofensivos) */
