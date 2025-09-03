@@ -163,108 +163,199 @@ export async function getLineupData(
  *  - sleeperId: id de Sleeper si se pudo resolver
  */
  export async function getFreeAgentsData(
-  leagueId,
-  { idExpert = null, position = 'TODAS', week = 1 } = {}
-) {
-  // 1. Datos de la liga
-  const leagueData = await getSleeperLeague(leagueId);
-  const starterPositions = getStarterPositions(leagueData);
+   leagueId,
+   { idExpert = null, position = 'TODAS', week = 1 } = {}
+ ) {
+   // 1) Liga y configuración
+   const leagueData = await getSleeperLeague(leagueId);
+   const starterPositions = getStarterPositions(leagueData);
+   const superFlex = starterPositions.includes('SUPER_FLEX');
 
-  const scoring =
-    leagueData.scoring_settings?.rec === 1
-      ? 'PPR'
-      : leagueData.scoring_settings?.rec === 0.5
-      ? 'HALF'
-      : 'STANDARD';
+   const scoring =
+     leagueData.scoring_settings?.rec === 1
+       ? 'PPR'
+       : leagueData.scoring_settings?.rec === 0.5
+       ? 'HALF'
+       : 'STANDARD';
 
-  const season = await getConfigValue('season');
-  const expertData = await getExpertData(idExpert);
+   const tipoLiga = await getConfigValue('dynasty');
+   const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+   const season = await getConfigValue('season');
 
-  // 2. Rankings principales
-  const rankingsResponse = await getRankings({
-    season,
-    scoring,
-    expertData,
-    position,
-    week
-  });
+   // Igual que en lineup: si es superflex y pidieron TODAS, pedimos SUPER FLEX a la fuente
+   const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
-  const rankings = Array.isArray(rankingsResponse?.players)
-    ? rankingsResponse.players
-    : [];
+   console.log('▶ starterPositions:', starterPositions);
+   console.log('▶ Config:', { scoring, dynasty, superFlex, finalPosition, season });
 
-  // DST & K con offsets (solo si es fantasypros)
-  let dstRankings = [];
-  let kickerRankings = [];
+   // 2) Experto y rankings
+   const expertData = await getExpertData(idExpert);
+   console.log('▶ ExpertData:', expertData);
 
-  if (expertData?.source === 'fantasypros') {
-    if (starterPositions.includes('DEF')) {
-      dstRankings =
-        (await getDSTRankings({ season, expertData, week }))?.players?.map(p => ({
-          ...p,
-          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
-        })) || [];
-    }
-    if (starterPositions.includes('K')) {
-      kickerRankings =
-        (await getKickerRankings({ season, expertData, week }))?.players?.map(p => ({
-          ...p,
-          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
-        })) || [];
-    }
-  }
+   const rankingsResponse = await getRankings({
+     season,
+     dynasty,
+     scoring,
+     expertData,
+     position: finalPosition,
+     week
+   });
 
-  // 3. Traer todos los jugadores (ya resuelto en tu proyecto)
-  //    Nota: aquí NO limitamos por rosterId, sino que pedimos todos
-  const playersData = await getPlayersData(); // ⚡ sin playerIds → trae toda la base
+   const rankings = Array.isArray(rankingsResponse?.players) ? rankingsResponse.players : [];
+   const ranks_published = rankingsResponse?.published ?? null;
+   const source = rankingsResponse?.source ?? null;
 
-  // 4. Construir arreglo de free agents con filtro
-  const freeAgents = playersData
-    .map(info => {
-      const name = info.full_name;
-      const isDST = info.position === 'DEF';
-      const isK = info.position === 'K';
+   console.log('▶ Rankings main count:', rankings.length);
 
-      const rankingList = isDST
-        ? dstRankings
-        : isK
-        ? kickerRankings
-        : rankings;
+   // DST & K con offsets (solo si FP + si la liga usa esas posiciones)
+   let dstRankings = [];
+   let kickerRankings = [];
 
-      const ranked = fuzzySearch(name, rankingList);
+   if (expertData?.source === 'fantasypros') {
+     if (starterPositions.includes('DEF')) {
+       dstRankings =
+         (await getDSTRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
+           ...p,
+           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
+         })) || [];
+     }
+     if (starterPositions.includes('K')) {
+       kickerRankings =
+         (await getKickerRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
+           ...p,
+           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
+         })) || [];
+     }
+   }
 
-      if (!ranked || ranked.length === 0) {
-        // 🔴 No hay coincidencia → no incluir
-        return null;
-      }
+   console.log('▶ DST count:', dstRankings.length, 'K count:', kickerRankings.length);
 
-      const playerRank = ranked[0];
+   // 3) Jugadores ocupados en la liga
+   const allRosters = await getRosters(leagueId);
+   const ownedSet = new Set();
+   for (const r of allRosters || []) {
+     if (Array.isArray(r?.players)) {
+       for (const pid of r.players) ownedSet.add(String(pid));
+     }
+   }
+   console.log('▶ Owned players:', ownedSet.size);
 
-      return {
-        rank: playerRank.rank,
-        nombre: info.full_name,
-        position: info.position,
-        team: info.team,
-        matchup: playerRank.matchup || 'N/D',
-        byeWeek: playerRank.bye_week || info.bye_week || 'N/D',
-        injuryStatus: info.injury_status || '',
-        sleeperId: info.player_id
-      };
-    })
-    .filter(Boolean) // 🔴 elimina nulos
-    .sort((a, b) => a.rank - b.rank);
+   // 4) Traer base de jugadores (chunked en tu getPlayersData ya modificado)
+   const allPlayers = await getPlayersData(); // trae todos (10k+)
+   console.log('▶ total players in DB:', allPlayers.length);
 
-  return {
-    success: true,
-    freeAgents
-  };
-}
+   // 5) Construir FA: no owned + posición válida + match estricto en rankings
+   const byIdBest = new Map(); // sleeperId -> { ...player, rank } (mejor rank)
 
-function isAllowedPosition(pos, starterPositions, superFlex) {
-  const allowedPositions = new Set(starterPositions.map(s => s.replace('SUPER_', '')));
-  if (['DL', 'LB', 'DB', 'IDP'].includes(pos)) return false;
-  if (allowedPositions.has(pos)) return true;
-  if (superFlex && ['QB', 'RB', 'WR', 'TE'].includes(pos)) return true;
-  if (allowedPositions.has('FLEX') && ['RB', 'WR', 'TE'].includes(pos)) return true;
-  return false;
-}
+   for (const info of allPlayers) {
+     const sleeperId = String(info.player_id || '');
+     const pos = String(info.position || '').toUpperCase();
+
+     // fuera si: sin id, está ocupado, o posición no válida para tu liga
+     if (!sleeperId || ownedSet.has(sleeperId)) continue;
+     if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
+
+     const isDST = pos === 'DEF';
+     const isK = pos === 'K';
+     const rankingList = isDST ? dstRankings : isK ? kickerRankings : rankings;
+
+     if (!Array.isArray(rankingList) || rankingList.length === 0) continue;
+
+     const ranked = fuzzySearch(info.full_name, rankingList);
+     if (!ranked || ranked.length === 0) continue;
+
+     const top = ranked[0] || {};
+     // 🚧 Validaciones extra para evitar falsos positivos:
+     // - Si trae posición en el ranking, debe coincidir con la del jugador (como en GAS)
+     if (top.player_positions && String(top.player_positions).toUpperCase() !== pos) {
+       continue;
+     }
+     // - Chequeo de nombre "estricto": apellido debe coincidir, y el primer nombre o inicial también
+     if (top.player_name && !namesLikelySame(info.full_name, top.player_name)) {
+       continue;
+     }
+
+     const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
+     if (!Number.isFinite(rankVal)) continue;
+
+     const rookie = info.years_exp === 0 ? ' (R)' : '';
+
+     const candidate = {
+       rank: rankVal,
+       nombre: `${info.full_name}${rookie}`,
+       position: pos,
+       team: info.team || top.player_team_id || 'FA',
+       matchup: top.matchup || 'N/D',
+       byeWeek: top.bye_week || info.bye_week || 'N/D',
+       injuryStatus: info.injury_status || '',
+       sleeperId
+     };
+
+     // Dedup por sleeperId: conservar el de mejor rank
+     const prev = byIdBest.get(sleeperId);
+     if (!prev || rankVal < prev.rank) byIdBest.set(sleeperId, candidate);
+   }
+
+   const freeAgents = Array.from(byIdBest.values()).sort((a, b) => a.rank - b.rank);
+   console.log('▶ freeAgents final count:', freeAgents.length);
+
+   return {
+     success: true,
+     meta: { scoring, dynasty, superFlex, published: ranks_published, source },
+     freeAgents
+   };
+ }
+
+ /** Igual a la intención de GAS: solo posiciones que puede alinear tu liga */
+ function isAllowedPosition(pos, starterPositions, superFlex) {
+   const P = String(pos || '').toUpperCase();
+   // Excluir IDP explícitamente
+   const IDP = new Set(['DL', 'DE', 'DT', 'LB', 'MLB', 'OLB', 'CB', 'DB', 'S', 'FS', 'SS', 'IDP']);
+   if (IDP.has(P)) return false;
+
+   const slots = new Set(starterPositions.map(s => String(s).toUpperCase()));
+
+   // Si la liga tiene la posición exacta como slot, listo
+   if (slots.has(P)) return true;
+
+   // Flex lógicos
+   if (slots.has('FLEX') && (P === 'RB' || P === 'WR' || P === 'TE')) return true;
+   if (superFlex && (P === 'QB' || P === 'RB' || P === 'WR' || P === 'TE')) return true;
+
+   return false;
+ }
+
+ /** Normaliza y compara nombres para reducir falsos positivos de fuzzy */
+ function namesLikelySame(a, b) {
+   const na = normalizeName(a);
+   const nb = normalizeName(b);
+   if (!na || !nb) return false;
+   const [af, ...ar] = na.split(' ');
+   const [bf, ...br] = nb.split(' ');
+
+   const alast = ar.length ? ar[ar.length - 1] : af;
+   const blast = br.length ? br[br.length - 1] : bf;
+
+   // Apellido igual
+   if (alast !== blast) return false;
+
+   // Mismo nombre o inicial coincide
+   if (af === bf) return true;
+   if (af[0] && bf[0] && af[0] === bf[0]) return true;
+
+   // Permitir coincidencia si uno contiene al otro (ej. "Marvin Harrison Jr" vs "Marvin Harrison")
+   if (na.includes(nb) || nb.includes(na)) return true;
+
+   return false;
+ }
+
+ function normalizeName(s) {
+   return String(s || '')
+     .toLowerCase()
+     .replace(/\./g, ' ')
+     .replace(/'/g, '')
+     .replace(/-/g, ' ')
+     .replace(/\bjr\b|\bsr\b|\bii\b|\biii\b|\biv\b/g, '') // quitar sufijos comunes
+     .replace(/\s+/g, ' ')
+     .trim();
+ }
