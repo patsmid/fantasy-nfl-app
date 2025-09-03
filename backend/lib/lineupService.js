@@ -60,7 +60,7 @@ export async function getLineupData(
           week
         }))?.players?.map(p => ({
           ...p,
-          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
+          rank: (Number(p.rank) || 9999) + 10000,
         })) || [];
     }
     if (starterPositions.includes('K')) {
@@ -72,7 +72,7 @@ export async function getLineupData(
           week
         }))?.players?.map(p => ({
           ...p,
-          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
+          rank: (Number(p.rank) || 9999) + 20000,
         })) || [];
     }
   }
@@ -116,7 +116,7 @@ export async function getLineupData(
 
       return {
         rank,
-        nombre: `${info.full_name}${rookie}`,
+        nombre: `${getDisplayName(info)}${rookie}`,
         position: info.position,
         team: info.team,
         matchup,
