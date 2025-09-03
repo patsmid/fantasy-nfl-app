@@ -1,3 +1,4 @@
+// frontend/src/views/waivers.js
 import { fetchWaiversData } from '../api.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
@@ -28,43 +29,48 @@ export default async function renderWaiversView() {
           </div>
         </form>
 
-        <div class="mb-4">
-          <h5 class="mb-3 text-flock"><i class="bi bi-stars"></i> Free Agents</h5>
-          <div class="table-responsive">
-            <table id="waiversTable" class="table table-dark table-hover align-middle w-100">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Jugador</th>
-                  <th>Equipo</th>
-                  <th>Posición</th>
-                  <th>Bye</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+        <!-- Controles de filtrado -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <select id="filter-position" class="form-select">
+              <option value="">Todas las posiciones</option>
+              <option value="QB">QB</option>
+              <option value="RB">RB</option>
+              <option value="WR">WR</option>
+              <option value="TE">TE</option>
+              <option value="K">K</option>
+              <option value="DST">DST</option>
+            </select>
           </div>
+          <div class="col-md-3">
+            <select id="filter-team" class="form-select">
+              <option value="">Todos los equipos</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select id="sort-by" class="form-select">
+              <option value="rank">Ordenar por Rank</option>
+              <option value="nombre">Ordenar por Nombre</option>
+              <option value="position">Ordenar por Posición</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Contenedor de tarjetas -->
+        <div id="waiversCards" class="row g-3"></div>
+
+        <!-- Paginación -->
+        <div class="d-flex justify-content-between align-items-center mt-4">
+          <button class="btn btn-outline-secondary btn-sm" id="prev-page">Anterior</button>
+          <span id="pagination-info" class="small text-muted"></span>
+          <button class="btn btn-outline-secondary btn-sm" id="next-page">Siguiente</button>
         </div>
       </div>
     </div>
   `;
 
-  await renderExpertSelect('#select-expert', {
-    plugins: ['dropdown_input'],
-    dropdownInput: false,
-    create: false,
-    persist: false,
-    onChange() { this.blur(); }
-  });
-
-  await renderLeagueSelect('#select-league', {
-    plugins: ['dropdown_input'],
-    dropdownInput: false,
-    create: false,
-    persist: false,
-    onChange() { this.blur(); }
-  });
+  await renderExpertSelect('#select-expert', { onChange() { this.blur(); } });
+  await renderLeagueSelect('#select-league', { onChange() { this.blur(); } });
 
   const leagueSelect = document.getElementById('select-league');
   const expertSelect = document.getElementById('select-expert');
@@ -81,7 +87,6 @@ export default async function renderWaiversView() {
       loadWaiversData();
     });
   }
-
   if (expertTS) {
     expertTS.setValue(savedExpert || '');
     expertTS.on('change', value => {
@@ -92,58 +97,29 @@ export default async function renderWaiversView() {
 
   document.getElementById('btn-update-waivers').addEventListener('click', loadWaiversData);
 
+  // Estado para paginación
+  let currentPage = 1;
+  const pageSize = 12;
+  let allPlayers = [];
+
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
     const selectedOption = expertSelect.selectedOptions[0];
     const expertValue = expertSelect.value;
     const idExpert = selectedOption?.dataset.id || '';
 
-    if (!leagueId || !idExpert) {
-      return showError('Selecciona una liga y un experto');
-    }
+    if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
     localStorage.setItem('waiversLeague', leagueId);
     localStorage.setItem('waiversExpert', expertValue);
 
     try {
       showLoadingBar('Cargando Waivers', 'Consultando información...');
-
       const { freeAgents, meta } = await fetchWaiversData(leagueId, idExpert);
 
-      // Etiqueta de últimos rankings publicados
-      const existingUpdateLabel = document.getElementById('last-updated-label');
-      if (existingUpdateLabel) existingUpdateLabel.remove();
-
-      if (meta?.published) {
-        const updateLabel = document.createElement('div');
-        updateLabel.id = 'last-updated-label';
-        updateLabel.className = 'd-flex flex-wrap gap-3 mb-3';
-
-        const [date, time] = meta.published.split(' ');
-        const timeShort = time?.slice(0, 5) ?? '';
-
-        updateLabel.innerHTML = `
-          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 small rounded-pill shadow-sm"
-               style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border);">
-            <i class="bi bi-clock-history text-primary"></i>
-            <span><strong>Ranks actualizados:</strong> ${date} ${timeShort}</span>
-          </div>`;
-        const cardBody = document.querySelector('.card-body');
-        const form = cardBody.querySelector('form');
-        cardBody.insertBefore(updateLabel, form.nextSibling);
-      }
-
-      const renderRows = players =>
-        players.map(p => [
-          p.rank ?? '',
-          `<span class="fw-semibold">${p.nombre}</span>`,
-          p.team ?? '',
-          p.position ?? '',
-          p.byeWeek ?? '',
-          renderStatus(p.injuryStatus)
-        ]);
-
-      renderDataTable('#waiversTable', renderRows(freeAgents));
+      allPlayers = freeAgents || [];
+      renderFilters(allPlayers);
+      renderCards();
 
       Swal.close();
     } catch (err) {
@@ -152,36 +128,74 @@ export default async function renderWaiversView() {
     }
   }
 
-  function renderStatus(status) {
-    if (!status) return '<span class="text-success">OK</span>';
-    return `<span class="text-warning fw-bold">${status}</span>`;
+  function renderFilters(players) {
+    const teams = [...new Set(players.map(p => p.team).filter(Boolean))].sort();
+    const teamSelect = document.getElementById('filter-team');
+    teamSelect.innerHTML = `<option value="">Todos los equipos</option>` +
+      teams.map(t => `<option value="${t}">${t}</option>`).join('');
   }
 
-  function renderDataTable(selector, data, striped = true) {
-    const table = $(selector);
-    table.DataTable().destroy();
+  function renderCards() {
+    const posFilter = document.getElementById('filter-position').value;
+    const teamFilter = document.getElementById('filter-team').value;
+    const sortBy = document.getElementById('sort-by').value;
 
-    table.DataTable({
-      data,
-      columns: [
-        { title: 'Rank' },
-        { title: 'Jugador' },
-        { title: 'Equipo' },
-        { title: 'Posición' },
-        { title: 'Bye' },
-        { title: 'Estatus' }
-      ],
-      paging: false,
-      searching: false,
-      info: false,
-      lengthChange: false,
-      ordering: false,
-      language: { emptyTable: 'Sin datos disponibles' },
-      stripeClasses: striped ? ['table-striped'] : [],
-      scrollCollapse: true,
-      scrollY: false
+    let filtered = allPlayers
+      .filter(p => !posFilter || p.position === posFilter)
+      .filter(p => !teamFilter || p.team === teamFilter);
+
+    filtered.sort((a, b) => {
+      if (sortBy === 'rank') return (a.rank ?? 9999) - (b.rank ?? 9999);
+      if (sortBy === 'nombre') return a.nombre.localeCompare(b.nombre);
+      if (sortBy === 'position') return a.position.localeCompare(b.position);
+      return 0;
     });
+
+    const totalPages = Math.ceil(filtered.length / pageSize);
+    if (currentPage > totalPages) currentPage = totalPages || 1;
+    const start = (currentPage - 1) * pageSize;
+    const pageData = filtered.slice(start, start + pageSize);
+
+    const container = document.getElementById('waiversCards');
+    container.innerHTML = pageData.map(p => renderCard(p)).join('');
+
+    document.getElementById('pagination-info').textContent =
+      `Página ${currentPage} de ${totalPages || 1}`;
+    document.getElementById('prev-page').disabled = currentPage <= 1;
+    document.getElementById('next-page').disabled = currentPage >= totalPages;
   }
+
+  function renderCard(p) {
+    const posColors = { QB: 'primary', RB: 'success', WR: 'warning', TE: 'info', K: 'secondary', DST: 'dark' };
+    const color = posColors[p.position] || 'light';
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-body d-flex flex-column">
+            <h6 class="card-title mb-1 fw-bold">
+              <span class="badge bg-${color} me-2">${p.position}</span> ${p.nombre}
+            </h6>
+            <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
+            <div class="mt-auto d-flex justify-content-between align-items-center">
+              <span class="badge bg-dark">Rank ${p.rank ?? '-'}</span>
+              ${renderStatus(p.injuryStatus)}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderStatus(status) {
+    if (!status) return '<span class="badge bg-success">Healthy</span>';
+    return `<span class="badge bg-warning text-dark">${status}</span>`;
+  }
+
+  // Eventos de filtros y paginación
+  document.getElementById('filter-position').addEventListener('change', () => { currentPage = 1; renderCards(); });
+  document.getElementById('filter-team').addEventListener('change', () => { currentPage = 1; renderCards(); });
+  document.getElementById('sort-by').addEventListener('change', () => { currentPage = 1; renderCards(); });
+  document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderCards(); });
+  document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderCards(); });
 
   if (savedLeague && savedExpert) loadWaiversData();
 }
