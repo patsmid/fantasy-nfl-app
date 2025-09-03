@@ -1,6 +1,6 @@
 // routes/lineupRouter.js
 import express from 'express';
-import { getLineupData, getWaiversData } from './lib/lineupService.js';
+import { getLineupData, getFreeAgentsData } from './lib/lineupService.js';
 
 const router = express.Router();
 
@@ -29,28 +29,17 @@ router.get('/:leagueId', async (req, res) => {
   }
 });
 
-// === Waivers ===
+// === Free Agents / Waivers ===
 router.get('/:leagueId/waivers', async (req, res) => {
   try {
     const { leagueId } = req.params;
     const { idExpert = null, position = 'TODAS', week = '1' } = req.query;
 
-    // Normalizar tipos
-    // const idExpertNum = isNaN(Number(idExpert)) ? idExpert : Number(idExpert);
-    const weekNum = isNaN(Number(week)) ? 1 : Number(week);
-
-    const waivers = await getWaiversData(leagueId, {
-      idExpert: idExpert,
+    const waivers = await getFreeAgentsData(leagueId, {
+      idExpert,
       position,
-      week: weekNum,
+      week: Number(week) || 1,
     });
-
-    if (!waivers || waivers.success === false) {
-      return res.status(500).json({
-        success: false,
-        error: waivers?.error || 'Error al obtener waivers',
-      });
-    }
 
     return res.json({
       success: true,
@@ -64,5 +53,6 @@ router.get('/:leagueId/waivers', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 export default router;
