@@ -163,199 +163,212 @@ export async function getLineupData(
  *  - sleeperId: id de Sleeper si se pudo resolver
  */
  export async function getFreeAgentsData(
-   leagueId,
-   { idExpert = null, position = 'TODAS', week = 1 } = {}
- ) {
-   // 1) Liga y configuración
-   const leagueData = await getSleeperLeague(leagueId);
-   const starterPositions = getStarterPositions(leagueData);
-   const superFlex = starterPositions.includes('SUPER_FLEX');
+  leagueId,
+  { idExpert = null, position = 'TODAS', week = 1 } = {}
+) {
+  // 1) Liga y configuración
+  const leagueData = await getSleeperLeague(leagueId);
+  const starterPositions = getStarterPositions(leagueData);
+  const superFlex = starterPositions.includes('SUPER_FLEX');
 
-   const scoring =
-     leagueData.scoring_settings?.rec === 1
-       ? 'PPR'
-       : leagueData.scoring_settings?.rec === 0.5
-       ? 'HALF'
-       : 'STANDARD';
+  const scoring =
+    leagueData.scoring_settings?.rec === 1
+      ? 'PPR'
+      : leagueData.scoring_settings?.rec === 0.5
+      ? 'HALF'
+      : 'STANDARD';
 
-   const tipoLiga = await getConfigValue('dynasty');
-   const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
-   const season = await getConfigValue('season');
+  const tipoLiga = await getConfigValue('dynasty');
+  const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+  const season = await getConfigValue('season');
 
-   // Igual que en lineup: si es superflex y pidieron TODAS, pedimos SUPER FLEX a la fuente
-   const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
+  const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
-   console.log('▶ starterPositions:', starterPositions);
-   console.log('▶ Config:', { scoring, dynasty, superFlex, finalPosition, season });
+  console.log('▶ starterPositions:', starterPositions);
+  console.log('▶ Config:', { scoring, dynasty, superFlex, finalPosition, season });
 
-   // 2) Experto y rankings
-   const expertData = await getExpertData(idExpert);
-   console.log('▶ ExpertData:', expertData);
+  // 2) Experto y rankings
+  const expertData = await getExpertData(idExpert);
+  console.log('▶ ExpertData:', expertData);
 
-   const rankingsResponse = await getRankings({
-     season,
-     dynasty,
-     scoring,
-     expertData,
-     position: finalPosition,
-     week
-   });
+  const rankingsResponse = await getRankings({
+    season,
+    dynasty,
+    scoring,
+    expertData,
+    position: finalPosition,
+    week
+  });
 
-   const rankings = Array.isArray(rankingsResponse?.players) ? rankingsResponse.players : [];
-   const ranks_published = rankingsResponse?.published ?? null;
-   const source = rankingsResponse?.source ?? null;
+  const rankings = Array.isArray(rankingsResponse?.players) ? rankingsResponse.players : [];
+  const ranks_published = rankingsResponse?.published ?? null;
+  const source = rankingsResponse?.source ?? null;
 
-   console.log('▶ Rankings main count:', rankings.length);
+  console.log('▶ Rankings main count:', rankings.length);
 
-   // DST & K con offsets (solo si FP + si la liga usa esas posiciones)
-   let dstRankings = [];
-   let kickerRankings = [];
+  // DST & K con offsets (solo si FP + si la liga usa esas posiciones)
+  let dstRankings = [];
+  let kickerRankings = [];
 
-   if (expertData?.source === 'fantasypros') {
-     if (starterPositions.includes('DEF')) {
-       dstRankings =
-         (await getDSTRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
-           ...p,
-           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
-         })) || [];
-     }
-     if (starterPositions.includes('K')) {
-       kickerRankings =
-         (await getKickerRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
-           ...p,
-           rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
-         })) || [];
-     }
-   }
+  if (expertData?.source === 'fantasypros') {
+    if (starterPositions.includes('DEF')) {
+      dstRankings =
+        (await getDSTRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
+          ...p,
+          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 10000
+        })) || [];
+    }
+    if (starterPositions.includes('K')) {
+      kickerRankings =
+        (await getKickerRankings({ season, dynasty, expertData, week }))?.players?.map(p => ({
+          ...p,
+          rank: (typeof p.rank === 'number' ? p.rank : 9999) + 20000
+        })) || [];
+    }
+  }
 
-   console.log('▶ DST count:', dstRankings.length, 'K count:', kickerRankings.length);
+  console.log('▶ DST count:', dstRankings.length, 'K count:', kickerRankings.length);
 
-   // 3) Jugadores ocupados en la liga
-   const allRosters = await getRosters(leagueId);
-   const ownedSet = new Set();
-   for (const r of allRosters || []) {
-     if (Array.isArray(r?.players)) {
-       for (const pid of r.players) ownedSet.add(String(pid));
-     }
-   }
-   console.log('▶ Owned players:', ownedSet.size);
+  // 3) Jugadores ocupados en la liga
+  const allRosters = await getRosters(leagueId);
+  const ownedSet = new Set();
+  for (const r of allRosters || []) {
+    if (Array.isArray(r?.players)) {
+      for (const pid of r.players) ownedSet.add(String(pid));
+    }
+  }
+  console.log('▶ Owned players:', ownedSet.size);
 
-   // 4) Traer base de jugadores (chunked en tu getPlayersData ya modificado)
-   const allPlayers = await getPlayersData(); // trae todos (10k+)
-   console.log('▶ total players in DB:', allPlayers.length);
+  // 4) Traer base de jugadores (chunked en tu getPlayersData ya modificado)
+  const allPlayers = await getPlayersData(); // trae todos (10k+)
+  console.log('▶ total players in DB:', allPlayers.length);
 
-   // 5) Construir FA: no owned + posición válida + match estricto en rankings
-   const byIdBest = new Map(); // sleeperId -> { ...player, rank } (mejor rank)
+  // 5) Construir FA: no owned + posición válida + match (incluye checks especiales para DST/K)
+  const byIdBest = new Map(); // sleeperId -> candidate (con mejor rank)
 
-   for (const info of allPlayers) {
-     const sleeperId = String(info.player_id || '');
-     const pos = String(info.position || '').toUpperCase();
+  for (const info of allPlayers) {
+    const sleeperId = String(info.player_id || '');
+    const pos = String((info.position || '')).toUpperCase();
 
-     // fuera si: sin id, está ocupado, o posición no válida para tu liga
-     if (!sleeperId || ownedSet.has(sleeperId)) continue;
-     if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
+    if (!sleeperId || ownedSet.has(sleeperId)) continue; // ya ocupado
+    if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
-     const isDST = pos === 'DEF';
-     const isK = pos === 'K';
-     const rankingList = isDST ? dstRankings : isK ? kickerRankings : rankings;
+    // Realizamos las tres búsquedas como hacía tu GAS
+    const mainRanked = Array.isArray(rankings) && rankings.length ? fuzzySearch(info.full_name, rankings) : [];
+    const dstRanked = Array.isArray(dstRankings) && dstRankings.length ? fuzzySearch(info.full_name, dstRankings) : [];
+    const kRanked = Array.isArray(kickerRankings) && kickerRankings.length ? fuzzySearch(info.full_name, kickerRankings) : [];
 
-     if (!Array.isArray(rankingList) || rankingList.length === 0) continue;
+    // 1) Intentamos match principal (para jugadores ofensivos y TE/QB/RB/WR)
+    let chosenTop = null;
+    let chosenSource = null;
 
-     const ranked = fuzzySearch(info.full_name, rankingList);
-     if (!ranked || ranked.length === 0) continue;
+    if (mainRanked && mainRanked.length > 0) {
+      const top = mainRanked[0];
+      // Reproducir la validación GAS: si ranking trae posición, debe coincidir
+      if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
+        // Validación de nombre para evitar falsos positivos en ofensivos
+        if (!top.player_name || namesLikelySame(info.full_name, top.player_name)) {
+          chosenTop = top;
+          chosenSource = 'main';
+        }
+      }
+    }
 
-     const top = ranked[0] || {};
-     // 🚧 Validaciones extra para evitar falsos positivos:
-     // - Si trae posición en el ranking, debe coincidir con la del jugador (como en GAS)
-     if (top.player_positions && String(top.player_positions).toUpperCase() !== pos) {
-       continue;
-     }
-     // - Chequeo de nombre "estricto": apellido debe coincidir, y el primer nombre o inicial también
-     if (top.player_name && !namesLikelySame(info.full_name, top.player_name)) {
-       continue;
-     }
+    // 2) Si no encontramos aceptable en main o si es DEF/K, mirar DST
+    if (!chosenTop && dstRanked && dstRanked.length > 0) {
+      // En GAS se añadía DST sin validar posiciones estrictas -> replicamos eso
+      chosenTop = dstRanked[0];
+      chosenSource = 'dst';
+    }
 
-     const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
-     if (!Number.isFinite(rankVal)) continue;
+    // 3) Si aún nada, mirar K
+    if (!chosenTop && kRanked && kRanked.length > 0) {
+      chosenTop = kRanked[0];
+      chosenSource = 'k';
+    }
 
-     const rookie = info.years_exp === 0 ? ' (R)' : '';
+    if (!chosenTop) continue; // no hay match en ninguna lista
 
-     const candidate = {
-       rank: rankVal,
-       nombre: `${info.full_name}${rookie}`,
-       position: pos,
-       team: info.team || top.player_team_id || 'FA',
-       matchup: top.matchup || 'N/D',
-       byeWeek: top.bye_week || info.bye_week || 'N/D',
-       injuryStatus: info.injury_status || '',
-       sleeperId
-     };
+    const top = chosenTop;
+    // rank ya incluye offset para dst/k (los arrays dstRankings/kickerRankings fueron mapeados con +10000/+20000)
+    const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
+    if (!Number.isFinite(rankVal)) continue;
 
-     // Dedup por sleeperId: conservar el de mejor rank
-     const prev = byIdBest.get(sleeperId);
-     if (!prev || rankVal < prev.rank) byIdBest.set(sleeperId, candidate);
-   }
+    const rookie = info.years_exp === 0 ? ' (R)' : '';
 
-   const freeAgents = Array.from(byIdBest.values()).sort((a, b) => a.rank - b.rank);
-   console.log('▶ freeAgents final count:', freeAgents.length);
+    const candidate = {
+      rank: rankVal,
+      nombre: `${info.full_name}${rookie}`,
+      position: pos,
+      team: info.team || top.player_team_id || 'FA',
+      matchup: top.matchup || 'N/D',
+      byeWeek: top.bye_week || info.bye_week || 'N/D',
+      injuryStatus: info.injury_status || '',
+      sleeperId
+    };
 
-   return {
-     success: true,
-     meta: { scoring, dynasty, superFlex, published: ranks_published, source },
-     freeAgents
-   };
- }
+    // Dedup por sleeperId: conservar el de mejor rank (menor número)
+    const prev = byIdBest.get(sleeperId);
+    if (!prev || candidate.rank < prev.rank) byIdBest.set(sleeperId, candidate);
+  }
 
- /** Igual a la intención de GAS: solo posiciones que puede alinear tu liga */
- function isAllowedPosition(pos, starterPositions, superFlex) {
-   const P = String(pos || '').toUpperCase();
-   // Excluir IDP explícitamente
-   const IDP = new Set(['DL', 'DE', 'DT', 'LB', 'MLB', 'OLB', 'CB', 'DB', 'S', 'FS', 'SS', 'IDP']);
-   if (IDP.has(P)) return false;
+  const freeAgents = Array.from(byIdBest.values()).sort((a, b) => a.rank - b.rank);
+  console.log('▶ freeAgents final count:', freeAgents.length);
 
-   const slots = new Set(starterPositions.map(s => String(s).toUpperCase()));
+  return {
+    success: true,
+    meta: { scoring, dynasty, superFlex, published: ranks_published, source },
+    freeAgents
+  };
+}
 
-   // Si la liga tiene la posición exacta como slot, listo
-   if (slots.has(P)) return true;
+/** Igual a la intención de GAS: solo posiciones que puede alinear tu liga */
+function isAllowedPosition(pos, starterPositions, superFlex) {
+  const P = String(pos || '').toUpperCase();
+  // Excluir IDP explícitamente
+  const IDP = new Set(['DL', 'DE', 'DT', 'LB', 'MLB', 'OLB', 'CB', 'DB', 'S', 'FS', 'SS', 'IDP']);
+  if (IDP.has(P)) return false;
 
-   // Flex lógicos
-   if (slots.has('FLEX') && (P === 'RB' || P === 'WR' || P === 'TE')) return true;
-   if (superFlex && (P === 'QB' || P === 'RB' || P === 'WR' || P === 'TE')) return true;
+  const slots = new Set(starterPositions.map(s => String(s).toUpperCase()));
 
-   return false;
- }
+  // Si la liga tiene la posición exacta como slot, listo
+  if (slots.has(P)) return true;
 
- /** Normaliza y compara nombres para reducir falsos positivos de fuzzy */
- function namesLikelySame(a, b) {
-   const na = normalizeName(a);
-   const nb = normalizeName(b);
-   if (!na || !nb) return false;
-   const [af, ...ar] = na.split(' ');
-   const [bf, ...br] = nb.split(' ');
+  // Flex lógicos
+  if (slots.has('FLEX') && (P === 'RB' || P === 'WR' || P === 'TE')) return true;
+  if (superFlex && (P === 'QB' || P === 'RB' || P === 'WR' || P === 'TE')) return true;
 
-   const alast = ar.length ? ar[ar.length - 1] : af;
-   const blast = br.length ? br[br.length - 1] : bf;
+  return false;
+}
 
-   // Apellido igual
-   if (alast !== blast) return false;
+/** Normaliza y compara nombres para reducir falsos positivos de fuzzy en jugadores ofensivos */
+function namesLikelySame(a, b) {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return false;
+  const [af, ...ar] = na.split(' ');
+  const [bf, ...br] = nb.split(' ');
 
-   // Mismo nombre o inicial coincide
-   if (af === bf) return true;
-   if (af[0] && bf[0] && af[0] === bf[0]) return true;
+  const alast = ar.length ? ar[ar.length - 1] : af;
+  const blast = br.length ? br[br.length - 1] : bf;
 
-   // Permitir coincidencia si uno contiene al otro (ej. "Marvin Harrison Jr" vs "Marvin Harrison")
-   if (na.includes(nb) || nb.includes(na)) return true;
+  if (alast !== blast) return false;
 
-   return false;
- }
+  if (af === bf) return true;
+  if (af[0] && bf[0] && af[0] === bf[0]) return true;
 
- function normalizeName(s) {
-   return String(s || '')
-     .toLowerCase()
-     .replace(/\./g, ' ')
-     .replace(/'/g, '')
-     .replace(/-/g, ' ')
-     .replace(/\bjr\b|\bsr\b|\bii\b|\biii\b|\biv\b/g, '') // quitar sufijos comunes
-     .replace(/\s+/g, ' ')
-     .trim();
- }
+  if (na.includes(nb) || nb.includes(na)) return true;
+
+  return false;
+}
+
+function normalizeName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\./g, ' ')
+    .replace(/['’]/g, '')
+    .replace(/-/g, ' ')
+    .replace(/\bjr\b|\bsr\b|\bii\b|\biii\b|\biv\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
