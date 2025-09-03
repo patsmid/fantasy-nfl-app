@@ -435,109 +435,122 @@ export async function getWaiversData(
  * getFreeAgents actualizado: ahora acepta playersData como parámetro opcional.
  * Si playersData se pasa, lo usa (evita doble fetch). Si no, cae al comportamiento previo.
  */
-export async function getFreeAgents(
-  leagueId,
-  starterPositions,
-  rankings = [],
-  dstRankings = [],
-  kickerRankings = [],
-  playersDataParam = null
-) {
-  try {
-    // 1) Rosters y jugadores tomados
-    const rosters = await getRosters(leagueId);
-    const ownedSet = new Set(
-      rosters.flatMap(r => (Array.isArray(r.players) ? r.players.map(String) : []))
-    );
+ export async function getFreeAgents(
+   leagueId,
+   starterPositions,
+   rankings = [],
+   dstRankings = [],
+   kickerRankings = [],
+   playersDataParam = null
+ ) {
+   try {
+     console.log(`🔍 getFreeAgents iniciado para liga ${leagueId}`);
 
-    // 2) Obtener players: usar playersDataParam si viene, si no pedir todos
-    const playersData = Array.isArray(playersDataParam) && playersDataParam.length > 0
-      ? playersDataParam
-      : await getPlayersData();
+     // 1) Rosters y jugadores tomados
+     const rosters = await getRosters(leagueId);
+     console.log(`📋 Rosters obtenidos: ${Array.isArray(rosters) ? rosters.length : 0}`);
 
-    // 3) Filtrar pool: no tomados & posición válida
-    const freeAgentsPool = playersData.filter(p => {
-      const pid = String(p.player_id ?? '');
-      const pos = p.position ?? null;
-      return !ownedSet.has(pid) && (pos ? starterPositions.includes(pos) : false);
-    });
+     const ownedSet = new Set(
+       rosters.flatMap(r => (Array.isArray(r.players) ? r.players.map(String) : []))
+     );
+     console.log(`🛑 Jugadores ya tomados: ${ownedSet.size}`);
 
-    // 4) Construir filas (igual que tu GAS)
-    const rows = [];
+     // 2) Obtener players: usar playersDataParam si viene, si no pedir todos
+     let playersData;
+     if (Array.isArray(playersDataParam) && playersDataParam.length > 0) {
+       playersData = playersDataParam;
+       console.log(`📦 Usando playersDataParam con ${playersData.length} jugadores`);
+     } else {
+       playersData = (await getPlayersData()) || [];
+       console.log(`📦 PlayersData obtenido desde supabase: ${playersData.length} jugadores`);
+     }
 
-    for (const info of freeAgentsPool) {
-      const fullName = info.full_name || '';
-      const position = info.position || '';
-      const team = info.team || '';
-      const status = info.injury_status || '';
-      const rookie = info.years_exp === 0 ? ' (R)' : '';
+     // 3) Filtrar pool: no tomados & posición válida
+     const freeAgentsPool = playersData.filter(p => {
+       const pid = String(p.player_id ?? '');
+       const pos = p.position ?? null;
+       return !ownedSet.has(pid) && (pos ? starterPositions.includes(pos) : false);
+     });
+     console.log(`✅ Free agents pool filtrado: ${freeAgentsPool.length} jugadores`);
 
-      // Ranking principal (nombre -> rankings)
-      const faRank = fuzzySearch(fullName, rankings);
-      if (
-        Array.isArray(faRank) &&
-        faRank.length > 0 &&
-        (
-          (typeof faRank[0].player_positions === 'string' &&
-            faRank[0].player_positions === position) ||
-          (Array.isArray(faRank[0].player_positions) &&
-            faRank[0].player_positions.includes(position))
-        )
-      ) {
-        rows.push({
-          rank: typeof faRank[0].rank === 'number' ? faRank[0].rank : parseInt(faRank[0].rank) || 9999,
-          nombre: `${fullName}${rookie}`,
-          position,
-          team,
-          matchup: faRank[0].matchup ?? 'N/D',
-          byeWeek: faRank[0].bye_week ?? info.bye_week ?? 'N/D',
-          status
-        });
-      }
+     // 4) Construir filas (igual que tu GAS)
+     const rows = [];
 
-      // DEF (aplica offset +10000 como en tu GAS)
-      if (position === 'DEF' && Array.isArray(dstRankings) && dstRankings.length > 0) {
-        const faDSTRank = fuzzySearch(fullName, dstRankings);
-        if (Array.isArray(faDSTRank) && faDSTRank.length > 0) {
-          rows.push({
-            rank: 10000 + (parseInt(faDSTRank[0].rank) || 9999),
-            nombre: faDSTRank[0].player_name,
-            position: faDSTRank[0].player_positions,
-            team: faDSTRank[0].player_team_id,
-            matchup: faDSTRank[0].matchup ?? 'N/D',
-            byeWeek: faDSTRank[0].bye_week ?? 'N/D',
-            status: ''
-          });
-        }
-      }
+     for (const info of freeAgentsPool) {
+       const fullName = info.full_name || '';
+       const position = info.position || '';
+       const team = info.team || '';
+       const status = info.injury_status || '';
+       const rookie = info.years_exp === 0 ? ' (R)' : '';
 
-      // K (aplica offset +20000 como en tu GAS)
-      if (position === 'K' && Array.isArray(kickerRankings) && kickerRankings.length > 0) {
-        const faKRank = fuzzySearch(fullName, kickerRankings);
-        if (Array.isArray(faKRank) && faKRank.length > 0) {
-          rows.push({
-            rank: 20000 + (parseInt(faKRank[0].rank) || 9999),
-            nombre: `${faKRank[0].player_name}${rookie}`,
-            position: faKRank[0].player_positions,
-            team: faKRank[0].player_team_id,
-            matchup: faKRank[0].matchup ?? 'N/D',
-            byeWeek: faKRank[0].bye_week ?? 'N/D',
-            status: ''
-          });
-        }
-      }
-    }
+       // Ranking principal (nombre -> rankings)
+       const faRank = fuzzySearch(fullName, rankings);
+       if (
+         Array.isArray(faRank) &&
+         faRank.length > 0 &&
+         (
+           (typeof faRank[0].player_positions === 'string' &&
+             faRank[0].player_positions === position) ||
+           (Array.isArray(faRank[0].player_positions) &&
+             faRank[0].player_positions.includes(position))
+         )
+       ) {
+         rows.push({
+           rank: typeof faRank[0].rank === 'number' ? faRank[0].rank : parseInt(faRank[0].rank) || 9999,
+           nombre: `${fullName}${rookie}`,
+           position,
+           team,
+           matchup: faRank[0].matchup ?? 'N/D',
+           byeWeek: faRank[0].bye_week ?? info.bye_week ?? 'N/D',
+           status
+         });
+       }
 
-    // 5) Ordenar por rank ascendente y devolver
-    rows.sort((a, b) => {
-      const ar = typeof a.rank === 'number' ? a.rank : parseInt(a.rank) || 9999;
-      const br = typeof b.rank === 'number' ? b.rank : parseInt(b.rank) || 9999;
-      return ar - br;
-    });
+       // DEF
+       if (position === 'DEF' && Array.isArray(dstRankings) && dstRankings.length > 0) {
+         const faDSTRank = fuzzySearch(fullName, dstRankings);
+         if (Array.isArray(faDSTRank) && faDSTRank.length > 0) {
+           rows.push({
+             rank: 10000 + (parseInt(faDSTRank[0].rank) || 9999),
+             nombre: faDSTRank[0].player_name,
+             position: faDSTRank[0].player_positions,
+             team: faDSTRank[0].player_team_id,
+             matchup: faDSTRank[0].matchup ?? 'N/D',
+             byeWeek: faDSTRank[0].bye_week ?? 'N/D',
+             status: ''
+           });
+         }
+       }
 
-    return rows;
-  } catch (e) {
-    console.error('¡ERROR! getFreeAgents:', e);
-    throw new Error('Error al obtener free agents');
-  }
-}
+       // K
+       if (position === 'K' && Array.isArray(kickerRankings) && kickerRankings.length > 0) {
+         const faKRank = fuzzySearch(fullName, kickerRankings);
+         if (Array.isArray(faKRank) && faKRank.length > 0) {
+           rows.push({
+             rank: 20000 + (parseInt(faKRank[0].rank) || 9999),
+             nombre: `${faKRank[0].player_name}${rookie}`,
+             position: faKRank[0].player_positions,
+             team: faKRank[0].player_team_id,
+             matchup: faKRank[0].matchup ?? 'N/D',
+             byeWeek: faKRank[0].bye_week ?? 'N/D',
+             status: ''
+           });
+         }
+       }
+     }
+
+     // 5) Ordenar por rank ascendente y devolver
+     rows.sort((a, b) => {
+       const ar = typeof a.rank === 'number' ? a.rank : parseInt(a.rank) || 9999;
+       const br = typeof b.rank === 'number' ? b.rank : parseInt(b.rank) || 9999;
+       return ar - br;
+     });
+
+     console.log(`📊 Filas finales construidas: ${rows.length}`);
+
+     return rows;
+   } catch (e) {
+     console.error('❌ ¡ERROR en getFreeAgents:', e);
+     throw new Error('Error al obtener free agents');
+   }
+ }
