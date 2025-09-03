@@ -248,7 +248,8 @@ export async function getLineupData(
 
    // 5) Construir FA
    const byIdBest = new Map();
-
+console.log('dstRankings');	 
+console.log(dstRankings);
    for (const info of allPlayers) {
      const sleeperId = String(info.player_id || '');
      const pos = String((info.position || '')).toUpperCase();
@@ -264,8 +265,6 @@ export async function getLineupData(
      if (pos === 'DEF' && dstRankings.length) {
 			 console.log('info');
 			 console.log(info);
-			 console.log('player');
-			 console.log(p);
        dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
      }
 
