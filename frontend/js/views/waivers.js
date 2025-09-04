@@ -355,33 +355,6 @@ export default async function renderWaiversView() {
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
-
-
-			// --- DEBUG: comparación de IDs ---
-			(function debugCompareIds() {
-			  const lineupIds = new Set(Array.from(lineupRanks.keys()));
-			  const faIds = new Set((freeAgents || []).map(p => String(p?.sleeperId)));
-			  const overlap = [...faIds].filter(id => lineupIds.has(id));
-
-			  console.log('🔎 ID overlap resumen:', {
-			    lineupCount: lineupIds.size,
-			    freeAgentsCount: faIds.size,
-			    overlapCount: overlap.length
-			  });
-
-			  if (overlap.length) {
-			    console.log('🔎 IDs en común (FA ∩ lineup):');
-			    console.table(overlap.map(id => ({
-			      id,
-			      lineupRank: lineupRanks.get(id),
-			      nameFA: (freeAgents.find(p => String(p.sleeperId) === id) || {}).nombre
-			    })));
-			  } else {
-			    console.log('ℹ️ No hay IDs en común (esperable si el FA no está en tu roster).');
-			  }
-			})();
-
-
       currentPage = 1;
       render();
 
@@ -530,37 +503,34 @@ export default async function renderWaiversView() {
 	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
 	  // badge blanco para bidReason (visibilidad sobre fondo oscuro)
-	  const reasonBadge = p.bidReason
-	    ? `<div class="mt-2">
-	         <span class="badge" style="
-	           background: linear-gradient(#fff, #f2f2f2);
-	           color:#111;
-	           border:1px solid var(--border);
-	           box-shadow:0 1px 3px rgba(0,0,0,0.25);
-	           font-weight:600;
-	         ">
-	           <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
-	         </span>
-	       </div>`
-	    : '';
+		const reasonBadge = p.bidReason
+		  ? `<div style="margin-top:4px; max-width:100%; overflow:hidden;">
+		       <span class="badge" style="
+		         background: linear-gradient(#fff, #f2f2f2);
+		         color:#111;
+		         border:1px solid var(--border);
+		         box-shadow:0 1px 3px rgba(0,0,0,0.25);
+		         font-weight:600;
+		         white-space:normal;
+		         word-break:break-word;
+		       ">
+		         <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
+		       </span>
+		     </div>`
+		  : '';
 
 	  // --- Comparación: waiversRank vs todos los ranks de tu equipo (excluyendo K/DEF) ---
 	  const lineupFiltered = lineupPlayers.filter(lp => lp.position && !['K', 'DEF'].includes(lp.position));
 	  const comparisonCount = lineupFiltered.filter(lp => rankNum < Number(lp.rank)).length;
 
-	  // Log detallado por jugador para depuración
-	  console.log('📊 BadgeCheck:', {
-	    player: safeName,
-	    sleeperId: String(p.sleeperId),
-	    waiversRank: rankNum,
-	    comparisonCount,
-	    comparedAgainst: lineupFiltered.length
-	  });
-
-	  // No mostramos badge para K/DEF (tanto FA como en la comparación)
 	  let betterBadge = '';
 	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
-	    betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster (excluye K/DEF)"></i>`;
+			const samePos = lineupFiltered.filter(lp => lp.position === p.position);
+			const betterSamePos = samePos.filter(lp => rank < lp.rank).length;
+
+			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
+											  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
+											</i>`;
 	  }
 
 	  return `
