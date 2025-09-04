@@ -355,6 +355,33 @@ export default async function renderWaiversView() {
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
+
+
+			// --- DEBUG: comparación de IDs ---
+			(function debugCompareIds() {
+			  const lineupIds = new Set(Array.from(lineupRanks.keys()));
+			  const faIds = new Set((freeAgents || []).map(p => String(p?.sleeperId)));
+			  const overlap = [...faIds].filter(id => lineupIds.has(id));
+
+			  console.log('🔎 ID overlap resumen:', {
+			    lineupCount: lineupIds.size,
+			    freeAgentsCount: faIds.size,
+			    overlapCount: overlap.length
+			  });
+
+			  if (overlap.length) {
+			    console.log('🔎 IDs en común (FA ∩ lineup):');
+			    console.table(overlap.map(id => ({
+			      id,
+			      lineupRank: lineupRanks.get(id),
+			      nameFA: (freeAgents.find(p => String(p.sleeperId) === id) || {}).nombre
+			    })));
+			  } else {
+			    console.log('ℹ️ No hay IDs en común (esperable si el FA no está en tu roster).');
+			  }
+			})();
+
+
       currentPage = 1;
       render();
 
@@ -523,14 +550,15 @@ export default async function renderWaiversView() {
 	  const lineupFiltered = lineupPlayers.filter(lp => lp.position && !['K', 'DEF'].includes(lp.position));
 	  const comparisonCount = lineupFiltered.filter(lp => rankNum < Number(lp.rank)).length;
 
+	  // No mostramos badge para K/DEF (tanto FA como en la comparación)
 	  let betterBadge = '';
 	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
 			const samePos = lineupFiltered.filter(lp => lp.position === p.position);
 			const betterSamePos = samePos.filter(lp => rank < lp.rank).length;
 
 			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
-											  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
-											</i>`;
+			  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
+			</i>`;
 	  }
 
 	  return `
