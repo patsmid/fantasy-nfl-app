@@ -493,67 +493,75 @@ export default async function renderWaiversView() {
     }
   }
 
-	function renderCard(p, lineupPlayers) {
-	  const safeName = p.fullName || p.name || 'Unknown';
-	  const safeTeam = p.team || '-';
-	  const bye = p.bye || '-';
+	function renderCard(p) {
 	  const posColor = getPositionColor(p.position);
+	  const tierColor = getTierColor(p.tier);
+	  const safeName = p.nombre || '';
+	  const safeTeam = p.team || '';
+	  const bye = p.byeWeek ?? '-';
 	  const rankNum = (p.rank != null && p.rank !== '-') ? Number(p.rank) : 99999;
+	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
-	  // Comparación contra tu roster (sin K ni DEF)
-	  const lineupFiltered = lineupPlayers.filter(lp => !['K', 'DEF'].includes(lp.position));
-	  const comparisonCount = lineupFiltered.filter(lp => rankNum < lp.rank).length;
+	  // badge blanco para bidReason (visibilidad sobre fondo oscuro)
+		const reasonBadge = p.bidReason
+		  ? `<div style="margin-top:4px; max-width:100%; overflow:hidden;">
+		       <span class="badge" style="
+		         background: linear-gradient(#fff, #f2f2f2);
+		         color:#111;
+		         border:1px solid var(--border);
+		         box-shadow:0 1px 3px rgba(0,0,0,0.25);
+		         font-weight:600;
+		         white-space:normal;
+		         word-break:break-word;
+		       ">
+		         <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
+		       </span>
+		     </div>`
+		  : '';
 
-	  // Comparación por posición
-	  const samePos = lineupFiltered.filter(lp => lp.position === p.position);
-	  const betterSamePos = samePos.filter(lp => rankNum < lp.rank).length;
+	  // --- Comparación: waiversRank vs todos los ranks de tu equipo (excluyendo K/DEF) ---
+	  const lineupFiltered = lineupPlayers.filter(lp => lp.position && !['K', 'DEF'].includes(lp.position));
+	  const comparisonCount = lineupFiltered.filter(lp => rankNum < Number(lp.rank)).length;
 
 	  let betterBadge = '';
-	  if (comparisonCount > 0) {
-	    betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
-	      title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
-	    </i>`;
+	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
+			const samePos = lineupFiltered.filter(lp => lp.position === p.position);
+			const betterSamePos = samePos.filter(lp => rankNum < lp.rank).length;
+
+			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
+			  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
+			</i>`;
 	  }
 
-	  // Badge de razón (bidReason)
-	  const reasonBadge = p.bidReason
-	    ? `<div style="margin-top:4px; max-width:100%; overflow:hidden;">
-	         <span class="badge" style="
-	           background: linear-gradient(#fff, #f2f2f2);
-	           color:#111;
-	           border:1px solid var(--border);
-	           box-shadow:0 1px 3px rgba(0,0,0,0.25);
-	           font-weight:600;
-	           white-space:normal;
-	           word-break:break-word;
-	         ">
-	           <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
-	         </span>
-	       </div>`
-	    : '';
-
 	  return `
-	    <div class="list-group-item d-flex justify-content-between align-items-center"
-	         style="background:transparent; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
-	      <div class="d-flex align-items-center gap-3">
-	        <div style="min-width:56px; text-align:center;">
-	          <div style="font-weight:800; font-size:1.05rem; color:var(--accent); background:rgba(255,122,0,0.06); padding:6px 8px; border-radius:8px;">
-	            ${rankNum}
+	    <div class="col-12 col-md-6 col-lg-4">
+	      <div class="waiver-card h-100">
+	        <div class="d-flex justify-content-between align-items-start mb-2">
+	          <div>
+	            <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
+	              ${p.position || ''}
+	            </div>
+	            <div class="waiver-name">${safeName}</div>
+	            <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
 	          </div>
+	          <div class="waiver-rank">${rankNum === 99999 ? '-' : rankNum}</div>
 	        </div>
-	        <div>
-	          <div style="font-weight:700; font-size:0.98rem; color:var(--text-primary)">
-	            ${safeName} ${betterBadge}
-	          </div>
-	          <div style="color:var(--text-secondary); font-size:0.86rem;">
-	            ${safeTeam} • Bye ${bye}
-	          </div>
-	          ${reasonBadge}
+
+	        <div class="waiver-body">
+	          <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
+	          <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
+	          <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
+	          ${betterBadge}
 	        </div>
-	      </div>
-	      <div class="text-end">
-	        <div style="display:inline-block; padding:6px 8px; border-radius:8px; font-weight:700; background:${posColor}; color:#fff;">
-	          ${p.position || '-'}
+
+	        ${reasonBadge}
+
+	        <div class="d-flex justify-content-between align-items-center mt-auto">
+	          <div class="d-flex flex-wrap gap-1">
+	            <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
+	            <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
+	          </div>
+	          <div>${renderStatus(p.injuryStatus)}</div>
 	        </div>
 	      </div>
 	    </div>
