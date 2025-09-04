@@ -529,8 +529,8 @@ export default async function renderWaiversView() {
 			const betterSamePos = samePos.filter(lp => rank < lp.rank).length;
 
 			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
-											  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster. • ${betterSamePos}/${samePos.length} en ${p.position}">
-											</i>`;
+			  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
+			</i>`;
 	  }
 
 	  return `
