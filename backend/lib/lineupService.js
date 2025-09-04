@@ -303,7 +303,6 @@ export async function getLineupData(
 			const { next3, playoffs } = estimateScheduleScore(candidate.team);
 
 			// Heurísticas rápidas para etiquetar
-			// Heurísticas rápidas para etiquetar
 			const roleTag =
 			  candidate.position === 'RB' ? (candidate.rank < 36 ? 'workhorse' : 'committee') :
 			  candidate.position === 'WR' ? (candidate.rank < 48 ? 'starter' : 'stash') :
@@ -357,8 +356,8 @@ export async function getLineupData(
      if (!prev || candidate.rank < prev.rank) byIdBest.set(sleeperId, candidate);
    }
 
-   const freeAgents = Array.from(byIdBest.values()).sort((a, b) => a.rank - b.rank);
-   console.log('▶ freeAgents final count:', freeAgents.length);
+	 let freeAgents = Array.from(byIdBest.values()).sort((a, b) => a.rank - b.rank);
+	 freeAgents = assignRoleTags(freeAgents);
 
    return {
      success: true,
@@ -465,3 +464,44 @@ export async function getLineupData(
    if (superFlexQB) s += 0.05; // pequeño bonus en SF
    return Math.round(Math.max(0, Math.min(1, s)) * 100);
  }
+
+ function assignRoleTags(freeAgents) {
+  // Agrupar por posición
+  const byPos = freeAgents.reduce((acc, p) => {
+    const pos = p.position;
+    if (!acc[pos]) acc[pos] = [];
+    acc[pos].push(p);
+    return acc;
+  }, {});
+
+  for (const pos in byPos) {
+    const arr = byPos[pos].sort((a, b) => a.rank - b.rank); // mejor rank primero
+    const n = arr.length;
+
+    arr.forEach((p, i) => {
+      const percentile = i / n;
+
+      if (pos === 'RB') {
+        p.roleTag =
+          percentile < 0.25 ? 'workhorse' :
+          percentile < 0.5  ? 'committee' :
+          'stash';
+      } else if (pos === 'WR') {
+        p.roleTag =
+          percentile < 0.25 ? 'starter' :
+          percentile < 0.5  ? 'flex' :
+          'stash';
+      } else if (pos === 'TE') {
+        p.roleTag =
+          percentile < 0.2 ? 'starter' : 'streamer';
+      } else if (pos === 'QB') {
+        p.roleTag =
+          percentile < 0.2 ? 'streamer' : 'stash';
+      } else {
+        p.roleTag = 'stash';
+      }
+    });
+  }
+
+  return freeAgents;
+}
