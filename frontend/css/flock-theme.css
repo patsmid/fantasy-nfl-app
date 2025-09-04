@@ -833,3 +833,107 @@ td span.risk-tag {
 .heatmap-pos.QB { background: #ffc107; }
 .heatmap-pos.TE { background: #6f42c1; }
 .heatmap-pos.DST, .heatmap-pos.K { background: #6c757d; }
+
+
+/* ===========================
+   Waivers - cards modernas
+   =========================== */
+
+.waivers-grid { /* asegura gap coherente con Bootstrap */
+  gap: 1rem;
+}
+
+/* Waiver card (reemplaza el visual por defecto de .card dentro de grid) */
+.waiver-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+}
+
+/* Hover sutil */
+.waiver-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.36);
+  border-color: rgba(255,122,0,0.7);
+}
+
+/* Pos/bubble (posición color) */
+.waiver-pos-bubble {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  margin-bottom: 0.4rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* Nombre y equipo */
+.waiver-name {
+  font-size: 1.03rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.05;
+  margin-bottom: 0;
+}
+.waiver-pos {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* Rank grande y visible */
+.waiver-rank {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent);
+  background: rgba(255,122,0,0.06);
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  min-width: 56px;
+  text-align: center;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.18);
+}
+
+/* Badges / summary */
+.waiver-body { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
+.waiver-tag, .waiver-score, .waiver-tier {
+  font-size: 0.82rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  font-weight:600;
+}
+
+/* Tier & score */
+.waiver-tier { background: rgba(13,110,253,0.12); color: #cfe0ff; }
+.waiver-score { background: rgba(255,122,0,0.08); color: var(--accent); }
+
+/* Role tags: colores legibles y sobrios */
+.role-workhorse { background: rgba(40,167,69,0.12); color: #8be09a; }
+.role-committee { background: rgba(255,193,7,0.12); color: #ffd97a; }
+.role-stash { background: rgba(108,117,125,0.09); color: #c6c8ca; }
+.role-streamer { background: rgba(220,53,69,0.10); color: #ff9aa0; }
+
+/* Compact info row */
+.waiver-card .small.text-muted { color: var(--text-secondary); }
+
+/* Badges inside footer */
+.waiver-card .badge { font-size: 0.78rem; padding: 0.28rem 0.5rem; border-radius: 8px; }
+
+/* Responsive tweaks */
+@media (max-width: 991px) {
+  .waiver-rank { font-size: 1.25rem; min-width: 48px; }
+  .waiver-name { font-size: 1rem; }
+}
+
+/* Make sure bootstrap .card visuals don't override our minimal style inside grid */
+.waivers-grid .card { border: none; background: transparent; box-shadow: none; padding: 0; }
+
+/* Small accessibility improvements */
+.waiver-card:focus-within { outline: 2px solid rgba(255,122,0,0.12); outline-offset: 3px; }

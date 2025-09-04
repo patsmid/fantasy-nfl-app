@@ -75,8 +75,8 @@ export default async function renderWaiversView() {
           </div>
         </div>
 
-        <!-- Contenedor de tarjetas -->
-        <div id="waiversCards" class="row g-3"></div>
+        <!-- Contenedor de tarjetas (grid moderno) -->
+        <div id="waiversCards" class="row waivers-grid"></div>
 
         <!-- Contenedor de tabla -->
         <div id="waiversTableContainer" class="table-responsive d-none">
@@ -120,8 +120,12 @@ export default async function renderWaiversView() {
 
   const savedLeague = localStorage.getItem('waiversLeague');
   const savedExpert = localStorage.getItem('waiversExpert');
+
+  // PAGINACIÓN: filas y columnas → 6 filas por página, 3 columnas responsivas (desktop)
   let currentPage = 1;
-  const pageSize = 12;
+  const rowsPerPage = 6;
+  const cols = 3;
+  const pageSize = rowsPerPage * cols; // 18 cards por página
   let allPlayers = [];
   let viewMode = "cards";
   let sortMode = sortSelect.value || 'rank-asc';
@@ -239,6 +243,7 @@ export default async function renderWaiversView() {
     const pageData = ordered.slice(start, start + pageSize);
 
     const container = document.getElementById('waiversCards');
+    // Con grid Bootstrap: cada item usa col-*
     container.innerHTML = pageData.map(p => renderCard(p)).join('');
 
     document.getElementById('pagination-info').textContent =
@@ -299,50 +304,57 @@ export default async function renderWaiversView() {
 
   function getTierColor(tier) {
     switch ((tier || '').toUpperCase()) {
-      case 'A': return '#198754'; // verde (bootstrap success)
-      case 'B': return '#0d6efd'; // azul (bootstrap primary)
-      case 'C': return '#fd7e14'; // naranja (bootstrap warning)
-      case 'D': return '#6c757d'; // gris (bootstrap secondary)
-      default:  return '#343a40'; // oscuro
+      case 'A': return '#198754';
+      case 'B': return '#0d6efd';
+      case 'C': return '#fd7e14';
+      case 'D': return '#6c757d';
+      default:  return '#343a40';
     }
   }
 
   function renderCard(p) {
-    const color = getPositionColor(p.position);
+    // minimalista: usa .waiver-card y clases propias en CSS
+    const posColor = getPositionColor(p.position);
     const tierColor = getTierColor(p.tier);
+    const safeName = p.nombre || '';
+    const safeTeam = p.team || '';
+    const bye = p.byeWeek ?? '-';
+    const rank = p.rank ?? '-';
+    const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
+
     return `
       <div class="col-12 col-md-6 col-lg-4">
-        <div class="card shadow-sm border-0 h-100">
-          <div class="card-body d-flex flex-column">
-            <h6 class="card-title mb-1 fw-bold">
-              <span class="badge me-2" style="background-color:${color}; color:#fff;">
+        <div class="waiver-card h-100">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
                 ${p.position || ''}
-              </span>
-              ${p.nombre}
-            </h6>
-            <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
-
-            <div class="mb-2">
-              <span class="badge" style="background-color:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
-              <span class="badge bg-dark ms-1">${p.roleTag || '-'}</span>
-              <span class="badge bg-light text-dark ms-1">Week: ${inputWeek.value || '-'}</span>
+              </div>
+              <div class="waiver-name">${safeName}</div>
+              <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
             </div>
 
-            <p class="small text-muted mb-2">${p.bidReason || ''}</p>
+            <div class="waiver-rank">${rank}</div>
+          </div>
 
-            <div class="d-flex flex-wrap gap-1 mb-2">
-              <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-' }%</span>
+          <div class="waiver-body">
+            <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
+            <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
+            <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
+          </div>
+
+          <p class="small text-muted mb-2 mt-2">${p.bidReason || ''}</p>
+
+          <div class="d-flex justify-content-between align-items-center mt-auto">
+            <div class="d-flex flex-wrap gap-1">
+              <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
               <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
-              <span class="badge bg-primary">Winner: ${p.leagueWinnerScore ?? 0}</span>
             </div>
-
-            <div class="mt-auto d-flex justify-content-between align-items-center">
-              <span class="badge bg-dark">Rank ${p.rank ?? '-'}</span>
-              ${renderStatus(p.injuryStatus)}
-            </div>
+            <div>${renderStatus(p.injuryStatus)}</div>
           </div>
         </div>
-      </div>`;
+      </div>
+    `;
   }
 
   function renderStatus(status) {
@@ -354,8 +366,15 @@ export default async function renderWaiversView() {
   document.getElementById('filter-position').addEventListener('change', () => { currentPage = 1; render(); });
   document.getElementById('filter-team').addEventListener('change', () => { currentPage = 1; render(); });
   document.getElementById('search-player').addEventListener('input', () => { currentPage = 1; render(); });
-  document.getElementById('prev-page').addEventListener('click', () => { currentPage--; render(); });
-  document.getElementById('next-page').addEventListener('click', () => { currentPage++; render(); });
+
+  document.getElementById('prev-page').addEventListener('click', () => {
+    if (currentPage > 1) { currentPage--; render(); }
+  });
+  document.getElementById('next-page').addEventListener('click', () => {
+    const filtered = getFilteredPlayers();
+    const totalPages = Math.ceil(filtered.length / pageSize);
+    if (currentPage < totalPages) { currentPage++; render(); }
+  });
 
   document.getElementById('toggle-cards').addEventListener('click', (e) => {
     e.preventDefault();
