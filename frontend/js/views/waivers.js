@@ -148,6 +148,21 @@ export default async function renderWaiversView() {
   document.getElementById('btn-update-waivers').addEventListener('click', loadWaiversData);
   sortSelect.addEventListener('change', (e) => { sortMode = e.target.value; currentPage = 1; render(); });
 
+	let lineupRanks = new Map(); // sleeperId → rank
+
+	async function loadLineupRanks(leagueId, idExpert, week) {
+	  try {
+	    const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
+	    const allPlayers = [...starters, ...bench];
+	    lineupRanks.clear();
+	    allPlayers.forEach(p => {
+	      if (p.sleeperId) lineupRanks.set(p.sleeperId, Number(p.rank ?? 99999));
+	    });
+	  } catch (err) {
+	    console.error('Error cargando lineup:', err.message);
+	  }
+	}
+
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
     const selectedOption = expertSelect.selectedOptions[0];
@@ -163,6 +178,9 @@ export default async function renderWaiversView() {
     try {
       showLoadingBar('Cargando Waivers', 'Consultando información...');
       const { freeAgents, meta } = await fetchWaiversData(leagueId, idExpert, week);
+
+			// ⚡ Comparar con tu lineup
+		  await loadLineupRanks(leagueId, idExpert, week);
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
@@ -244,7 +262,11 @@ export default async function renderWaiversView() {
 
     const container = document.getElementById('waiversCards');
     // Con grid Bootstrap: cada item usa col-*
-    container.innerHTML = pageData.map(p => renderCard(p)).join('');
+		container.innerHTML = `
+		  <div class="row g-3">
+		    ${pageData.map(p => renderCard(p)).join('')}
+		  </div>
+		`;
 
     document.getElementById('pagination-info').textContent =
       `Página ${currentPage} de ${totalPages || 1}`;
@@ -312,50 +334,57 @@ export default async function renderWaiversView() {
     }
   }
 
-  function renderCard(p) {
-    // minimalista: usa .waiver-card y clases propias en CSS
-    const posColor = getPositionColor(p.position);
-    const tierColor = getTierColor(p.tier);
-    const safeName = p.nombre || '';
-    const safeTeam = p.team || '';
-    const bye = p.byeWeek ?? '-';
-    const rank = p.rank ?? '-';
-    const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
+	function renderCard(p) {
+	  const posColor = getPositionColor(p.position);
+	  const tierColor = getTierColor(p.tier);
+	  const safeName = p.nombre || '';
+	  const safeTeam = p.team || '';
+	  const bye = p.byeWeek ?? '-';
+	  const rank = p.rank ?? '-';
+	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
-    return `
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="waiver-card h-100">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
-                ${p.position || ''}
-              </div>
-              <div class="waiver-name">${safeName}</div>
-              <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
-            </div>
+	  // Badge especial si waivers rank es mejor que en tu lineup
+	  let betterBadge = '';
+	  const lineupRank = lineupRanks.get(p.sleeperId);
+	  if (lineupRank !== undefined && Number(rank) < lineupRank) {
+	    betterBadge = `<span class="badge bg-warning text-dark ms-1">Mejor que tu lineup</span>`;
+	  }
 
-            <div class="waiver-rank">${rank}</div>
-          </div>
+	  return `
+	    <div class="col-12 col-md-6 col-lg-4">
+	      <div class="waiver-card h-100">
+	        <div class="d-flex justify-content-between align-items-start mb-2">
+	          <div>
+	            <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
+	              ${p.position || ''}
+	            </div>
+	            <div class="waiver-name">${safeName}</div>
+	            <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
+	          </div>
+	          <div class="waiver-rank">${rank}</div>
+	        </div>
 
-          <div class="waiver-body">
-            <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
-            <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
-            <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
-          </div>
+	        <div class="waiver-body">
+	          <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
+	          <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
+	          <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
+	          ${betterBadge}
+	        </div>
 
-          <p class="small text-muted mb-2 mt-2">${p.bidReason || ''}</p>
+	        <p class="small text-muted mb-2 mt-2">${p.bidReason || ''}</p>
 
-          <div class="d-flex justify-content-between align-items-center mt-auto">
-            <div class="d-flex flex-wrap gap-1">
-              <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
-              <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
-            </div>
-            <div>${renderStatus(p.injuryStatus)}</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
+	        <div class="d-flex justify-content-between align-items-center mt-auto">
+	          <div class="d-flex flex-wrap gap-1">
+	            <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
+	            <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
+	          </div>
+	          <div>${renderStatus(p.injuryStatus)}</div>
+	        </div>
+	      </div>
+	    </div>
+	  `;
+	}
+
 
   function renderStatus(status) {
     if (!status) return '<span class="badge bg-success">Healthy</span>';
