@@ -33,7 +33,7 @@ export default async function renderWaiversView() {
           </div>
         </form>
 
-        <!-- Controles de vista, filtros y buscador -->
+        <!-- Controles de vista, filtros, buscador y orden -->
         <div class="row g-3 mb-4 align-items-end">
           <div class="col-md-3">
             <select id="filter-position" class="form-select">
@@ -55,9 +55,22 @@ export default async function renderWaiversView() {
             <input id="search-player" type="text" class="form-control" placeholder="Buscar jugador...">
           </div>
           <div class="col-md-3 text-end">
-            <div class="btn-group" role="group">
-              <button class="btn btn-outline-secondary active" id="toggle-cards">Cards</button>
-              <button class="btn btn-outline-secondary" id="toggle-table">Tabla</button>
+            <div class="d-flex justify-content-end align-items-start gap-2">
+              <div>
+                <div class="btn-group me-2" role="group">
+                  <button class="btn btn-outline-secondary active" id="toggle-cards">Cards</button>
+                  <button class="btn btn-outline-secondary" id="toggle-table">Tabla</button>
+                </div>
+              </div>
+            </div>
+            <div class="mt-2">
+              <select id="sort-mode" class="form-select form-select-sm">
+                <option value="rank-asc">Orden: Rank ↑</option>
+                <option value="rank-desc">Orden: Rank ↓</option>
+                <option value="winner-desc">Orden: LeagueWinnerScore ↓</option>
+                <option value="tier">Orden: Tier (A → D)</option>
+                <option value="breakout-desc">Orden: BreakoutIndex ↓</option>
+              </select>
             </div>
           </div>
         </div>
@@ -74,6 +87,9 @@ export default async function renderWaiversView() {
                 <th>Jugador</th>
                 <th>Equipo</th>
                 <th>Posición</th>
+                <th>Tier</th>
+                <th>Winner</th>
+                <th>Breakout</th>
                 <th>Bye</th>
                 <th>Status</th>
               </tr>
@@ -98,11 +114,17 @@ export default async function renderWaiversView() {
   const leagueSelect = document.getElementById('select-league');
   const expertSelect = document.getElementById('select-expert');
   const inputWeek   = document.getElementById('input-week');
+  const sortSelect  = document.getElementById('sort-mode');
   const leagueTS = leagueSelect?.tomselect;
   const expertTS = expertSelect?.tomselect;
 
   const savedLeague = localStorage.getItem('waiversLeague');
   const savedExpert = localStorage.getItem('waiversExpert');
+  let currentPage = 1;
+  const pageSize = 12;
+  let allPlayers = [];
+  let viewMode = "cards";
+  let sortMode = sortSelect.value || 'rank-asc';
 
   if (leagueTS) {
     leagueTS.setValue(savedLeague || '');
@@ -120,12 +142,7 @@ export default async function renderWaiversView() {
   }
 
   document.getElementById('btn-update-waivers').addEventListener('click', loadWaiversData);
-
-  // Estado global
-  let currentPage = 1;
-  const pageSize = 12;
-  let allPlayers = [];
-  let viewMode = "cards";
+  sortSelect.addEventListener('change', (e) => { sortMode = e.target.value; currentPage = 1; render(); });
 
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
@@ -145,6 +162,7 @@ export default async function renderWaiversView() {
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
+      currentPage = 1;
       render();
 
       Swal.close();
@@ -169,7 +187,31 @@ export default async function renderWaiversView() {
     return allPlayers
       .filter(p => !posFilter || p.position === posFilter)
       .filter(p => !teamFilter || p.team === teamFilter)
-      .filter(p => !search || p.nombre.toLowerCase().includes(search));
+      .filter(p => !search || (p.nombre || '').toLowerCase().includes(search));
+  }
+
+  function tierToOrder(t) {
+    if (!t) return 99;
+    const map = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
+    return map[String(t).toUpperCase()] ?? 99;
+  }
+
+  function applySorting(arr) {
+    const copy = [...arr];
+    switch (sortMode) {
+      case 'rank-asc':
+        return copy.sort((a, b) => (a.rank ?? 99999) - (b.rank ?? 99999));
+      case 'rank-desc':
+        return copy.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
+      case 'winner-desc':
+        return copy.sort((a, b) => (b.leagueWinnerScore ?? 0) - (a.leagueWinnerScore ?? 0) || (a.rank ?? 99999) - (b.rank ?? 99999));
+      case 'tier':
+        return copy.sort((a, b) => tierToOrder(a.tier) - tierToOrder(b.tier) || (a.rank ?? 99999) - (b.rank ?? 99999));
+      case 'breakout-desc':
+        return copy.sort((a, b) => (b.breakoutIndex ?? 0) - (a.breakoutIndex ?? 0) || (a.rank ?? 99999) - (b.rank ?? 99999));
+      default:
+        return copy.sort((a, b) => (a.rank ?? 99999) - (b.rank ?? 99999));
+    }
   }
 
   function render() {
@@ -188,11 +230,13 @@ export default async function renderWaiversView() {
   }
 
   function renderCards(players) {
-    players.sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
-    const totalPages = Math.ceil(players.length / pageSize);
+    // Aplica orden global según selección
+    const ordered = applySorting(players);
+
+    const totalPages = Math.ceil(ordered.length / pageSize);
     if (currentPage > totalPages) currentPage = totalPages || 1;
     const start = (currentPage - 1) * pageSize;
-    const pageData = players.slice(start, start + pageSize);
+    const pageData = ordered.slice(start, start + pageSize);
 
     const container = document.getElementById('waiversCards');
     container.innerHTML = pageData.map(p => renderCard(p)).join('');
@@ -204,14 +248,20 @@ export default async function renderWaiversView() {
   }
 
   function renderTable(players) {
+    // Aplica orden global
+    const ordered = applySorting(players);
+
     const table = $('#waiversTable');
-    table.DataTable().destroy();
+    try { table.DataTable().destroy(); } catch (e) { /* ignore */ }
     table.DataTable({
-      data: players.map(p => [
+      data: ordered.map(p => [
         p.rank ?? '',
         `<span class="fw-semibold">${p.nombre}</span>`,
         p.team ?? '',
         p.position ?? '',
+        `<span class="badge" style="background-color:${getTierColor(p.tier)}; color:#fff;">${p.tier ?? '-'}</span>`,
+        p.leagueWinnerScore ?? 0,
+        p.breakoutIndex ?? 0,
         p.byeWeek ?? '',
         renderStatus(p.injuryStatus)
       ]),
@@ -220,6 +270,9 @@ export default async function renderWaiversView() {
         { title: 'Jugador' },
         { title: 'Equipo' },
         { title: 'Posición' },
+        { title: 'Tier' },
+        { title: 'Winner' },
+        { title: 'Breakout' },
         { title: 'Bye' },
         { title: 'Estatus' }
       ],
@@ -244,8 +297,19 @@ export default async function renderWaiversView() {
     }
   }
 
+  function getTierColor(tier) {
+    switch ((tier || '').toUpperCase()) {
+      case 'A': return '#198754'; // verde (bootstrap success)
+      case 'B': return '#0d6efd'; // azul (bootstrap primary)
+      case 'C': return '#fd7e14'; // naranja (bootstrap warning)
+      case 'D': return '#6c757d'; // gris (bootstrap secondary)
+      default:  return '#343a40'; // oscuro
+    }
+  }
+
   function renderCard(p) {
     const color = getPositionColor(p.position);
+    const tierColor = getTierColor(p.tier);
     return `
       <div class="col-12 col-md-6 col-lg-4">
         <div class="card shadow-sm border-0 h-100">
@@ -259,14 +323,15 @@ export default async function renderWaiversView() {
             <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
 
             <div class="mb-2">
-              <span class="badge bg-secondary">Tier ${p.tier || '-'}</span>
-              <span class="badge bg-dark">${p.roleTag || '-'}</span>
+              <span class="badge" style="background-color:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
+              <span class="badge bg-dark ms-1">${p.roleTag || '-'}</span>
+              <span class="badge bg-light text-dark ms-1">Week: ${inputWeek.value || '-'}</span>
             </div>
 
             <p class="small text-muted mb-2">${p.bidReason || ''}</p>
 
             <div class="d-flex flex-wrap gap-1 mb-2">
-              <span class="badge bg-info text-dark">FAAB: ${p.faabMin}-${p.faabMax}%</span>
+              <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-' }%</span>
               <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
               <span class="badge bg-primary">Winner: ${p.leagueWinnerScore ?? 0}</span>
             </div>
