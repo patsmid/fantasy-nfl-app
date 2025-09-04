@@ -13,9 +13,14 @@ export default async function renderWaiversView() {
           <h4 class="m-0 d-flex align-items-center gap-2">
             <i class="bi bi-people-fill text-success"></i> Waivers / Free Agents
           </h4>
-          <button class="btn btn-sm btn-primary" id="btn-update-waivers">
-            <i class="bi bi-arrow-clockwise"></i> Actualizar
-          </button>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="btn-open-team" data-bs-toggle="offcanvas" data-bs-target="#teamOffcanvas" aria-controls="teamOffcanvas">
+              <i class="bi bi-card-list"></i> Mi Equipo
+            </button>
+            <button class="btn btn-sm btn-primary" id="btn-update-waivers">
+              <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+          </div>
         </div>
 
         <form class="row g-3 mb-4">
@@ -106,6 +111,42 @@ export default async function renderWaiversView() {
         </div>
       </div>
     </div>
+
+    <!-- Offcanvas: Mi Equipo -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="teamOffcanvas" aria-labelledby="teamOffcanvasLabel">
+      <div class="offcanvas-header">
+        <h5 id="teamOffcanvasLabel" class="text-flock mb-0">Mi Equipo</h5>
+        <button type="button" class="btn-close btn-close-white text-reset" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+      </div>
+      <div class="offcanvas-body">
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+          <div class="small text-secondary" id="teamMeta">-</div>
+          <div>
+            <button id="btn-refresh-team" class="btn btn-sm btn-accent"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
+          </div>
+        </div>
+
+        <div id="teamContent">
+          <!-- Starters -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="text-flock">Titulares</div>
+              <div class="small text-secondary" id="startersCount">0</div>
+            </div>
+            <div id="startersList" class="list-group"></div>
+          </div>
+
+          <!-- Bench -->
+          <div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="text-flock">Bench</div>
+              <div class="small text-secondary" id="benchCount">0</div>
+            </div>
+            <div id="benchList" class="list-group"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
   await renderExpertSelect('#select-expert', { onChange() { this.blur(); } });
@@ -146,22 +187,131 @@ export default async function renderWaiversView() {
   }
 
   document.getElementById('btn-update-waivers').addEventListener('click', loadWaiversData);
-  sortSelect.addEventListener('change', (e) => { sortMode = e.target.value; currentPage = 1; render(); });
+  document.getElementById('btn-open-team').addEventListener('click', (e) => {
+    // offcanvas se abre automáticamente por data-bs-*; aquí solo evitamos comportamientos no deseados
+    // la carga real sucede en show.bs.offcanvas (ver más abajo)
+  });
 
-	let lineupRanks = new Map(); // sleeperId → rank
+  // refresh inside offcanvas
+  document.getElementById('btn-refresh-team').addEventListener('click', () => {
+    const offcanvasEl = document.getElementById('teamOffcanvas');
+    // re-trigger load (reads current selects)
+    loadTeamInfo();
+  });
 
-	async function loadLineupRanks(leagueId, idExpert, week) {
-	  try {
-	    const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
-	    const allPlayers = [...starters, ...bench];
-	    lineupRanks.clear();
-	    allPlayers.forEach(p => {
-	      if (p.sleeperId) lineupRanks.set(p.sleeperId, Number(p.rank ?? 99999));
-	    });
-	  } catch (err) {
-	    console.error('Error cargando lineup:', err.message);
-	  }
-	}
+  let lineupRanks = new Map(); // sleeperId → rank
+
+  async function loadLineupRanks(leagueId, idExpert, week) {
+    try {
+      const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
+      const allPlayersLocal = [...starters, ...bench];
+      lineupRanks.clear();
+      allPlayersLocal.forEach(p => {
+        if (p.sleeperId) lineupRanks.set(p.sleeperId, Number(p.rank ?? 99999));
+      });
+    } catch (err) {
+      console.error('Error cargando lineup:', err.message);
+    }
+  }
+
+  // CARGA Y RENDER DEL OFFCANVAS - MI EQUIPO
+  async function loadTeamInfo(leagueIdParam, idExpertParam, weekParam) {
+    const leagueId = leagueIdParam ?? leagueSelect.value;
+    const expertValue = idExpertParam ?? expertSelect.value;
+    const selectedOption = expertSelect.selectedOptions[0];
+    const idExpert = idExpertParam ?? (selectedOption?.dataset?.id || '');
+    const week = Number(weekParam ?? inputWeek.value) || '';
+
+    if (!leagueId || !idExpert) {
+      showError('Selecciona una liga y un experto antes de ver tu equipo');
+      return;
+    }
+
+    try {
+      showLoadingBar('Cargando Equipo', 'Consultando lineup...');
+      const res = await fetchLineupData(leagueId, idExpert, week);
+      Swal.close();
+
+      if (!res || !res.starters) {
+        showError('No se pudo obtener la información del equipo');
+        return;
+      }
+
+      // Actualizamos lineupRanks también
+      const { starters = [], bench = [], meta = {} } = res;
+      lineupRanks.clear();
+      [...starters, ...bench].forEach(p => {
+        if (p.sleeperId) lineupRanks.set(p.sleeperId, Number(p.rank ?? 99999));
+      });
+
+      renderTeamOffcanvas({ starters, bench, meta });
+    } catch (err) {
+      Swal.close();
+      showError('Error al obtener equipo: ' + err.message);
+    }
+  }
+
+  function getPositionColor(position) {
+    switch ((position || '').toUpperCase()) {
+      case 'QB': return '#ff2a6d';
+      case 'RB': return '#00ceb8';
+      case 'WR': return '#58a7ff';
+      case 'TE': return '#ffae58';
+      case 'K': return '#9d79ff';
+      case 'DEF': return '#5c636a';
+      default: return '#6c757d';
+    }
+  }
+
+  function renderPlayerRow(p) {
+    const posColor = getPositionColor(p.position);
+    const rank = p.rank ?? '-';
+    const bye = p.byeWeek ?? '-';
+    const safeName = p.nombre || '';
+    const safeTeam = p.team || '';
+
+    return `
+      <div class="list-group-item d-flex justify-content-between align-items-center" style="background:transparent; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
+        <div class="d-flex align-items-center gap-3">
+          <div style="min-width:56px; text-align:center;">
+            <div style="font-weight:800; font-size:1.05rem; color:var(--accent); background:rgba(255,122,0,0.06); padding:6px 8px; border-radius:8px;">
+              ${rank}
+            </div>
+          </div>
+          <div>
+            <div style="font-weight:700; font-size:0.98rem; color:var(--text-primary)">${safeName}</div>
+            <div style="color:var(--text-secondary); font-size:0.86rem;">${safeTeam} • Bye ${bye}</div>
+          </div>
+        </div>
+        <div class="text-end">
+          <div style="display:inline-block; padding:6px 8px; border-radius:8px; font-weight:700; background:${posColor}; color:#fff;">
+            ${p.position || '-'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTeamOffcanvas({ starters = [], bench = [], meta = {} } = {}) {
+    document.getElementById('teamMeta').textContent = meta.published ? `Última: ${meta.published}` : '-';
+    document.getElementById('startersCount').textContent = starters.length;
+    document.getElementById('benchCount').textContent = bench.length;
+
+    const startersList = document.getElementById('startersList');
+    const benchList = document.getElementById('benchList');
+
+    startersList.innerHTML = starters.map(p => renderPlayerRow(p)).join('') || '<div class="small text-secondary">No hay titulares</div>';
+    benchList.innerHTML = bench.map(p => renderPlayerRow(p)).join('') || '<div class="small text-secondary">No hay bench</div>';
+  }
+
+  // Cuando el offcanvas se abra, cargamos la info (lee selects actuales)
+  const offcanvasEl = document.getElementById('teamOffcanvas');
+  if (offcanvasEl) {
+    offcanvasEl.addEventListener('show.bs.offcanvas', () => {
+      // no repetimos parámetros: loadTeamInfo lee los selects internos
+      loadTeamInfo();
+    });
+  }
 
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
@@ -179,8 +329,8 @@ export default async function renderWaiversView() {
       showLoadingBar('Cargando Waivers', 'Consultando información...');
       const { freeAgents, meta } = await fetchWaiversData(leagueId, idExpert, week);
 
-			// ⚡ Comparar con tu lineup
-		  await loadLineupRanks(leagueId, idExpert, week);
+      // ⚡ Comparar con tu lineup
+      await loadLineupRanks(leagueId, idExpert, week);
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
@@ -262,11 +412,11 @@ export default async function renderWaiversView() {
 
     const container = document.getElementById('waiversCards');
     // Con grid Bootstrap: cada item usa col-*
-		container.innerHTML = `
-		  <div class="row g-3">
-		    ${pageData.map(p => renderCard(p)).join('')}
-		  </div>
-		`;
+    container.innerHTML = `
+      <div class="row g-3">
+        ${pageData.map(p => renderCard(p)).join('')}
+      </div>
+    `;
 
     document.getElementById('pagination-info').textContent =
       `Página ${currentPage} de ${totalPages || 1}`;
@@ -312,18 +462,6 @@ export default async function renderWaiversView() {
     });
   }
 
-  function getPositionColor(position) {
-    switch ((position || '').toUpperCase()) {
-      case 'QB': return '#ff2a6d';
-      case 'RB': return '#00ceb8';
-      case 'WR': return '#58a7ff';
-      case 'TE': return '#ffae58';
-      case 'K': return '#9d79ff';
-      case 'DEF': return '#5c636a';
-      default: return '#6c757d';
-    }
-  }
-
   function getTierColor(tier) {
     switch ((tier || '').toUpperCase()) {
       case 'A': return '#198754';
@@ -334,57 +472,56 @@ export default async function renderWaiversView() {
     }
   }
 
-	function renderCard(p) {
-	  const posColor = getPositionColor(p.position);
-	  const tierColor = getTierColor(p.tier);
-	  const safeName = p.nombre || '';
-	  const safeTeam = p.team || '';
-	  const bye = p.byeWeek ?? '-';
-	  const rank = p.rank ?? '-';
-	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
+  function renderCard(p) {
+    const posColor = getPositionColor(p.position);
+    const tierColor = getTierColor(p.tier);
+    const safeName = p.nombre || '';
+    const safeTeam = p.team || '';
+    const bye = p.byeWeek ?? '-';
+    const rank = p.rank ?? '-';
+    const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
-	  // Badge especial si waivers rank es mejor que en tu lineup
-	  let betterBadge = '';
-	  const lineupRank = lineupRanks.get(p.sleeperId);
-	  if (lineupRank !== undefined && Number(rank) < lineupRank) {
-	    betterBadge = `<span class="badge bg-warning text-dark ms-1">Mejor que tu lineup</span>`;
-	  }
+    // Badge especial si waivers rank es mejor que en tu lineup
+    let betterBadge = '';
+    const lineupRank = lineupRanks.get(p.sleeperId);
+    if (lineupRank !== undefined && Number(rank) < lineupRank) {
+      betterBadge = `<span class="badge bg-warning text-dark ms-1">Mejor que tu lineup</span>`;
+    }
 
-	  return `
-	    <div class="col-12 col-md-6 col-lg-4">
-	      <div class="waiver-card h-100">
-	        <div class="d-flex justify-content-between align-items-start mb-2">
-	          <div>
-	            <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
-	              ${p.position || ''}
-	            </div>
-	            <div class="waiver-name">${safeName}</div>
-	            <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
-	          </div>
-	          <div class="waiver-rank">${rank}</div>
-	        </div>
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="waiver-card h-100">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <div class="waiver-pos-bubble" style="background:${posColor}; color:#fff;">
+                ${p.position || ''}
+              </div>
+              <div class="waiver-name">${safeName}</div>
+              <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
+            </div>
+            <div class="waiver-rank">${rank}</div>
+          </div>
 
-	        <div class="waiver-body">
-	          <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
-	          <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
-	          <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
-	          ${betterBadge}
-	        </div>
+          <div class="waiver-body">
+            <span class="waiver-tag role-${roleClass}">${p.roleTag || '-'}</span>
+            <span class="waiver-tier" style="background:${tierColor}; color:#fff;">Tier ${p.tier || '-'}</span>
+            <span class="waiver-score">Winner ${p.leagueWinnerScore ?? 0}</span>
+            ${betterBadge}
+          </div>
 
-	        <p class="small text-muted mb-2 mt-2">${p.bidReason || ''}</p>
+          <p class="small text-muted mb-2 mt-2">${p.bidReason || ''}</p>
 
-	        <div class="d-flex justify-content-between align-items-center mt-auto">
-	          <div class="d-flex flex-wrap gap-1">
-	            <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
-	            <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
-	          </div>
-	          <div>${renderStatus(p.injuryStatus)}</div>
-	        </div>
-	      </div>
-	    </div>
-	  `;
-	}
-
+          <div class="d-flex justify-content-between align-items-center mt-auto">
+            <div class="d-flex flex-wrap gap-1">
+              <span class="badge bg-info text-dark">FAAB: ${p.faabMin ?? '-'}-${p.faabMax ?? '-'}%</span>
+              <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
+            </div>
+            <div>${renderStatus(p.injuryStatus)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   function renderStatus(status) {
     if (!status) return '<span class="badge bg-success">Healthy</span>';
