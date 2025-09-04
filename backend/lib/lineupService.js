@@ -303,13 +303,14 @@ export async function getLineupData(
 			const { next3, playoffs } = estimateScheduleScore(candidate.team);
 
 			// Heurísticas rápidas para etiquetar
+			// Heurísticas rápidas para etiquetar
 			const roleTag =
 			  candidate.position === 'RB' ? (candidate.rank < 36 ? 'workhorse' : 'committee') :
 			  candidate.position === 'WR' ? (candidate.rank < 48 ? 'starter' : 'stash') :
 			  (candidate.position === 'TE' ? (candidate.rank < 12 ? 'starter' : 'streamer') :
 			  (candidate.position === 'QB' ? 'streamer' : 'stash'));
 
-			const superFlexQB = meta?.superFlex && candidate.position === 'QB';
+			const superFlexQB = superFlex && candidate.position === 'QB';  // ✅ corregido
 			const isContingentStud = roleTag === 'workhorse' || (candidate.position === 'RB' && candidate.rank < 48);
 
 			const tier = classifyTier(candidate, usageScore);
