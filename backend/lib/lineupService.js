@@ -249,6 +249,7 @@ export async function getLineupData(
    // 5) Construir FA
    const byIdBest = new Map();
    for (const info of allPlayers) {
+
      const sleeperId = String(info.player_id || '');
      const pos = String((info.position || '')).toUpperCase();
 
@@ -286,6 +287,7 @@ export async function getLineupData(
      if (!Number.isFinite(rankVal)) continue;
 
      const rookie = info.years_exp === 0 ? ' (R)' : '';
+
      const candidate = {
        rank: rankVal,
        nombre: `${getDisplayName(info)}${rookie}`,
@@ -296,6 +298,59 @@ export async function getLineupData(
        injuryStatus: info.injury_status || '',
        sleeperId
      };
+
+			const { usageScore } = estimateUsageSignals(candidate);
+			const { next3, playoffs } = estimateScheduleScore(candidate.team);
+
+			// Heurísticas rápidas para etiquetar
+			const roleTag =
+			  candidate.position === 'RB' ? (candidate.rank < 36 ? 'workhorse' : 'committee') :
+			  candidate.position === 'WR' ? (candidate.rank < 48 ? 'starter' : 'stash') :
+			  (candidate.position === 'TE' ? (candidate.rank < 12 ? 'starter' : 'streamer') :
+			  (candidate.position === 'QB' ? 'streamer' : 'stash'));
+
+			const superFlexQB = meta?.superFlex && candidate.position === 'QB';
+			const isContingentStud = roleTag === 'workhorse' || (candidate.position === 'RB' && candidate.rank < 48);
+
+			const tier = classifyTier(candidate, usageScore);
+			const [faabMin, faabMax] = faabRangeByTier(tier);
+
+			const leagueWinnerScore = computeLeagueWinnerScore({
+			  usageScore,
+			  scheduleNext3: next3,
+			  playoffScore: playoffs,
+			  isContingentStud,
+			  superFlexQB
+			});
+
+			// Riesgo simple: mayor rank => menor riesgo
+			const riskLevel = leagueWinnerScore >= 75 ? 'low' : (leagueWinnerScore >= 55 ? 'med' : 'high');
+
+			// ¿Es alineable ya? (ajústalo con tu proyección semanal cuando la tengas)
+			const startableNow = (tier === 'A' || tier === 'B') && (candidate.injuryStatus !== 'Out');
+
+			const bidReason = [
+			  tier === 'A' ? 'Rol multi-semana / potencial rompeligas' :
+			  tier === 'B' ? 'Uso en ascenso; upside real' :
+			  tier === 'C' ? 'Streamer con opción de quedarse' : 'Stash/Lottery',
+			  superFlexQB ? ' (SF boost QB)' : ''
+			].join('');
+
+			Object.assign(candidate, {
+			  tier,
+			  faabMin, faabMax,
+			  bidReason,
+			  startableNow,
+			  roleTag,
+			  scheduleScoreNext3: next3,
+			  playoffScore: playoffs,
+			  contingencyTo: null, // si conectas depth charts, rellénalo
+			  riskLevel,
+			  breakoutIndex: Math.round(usageScore * 100),
+			  leagueWinnerScore,
+			  blockRival: false // si detectas que cubre necesidad crítica de tu rival
+			});
+
 
      const prev = byIdBest.get(sleeperId);
      if (!prev || candidate.rank < prev.rank) byIdBest.set(sleeperId, candidate);
@@ -361,4 +416,51 @@ export async function getLineupData(
      .replace(/\bjr\b|\bsr\b|\bii\b|\biii\b|\biv\b/g, '')
      .replace(/\s+/g, ' ')
      .trim();
+ }
+
+ // Helpers “pluggable” (puedes moverlos a helpers.js)
+ function norm01(x, min, max) { if (max === min) return 0; return Math.max(0, Math.min(1, (x - min) / (max - min))); }
+
+ // Placeholder: si luego integras usage real, inyecta aquí.
+ function estimateUsageSignals(p) {
+   // Señales por posición basadas en ranking y posición
+   const base = 1 - norm01(p.rank, 1, 300); // mejor rank => mayor base
+   const posBoost = (p.position === 'RB' ? 0.15 : p.position === 'WR' ? 0.10 : p.position === 'TE' ? 0.05 : p.position === 'QB' ? 0.20 : 0);
+   // SuperFlex: QB vale más (ya lo detectas en meta.superFlex)
+   return { usageScore: Math.max(0, Math.min(1, base + posBoost)) };
+ }
+
+ // Placeholder de calendario (sustituye con tu SOS real)
+ function estimateScheduleScore(team) {
+   // Sin datos: neutral = 50 (puedes enchufar SOS by weeks 1–3 & 15–17)
+   return { next3: 50, playoffs: 50 };
+ }
+
+ function classifyTier(p, usageScore) {
+   // A: rol probable multi-semana / upside claro; D: stash puro/streamer
+   if (p.position === 'QB' && usageScore > 0.75) return 'A';
+   if (usageScore > 0.8) return 'A';
+   if (usageScore > 0.6) return 'B';
+   if (usageScore > 0.4) return 'C';
+   return 'D';
+ }
+
+ function faabRangeByTier(tier) {
+   switch (tier) {
+     case 'A': return [35, 60];
+     case 'B': return [18, 35];
+     case 'C': return [8, 15];
+     default:  return [0, 7];
+   }
+ }
+
+ // Combina señales en un índice 0–100
+ function computeLeagueWinnerScore({ usageScore, scheduleNext3, playoffScore, isContingentStud, superFlexQB }) {
+   const wUsage = 0.55, wNext3 = 0.15, wPlayoffs = 0.20, wCont = 0.10;
+   let s = (usageScore * wUsage)
+         + (scheduleNext3/100 * wNext3)
+         + (playoffScore/100 * wPlayoffs)
+         + ((isContingentStud ? 1 : 0) * wCont);
+   if (superFlexQB) s += 0.05; // pequeño bonus en SF
+   return Math.round(Math.max(0, Math.min(1, s)) * 100);
  }
