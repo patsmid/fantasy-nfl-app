@@ -199,20 +199,29 @@ export default async function renderWaiversView() {
     loadTeamInfo();
   });
 
-  let lineupRanks = new Map(); // sleeperId → rank
+	let lineupRanks = new Map(); // sleeperId(string) → rank(number)
 
-  async function loadLineupRanks(leagueId, idExpert, week) {
-    try {
-      const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
-      const allPlayersLocal = [...starters, ...bench];
-      lineupRanks.clear();
-      allPlayersLocal.forEach(p => {
-        if (p.sleeperId) lineupRanks.set(p.sleeperId, Number(p.rank ?? 99999));
-      });
-    } catch (err) {
-      console.error('Error cargando lineup:', err.message);
-    }
-  }
+	async function loadLineupRanks(leagueId, idExpert, week) {
+	  try {
+	    const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
+	    const allPlayersLocal = [...starters, ...bench];
+	    lineupRanks.clear();
+	    allPlayersLocal.forEach(p => {
+	      if (p.sleeperId != null) {
+	        lineupRanks.set(String(p.sleeperId), Number(p.rank ?? 99999));
+	      }
+	    });
+
+	    // 🔎 Dump del Map en forma de tabla (sleeperId vs rank)
+	    console.log('🧭 lineupRanks (Map como tabla)');
+	    console.table(
+	      Array.from(lineupRanks, ([sleeperId, rank]) => ({ sleeperId, rank }))
+	    );
+	  } catch (err) {
+	    console.error('Error cargando lineup:', err.message);
+	  }
+	}
+
 
   // CARGA Y RENDER DEL OFFCANVAS - MI EQUIPO
   async function loadTeamInfo(leagueIdParam, idExpertParam, weekParam) {
@@ -335,6 +344,33 @@ export default async function renderWaiversView() {
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
+
+
+			// --- DEBUG: comparación de IDs ---
+			(function debugCompareIds() {
+			  const lineupIds = new Set(Array.from(lineupRanks.keys()));
+			  const faIds = new Set((freeAgents || []).map(p => String(p?.sleeperId)));
+			  const overlap = [...faIds].filter(id => lineupIds.has(id));
+
+			  console.log('🔎 ID overlap resumen:', {
+			    lineupCount: lineupIds.size,
+			    freeAgentsCount: faIds.size,
+			    overlapCount: overlap.length
+			  });
+
+			  if (overlap.length) {
+			    console.log('🔎 IDs en común (FA ∩ lineup):');
+			    console.table(overlap.map(id => ({
+			      id,
+			      lineupRank: lineupRanks.get(id),
+			      nameFA: (freeAgents.find(p => String(p.sleeperId) === id) || {}).nombre
+			    })));
+			  } else {
+			    console.log('ℹ️ No hay IDs en común (esperable si el FA no está en tu roster).');
+			  }
+			})();
+
+
       currentPage = 1;
       render();
 
@@ -487,14 +523,35 @@ export default async function renderWaiversView() {
 
 	  // Badge especial si waivers rank es mejor que en tu lineup
 		const idKey = String(p.sleeperId);
+		const rankNum = Number(p.rank ?? 99999);
 		const lineupRank = lineupRanks.get(idKey);
 
-		console.log("📊 BadgeCheck:", safeName, "| sleeperId:", idKey, "| rank:", rank, "| lineupRank:", lineupRank);
+		console.log("📊 BadgeCheck:", {
+		  player: p.nombre || '',
+		  sleeperId: idKey,
+		  waiversRank: rankNum,
+		  lineupRank
+		});
 
 		let betterBadge = '';
-		if (lineupRank !== undefined && rank < lineupRank) {
+		if (lineupRank !== undefined && rankNum < Number(lineupRank)) {
 		  betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor opción que tu titular"></i>`;
 		}
+
+		const reasonBadge = p.bidReason
+		  ? `<div class="mt-2">
+		       <span class="badge" style="
+					 	 background: linear-gradient(#fff, #f2f2f2);
+		         color:#111;
+		         border:1px solid var(--border);
+		         box-shadow:0 1px 3px rgba(0,0,0,0.25);
+		         font-weight:600;
+		       ">
+		         <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
+		       </span>
+		     </div>`
+		  : '';
+
 
 	  return `
 	    <div class="col-12 col-md-6 col-lg-4">
@@ -517,7 +574,7 @@ export default async function renderWaiversView() {
 	          ${betterBadge}
 	        </div>
 
-					${p.bidReason ? `<p style="color:#495057; font-size:0.86rem;" class="mb-2 mt-2">${p.bidReason}</p>` : ''}
+					${reasonBadge}
 
 	        <div class="d-flex justify-content-between align-items-center mt-auto">
 	          <div class="d-flex flex-wrap gap-1">
