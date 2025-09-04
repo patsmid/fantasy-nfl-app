@@ -8,11 +8,12 @@ const router = express.Router();
 router.get('/:leagueId', async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const { idExpert = null, position = 'TODAS', week = '0' } = req.query;
+    const { idExpert = null, position = 'TODAS', week = null } = req.query;
 
     const lineup = await getLineupData(leagueId, {
       idExpert,
       position,
+			week: Number(week) || null,
     });
 
     return res.json({
@@ -33,12 +34,12 @@ router.get('/:leagueId', async (req, res) => {
 router.get('/:leagueId/waivers', async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const { idExpert = null, position = 'TODAS', week = '1' } = req.query;
+    const { idExpert = null, position = 'TODAS', week = null } = req.query;
 
     const waivers = await getFreeAgentsData(leagueId, {
       idExpert,
       position,
-      week: Number(week) || 1,
+      week: Number(week) || null,
     });
 
     return res.json({

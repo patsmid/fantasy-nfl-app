@@ -7,7 +7,7 @@ import { getExpertData } from '../experts.js';
 
 export async function getLineupData(
   leagueId,
-  { idExpert = null, position = 'TODAS', week = 1 } = {}
+  { idExpert = null, position = 'TODAS', week = null } = {}
 ) {
   // 1. Datos de la liga y configuración
   const leagueData = await getSleeperLeague(leagueId);

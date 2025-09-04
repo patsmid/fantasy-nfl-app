@@ -26,6 +26,10 @@ export default async function renderLineupView() {
             <label for="select-expert" class="form-label">Experto</label>
             <select id="select-expert" class="form-select"></select>
           </div>
+					<div class="col-md-4">
+						<label for="input-week" class="form-label">Semana</label>
+						<input id="input-week" type="text" class="form-control" placeholder="Ej. 3">
+					</div>
         </form>
 
         <div class="mb-4">
@@ -91,6 +95,7 @@ export default async function renderLineupView() {
 
   const leagueSelect = document.getElementById('select-league');
   const expertSelect = document.getElementById('select-expert');
+	const weekStaticInput = document.getElementById('input-week');
   const leagueTS = leagueSelect?.tomselect;
   const expertTS = expertSelect?.tomselect;
 
@@ -118,10 +123,10 @@ export default async function renderLineupView() {
 
   async function loadLineupData() {
     const leagueId = leagueSelect.value;
-    //const idExpert = expertSelect.value;
     const selectedOption = expertSelect.selectedOptions[0];
     const expertValue = expertSelect.value;
     const idExpert = selectedOption?.dataset.id || '';
+		const weekStatic = Number(weekStaticInput.value) || '';
 
     if (!leagueId || !idExpert) {
       return showError('Selecciona una liga y un experto');
@@ -132,7 +137,7 @@ export default async function renderLineupView() {
 
     try {
       showLoadingBar('Generando alineación', 'Consultando información...');
-      const { starters, bench, meta } = await fetchLineupData(leagueId, idExpert);
+      const { starters, bench, meta } = await fetchLineupData(leagueId, idExpert, weekStatic);
 
       // Eliminar etiqueta previa si existe
       const existingUpdateLabel = document.getElementById('last-updated-label');

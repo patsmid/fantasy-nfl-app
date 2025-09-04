@@ -2,8 +2,8 @@ import { showSuccess, showError, showConfirm } from '../components/alerts.js';
 import { fetchWithTimeout } from '../components/utils.js';
 const API_BASE = 'https://fantasy-nfl-backend.onrender.com';
 
-export async function fetchLineupData(leagueId, idExpert) {
-  const url = `${API_BASE}/lineup/${leagueId}?idExpert=${idExpert}`;
+export async function fetchLineupData(leagueId, idExpert, week) {
+  const url = `${API_BASE}/lineup/${leagueId}?idExpert=${idExpert}&week=${week}`;
 
   try {
     const res = await fetchWithTimeout(url);
@@ -22,8 +22,8 @@ export async function fetchLineupData(leagueId, idExpert) {
 /**
  * Trae waivers / free agents de la liga y experto seleccionado
  */
-export async function fetchWaiversData(leagueId, idExpert) {
-  const url = `${API_BASE}/lineup/${leagueId}/waivers?idExpert=${idExpert}`;
+export async function fetchWaiversData(leagueId, idExpert, week) {
+  const url = `${API_BASE}/lineup/${leagueId}/waivers?idExpert=${idExpert}&week=${week}`;
 
   try {
     const res = await fetch(url, { cache: 'no-cache' });

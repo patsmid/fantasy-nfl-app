@@ -153,7 +153,7 @@ export default async function renderWaiversView() {
     const selectedOption = expertSelect.selectedOptions[0];
     const expertValue = expertSelect.value;
     const idExpert = selectedOption?.dataset.id || '';
-    const week = inputWeek.value || '';
+    const week = Number(inputWeek.value) || '';
 
     if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
