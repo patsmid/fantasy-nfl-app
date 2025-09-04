@@ -200,28 +200,39 @@ export default async function renderWaiversView() {
   });
 
 	let lineupRanks = new Map(); // sleeperId(string) → rank(number)
+	let lineupPlayers = [];      // array de { sleeperId, rank, position, nombre }
 
 	async function loadLineupRanks(leagueId, idExpert, week) {
 	  try {
 	    const { starters = [], bench = [] } = await fetchLineupData(leagueId, idExpert, week) || {};
 	    const allPlayersLocal = [...starters, ...bench];
+
 	    lineupRanks.clear();
+	    lineupPlayers = [];
+
 	    allPlayersLocal.forEach(p => {
-	      if (p.sleeperId != null) {
-	        lineupRanks.set(String(p.sleeperId), Number(p.rank ?? 99999));
-	      }
+	      const id = p.sleeperId != null ? String(p.sleeperId) : null;
+	      const rankNum = Number(p.rank ?? 99999);
+	      if (id) lineupRanks.set(id, rankNum);
+
+	      lineupPlayers.push({
+	        sleeperId: id,
+	        rank: rankNum,
+	        position: (p.position || '').toUpperCase(),
+	        nombre: p.nombre || ''
+	      });
 	    });
 
-	    // 🔎 Dump del Map en forma de tabla (sleeperId vs rank)
+	    // 🧭 Dump del Map y array para inspección
 	    console.log('🧭 lineupRanks (Map como tabla)');
-	    console.table(
-	      Array.from(lineupRanks, ([sleeperId, rank]) => ({ sleeperId, rank }))
-	    );
+	    console.table(Array.from(lineupRanks, ([sleeperId, rank]) => ({ sleeperId, rank })));
+
+	    console.log('🧭 lineupPlayers (array):');
+	    console.table(lineupPlayers.map(p => ({ sleeperId: p.sleeperId, rank: p.rank, position: p.position, nombre: p.nombre })));
 	  } catch (err) {
 	    console.error('Error cargando lineup:', err.message);
 	  }
 	}
-
 
   // CARGA Y RENDER DEL OFFCANVAS - MI EQUIPO
   async function loadTeamInfo(leagueIdParam, idExpertParam, weekParam) {
@@ -515,43 +526,42 @@ export default async function renderWaiversView() {
 	  const safeName = p.nombre || '';
 	  const safeTeam = p.team || '';
 	  const bye = p.byeWeek ?? '-';
-	  const rank = p.rank != null ? Number(p.rank) : 99999; // 🔑 asegurar número
+	  const rankNum = (p.rank != null && p.rank !== '-') ? Number(p.rank) : 99999;
 	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
-	  // Debug
-	  console.log("Render card:", safeName, "sleeperId:", p.sleeperId, "rank:", rank, "bidReason:", p.bidReason);
+	  // badge blanco para bidReason (visibilidad sobre fondo oscuro)
+	  const reasonBadge = p.bidReason
+	    ? `<div class="mt-2">
+	         <span class="badge" style="
+	           background: linear-gradient(#fff, #f2f2f2);
+	           color:#111;
+	           border:1px solid var(--border);
+	           box-shadow:0 1px 3px rgba(0,0,0,0.25);
+	           font-weight:600;
+	         ">
+	           <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
+	         </span>
+	       </div>`
+	    : '';
 
-	  // Badge especial si waivers rank es mejor que en tu lineup
-		const idKey = String(p.sleeperId);
-		const rankNum = Number(p.rank ?? 99999);
-		const lineupRank = lineupRanks.get(idKey);
+	  // --- Comparación: waiversRank vs todos los ranks de tu equipo (excluyendo K/DEF) ---
+	  const lineupFiltered = lineupPlayers.filter(lp => lp.position && !['K', 'DEF'].includes(lp.position));
+	  const comparisonCount = lineupFiltered.filter(lp => rankNum < Number(lp.rank)).length;
 
-		console.log("📊 BadgeCheck:", {
-		  player: p.nombre || '',
-		  sleeperId: idKey,
-		  waiversRank: rankNum,
-		  lineupRank
-		});
+	  // Log detallado por jugador para depuración
+	  console.log('📊 BadgeCheck:', {
+	    player: safeName,
+	    sleeperId: String(p.sleeperId),
+	    waiversRank: rankNum,
+	    comparisonCount,
+	    comparedAgainst: lineupFiltered.length
+	  });
 
-		let betterBadge = '';
-		if (lineupRank !== undefined && rankNum < Number(lineupRank)) {
-		  betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor opción que tu titular"></i>`;
-		}
-
-		const reasonBadge = p.bidReason
-		  ? `<div class="mt-2">
-		       <span class="badge" style="
-					 	 background: linear-gradient(#fff, #f2f2f2);
-		         color:#111;
-		         border:1px solid var(--border);
-		         box-shadow:0 1px 3px rgba(0,0,0,0.25);
-		         font-weight:600;
-		       ">
-		         <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
-		       </span>
-		     </div>`
-		  : '';
-
+	  // No mostramos badge para K/DEF (tanto FA como en la comparación)
+	  let betterBadge = '';
+	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
+	    betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster (excluye K/DEF)"></i>`;
+	  }
 
 	  return `
 	    <div class="col-12 col-md-6 col-lg-4">
@@ -564,7 +574,7 @@ export default async function renderWaiversView() {
 	            <div class="waiver-name">${safeName}</div>
 	            <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
 	          </div>
-	          <div class="waiver-rank">${rank}</div>
+	          <div class="waiver-rank">${rankNum === 99999 ? '-' : rankNum}</div>
 	        </div>
 
 	        <div class="waiver-body">
@@ -574,7 +584,7 @@ export default async function renderWaiversView() {
 	          ${betterBadge}
 	        </div>
 
-					${reasonBadge}
+	        ${reasonBadge}
 
 	        <div class="d-flex justify-content-between align-items-center mt-auto">
 	          <div class="d-flex flex-wrap gap-1">
@@ -587,6 +597,7 @@ export default async function renderWaiversView() {
 	    </div>
 	  `;
 	}
+
 
   function renderStatus(status) {
     if (!status) return '<span class="badge bg-success">Healthy</span>';
