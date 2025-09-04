@@ -1,5 +1,5 @@
 // frontend/src/views/waivers.js
-import { fetchWaiversData } from '../api.js';
+import { fetchWaiversData, fetchLineupData } from '../api.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
 import { renderExpertSelect } from '../../components/selectExperts.js';
 import { renderLeagueSelect } from '../../components/selectLeagues.js';
