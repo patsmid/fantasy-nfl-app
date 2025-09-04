@@ -223,12 +223,6 @@ export default async function renderWaiversView() {
 	      });
 	    });
 
-	    // 🧭 Dump del Map y array para inspección
-	    console.log('🧭 lineupRanks (Map como tabla)');
-	    console.table(Array.from(lineupRanks, ([sleeperId, rank]) => ({ sleeperId, rank })));
-
-	    console.log('🧭 lineupPlayers (array):');
-	    console.table(lineupPlayers.map(p => ({ sleeperId: p.sleeperId, rank: p.rank, position: p.position, nombre: p.nombre })));
 	  } catch (err) {
 	    console.error('Error cargando lineup:', err.message);
 	  }
@@ -567,7 +561,6 @@ export default async function renderWaiversView() {
 	    </div>
 	  `;
 	}
-
 
   function renderStatus(status) {
     if (!status) return '<span class="badge bg-success">Healthy</span>';
