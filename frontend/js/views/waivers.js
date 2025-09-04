@@ -270,26 +270,27 @@ export default async function renderWaiversView() {
     const safeName = p.nombre || '';
     const safeTeam = p.team || '';
 
-    return `
-      <div class="list-group-item d-flex justify-content-between align-items-center" style="background:transparent; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
-        <div class="d-flex align-items-center gap-3">
-          <div style="min-width:56px; text-align:center;">
-            <div style="font-weight:800; font-size:1.05rem; color:var(--accent); background:rgba(255,122,0,0.06); padding:6px 8px; border-radius:8px;">
-              ${rank}
-            </div>
-          </div>
-          <div>
-            <div style="font-weight:700; font-size:0.98rem; color:var(--text-primary)">${safeName}</div>
-            <div style="color:var(--text-secondary); font-size:0.86rem;">${safeTeam} • Bye ${bye}</div>
-          </div>
-        </div>
-        <div class="text-end">
-          <div style="display:inline-block; padding:6px 8px; border-radius:8px; font-weight:700; background:${posColor}; color:#fff;">
-            ${p.position || '-'}
-          </div>
-        </div>
-      </div>
-    `;
+		return `
+		  <div class="list-group-item d-flex justify-content-between align-items-center"
+		       style="background:transparent; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;">
+		    <div class="d-flex align-items-center gap-3">
+		      <div style="min-width:56px; text-align:center;">
+		        <div style="font-weight:800; font-size:1.05rem; color:var(--accent); background:rgba(255,122,0,0.06); padding:6px 8px; border-radius:8px;">
+		          ${rank}
+		        </div>
+		      </div>
+		      <div>
+		        <div style="font-weight:700; font-size:0.98rem; color:var(--text-primary)">${safeName}</div>
+		        <div style="color:#495057; font-size:0.86rem;">${safeTeam} • Bye ${bye}</div>
+		      </div>
+		    </div>
+		    <div class="text-end">
+		      <div style="display:inline-block; padding:6px 8px; border-radius:8px; font-weight:700; background:${posColor}; color:#fff;">
+		        ${p.position || '-'}
+		      </div>
+		    </div>
+		  </div>
+		`;
   }
 
   function renderTeamOffcanvas({ starters = [], bench = [], meta = {} } = {}) {
@@ -482,11 +483,11 @@ export default async function renderWaiversView() {
     const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
     // Badge especial si waivers rank es mejor que en tu lineup
-    let betterBadge = '';
-    const lineupRank = lineupRanks.get(p.sleeperId);
-    if (lineupRank !== undefined && Number(rank) < lineupRank) {
-      betterBadge = `<span class="badge bg-warning text-dark ms-1">Mejor que tu lineup</span>`;
-    }
+		let betterBadge = '';
+		const lineupRank = lineupRanks.get(p.sleeperId);
+		if (lineupRank !== undefined && Number(rank) < lineupRank) {
+		  betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor opción que tu titular"></i>`;
+		}
 
     return `
       <div class="col-12 col-md-6 col-lg-4">
