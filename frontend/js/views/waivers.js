@@ -27,6 +27,10 @@ export default async function renderWaiversView() {
             <label for="select-expert" class="form-label">Experto</label>
             <select id="select-expert" class="form-select"></select>
           </div>
+          <div class="col-md-4">
+            <label for="input-week" class="form-label">Semana</label>
+            <input id="input-week" type="text" class="form-control" placeholder="Ej. 3">
+          </div>
         </form>
 
         <!-- Controles de vista, filtros y buscador -->
@@ -39,7 +43,7 @@ export default async function renderWaiversView() {
               <option value="WR">WR</option>
               <option value="TE">TE</option>
               <option value="K">K</option>
-              <option value="DST">DST</option>
+              <option value="DEF">DEF</option>
             </select>
           </div>
           <div class="col-md-3">
@@ -93,6 +97,7 @@ export default async function renderWaiversView() {
 
   const leagueSelect = document.getElementById('select-league');
   const expertSelect = document.getElementById('select-expert');
+  const inputWeek   = document.getElementById('input-week');
   const leagueTS = leagueSelect?.tomselect;
   const expertTS = expertSelect?.tomselect;
 
@@ -120,13 +125,14 @@ export default async function renderWaiversView() {
   let currentPage = 1;
   const pageSize = 12;
   let allPlayers = [];
-  let viewMode = "cards"; // "cards" o "table"
+  let viewMode = "cards";
 
   async function loadWaiversData() {
     const leagueId = leagueSelect.value;
     const selectedOption = expertSelect.selectedOptions[0];
     const expertValue = expertSelect.value;
     const idExpert = selectedOption?.dataset.id || '';
+    const week = inputWeek.value || '';
 
     if (!leagueId || !idExpert) return showError('Selecciona una liga y un experto');
 
@@ -135,7 +141,7 @@ export default async function renderWaiversView() {
 
     try {
       showLoadingBar('Cargando Waivers', 'Consultando información...');
-      const { freeAgents, meta } = await fetchWaiversData(leagueId, idExpert);
+      const { freeAgents, meta } = await fetchWaiversData(leagueId, idExpert, week);
 
       allPlayers = freeAgents || [];
       renderFilters(allPlayers);
@@ -168,7 +174,6 @@ export default async function renderWaiversView() {
 
   function render() {
     const filtered = getFilteredPlayers();
-
     if (viewMode === "cards") {
       renderCards(filtered);
       document.getElementById("waiversCards").classList.remove("d-none");
@@ -227,38 +232,53 @@ export default async function renderWaiversView() {
     });
   }
 
-	function getPositionColor(position) {
-	  switch ((position || '').toUpperCase()) {
-	    case 'QB': return '#ff2a6d';   // Rosa fuerte
-	    case 'RB': return '#00ceb8';   // Verde aqua
-	    case 'WR': return '#58a7ff';   // Azul celeste
-	    case 'TE': return '#ffae58';   // Naranja
-	    default:   return '#6c757d';   // Gris neutro
-	  }
-	}
+  function getPositionColor(position) {
+    switch ((position || '').toUpperCase()) {
+      case 'QB': return '#ff2a6d';
+      case 'RB': return '#00ceb8';
+      case 'WR': return '#58a7ff';
+      case 'TE': return '#ffae58';
+      case 'K': return '#9d79ff';
+      case 'DEF': return '#5c636a';
+      default: return '#6c757d';
+    }
+  }
 
-	function renderCard(p) {
-	  const color = getPositionColor(p.position);
-	  return `
-	    <div class="col-12 col-md-6 col-lg-4">
-	      <div class="card shadow-sm border-0 h-100">
-	        <div class="card-body d-flex flex-column">
-	          <h6 class="card-title mb-1 fw-bold">
-	            <span class="badge me-2"
-	                  style="background-color:${color}; color:#fff;">
-	              ${p.position || ''}
-	            </span>
-	            ${p.nombre}
-	          </h6>
-	          <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
-	          <div class="mt-auto d-flex justify-content-between align-items-center">
-	            <span class="badge bg-dark">Rank ${p.rank ?? '-'}</span>
-	            ${renderStatus(p.injuryStatus)}
-	          </div>
-	        </div>
-	      </div>
-	    </div>`;
-	}
+  function renderCard(p) {
+    const color = getPositionColor(p.position);
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-body d-flex flex-column">
+            <h6 class="card-title mb-1 fw-bold">
+              <span class="badge me-2" style="background-color:${color}; color:#fff;">
+                ${p.position || ''}
+              </span>
+              ${p.nombre}
+            </h6>
+            <small class="text-muted mb-2">${p.team || ''} • Bye ${p.byeWeek || '-'}</small>
+
+            <div class="mb-2">
+              <span class="badge bg-secondary">Tier ${p.tier || '-'}</span>
+              <span class="badge bg-dark">${p.roleTag || '-'}</span>
+            </div>
+
+            <p class="small text-muted mb-2">${p.bidReason || ''}</p>
+
+            <div class="d-flex flex-wrap gap-1 mb-2">
+              <span class="badge bg-info text-dark">FAAB: ${p.faabMin}-${p.faabMax}%</span>
+              <span class="badge bg-success">Breakout: ${p.breakoutIndex ?? 0}</span>
+              <span class="badge bg-primary">Winner: ${p.leagueWinnerScore ?? 0}</span>
+            </div>
+
+            <div class="mt-auto d-flex justify-content-between align-items-center">
+              <span class="badge bg-dark">Rank ${p.rank ?? '-'}</span>
+              ${renderStatus(p.injuryStatus)}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
 
   function renderStatus(status) {
     if (!status) return '<span class="badge bg-success">Healthy</span>';
