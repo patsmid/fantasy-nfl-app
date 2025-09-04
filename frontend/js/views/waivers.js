@@ -553,12 +553,7 @@ export default async function renderWaiversView() {
 	  // No mostramos badge para K/DEF (tanto FA como en la comparación)
 	  let betterBadge = '';
 	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
-			const samePos = lineupFiltered.filter(lp => lp.position === p.position);
-			const betterSamePos = samePos.filter(lp => rank < lp.rank).length;
-
-			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
-			  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
-			</i>`;
+	    betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster"></i>`;
 	  }
 
 	  return `
