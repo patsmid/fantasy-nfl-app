@@ -486,11 +486,15 @@ export default async function renderWaiversView() {
 	  console.log("Render card:", safeName, "sleeperId:", p.sleeperId, "rank:", rank, "bidReason:", p.bidReason);
 
 	  // Badge especial si waivers rank es mejor que en tu lineup
-	  let betterBadge = '';
-	  const lineupRank = lineupRanks.get(p.sleeperId);
-	  if (lineupRank !== undefined && rank < lineupRank) {
-	    betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor opción que tu titular"></i>`;
-	  }
+		const idKey = String(p.sleeperId);
+		const lineupRank = lineupRanks.get(idKey);
+
+		console.log("📊 BadgeCheck:", safeName, "| sleeperId:", idKey, "| rank:", rank, "| lineupRank:", lineupRank);
+
+		let betterBadge = '';
+		if (lineupRank !== undefined && rank < lineupRank) {
+		  betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2" title="Mejor opción que tu titular"></i>`;
+		}
 
 	  return `
 	    <div class="col-12 col-md-6 col-lg-4">
@@ -513,7 +517,7 @@ export default async function renderWaiversView() {
 	          ${betterBadge}
 	        </div>
 
-	        ${p.bidReason ? `<p class="small text-muted mb-2 mt-2">${p.bidReason}</p>` : ''}
+					${p.bidReason ? `<p style="color:#495057; font-size:0.86rem;" class="mb-2 mt-2">${p.bidReason}</p>` : ''}
 
 	        <div class="d-flex justify-content-between align-items-center mt-auto">
 	          <div class="d-flex flex-wrap gap-1">
