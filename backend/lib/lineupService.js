@@ -241,54 +241,72 @@ export async function getLineupData(
    // 6) Construir FA
    const byIdBest = new Map();
    for (const info of allPlayers) {
-     const sleeperId = String(info.player_id || '');
-     const pos = String((info.position || '')).toUpperCase();
+		 const sleeperId = String(info.player_id || '');
+	   const pos = String((info.position || '')).toUpperCase();
 
-     if (!sleeperId || ownedSet.has(sleeperId)) continue;
-     if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
+	   if (!sleeperId || ownedSet.has(sleeperId)) continue;
+	   if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
-     // --- Búsquedas ---
-     const mainRanked = rankings.length ? fuzzySearch(getDisplayName(info), rankings) : [];
+	   // --- Búsquedas según fuente ---
+	   let mainRanked = [];
+	   if (rankings.length) {
+	     if ((source || '').toLowerCase() === 'fantasypros') {
+	       // fuzzy search por nombre
+	       mainRanked = fuzzySearch(getDisplayName(info), rankings);
+	     } else {
+	       // match directo por player_id
+	       mainRanked = rankings.filter(p => String(p.player_id) === sleeperId);
+	     }
+	   }
 
-     let dstRanked = [];
-     if (pos === 'DEF' && dstRankings.length) {
-       dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
-     }
+	   let dstRanked = [];
+	   if (pos === 'DEF' && dstRankings.length) {
+	     dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
+	   }
 
-     const kRanked = (pos === 'K' && kickerRankings.length)
-       ? fuzzySearch(getDisplayName(info), kickerRankings)
-       : [];
+	   let kRanked = [];
+	   if (pos === 'K' && kickerRankings.length) {
+	     if ((source || '').toLowerCase() === 'fantasypros') {
+	       kRanked = fuzzySearch(getDisplayName(info), kickerRankings);
+	     } else {
+	       kRanked = kickerRankings.filter(p => String(p.player_id) === sleeperId);
+	     }
+	   }
 
-     // --- Selección ---
-     let chosenTop = null;
-     if (mainRanked.length > 0) {
-       const top = mainRanked[0];
-       if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
-         if (!top.player_name || namesLikelySame(getDisplayName(info), top.player_name)) {
-           chosenTop = top;
-         }
-       }
-     }
-     if (!chosenTop && dstRanked.length > 0) chosenTop = dstRanked[0];
-     if (!chosenTop && kRanked.length > 0) chosenTop = kRanked[0];
-     if (!chosenTop) continue;
+	   // --- Selección ---
+	   let chosenTop = null;
+	   if (mainRanked.length > 0) {
+	     const top = mainRanked[0];
+	     if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
+	       if (
+	         !top.player_name ||
+	         namesLikelySame(getDisplayName(info), top.player_name) ||
+	         (String(top.player_id) === sleeperId)
+	       ) {
+	         chosenTop = top;
+	       }
+	     }
+	   }
+	   if (!chosenTop && dstRanked.length > 0) chosenTop = dstRanked[0];
+	   if (!chosenTop && kRanked.length > 0) chosenTop = kRanked[0];
+	   if (!chosenTop) continue;
 
-     const top = chosenTop;
-     const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
-     if (!Number.isFinite(rankVal)) continue;
+	   const top = chosenTop;
+	   const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
+	   if (!Number.isFinite(rankVal)) continue;
 
-     const rookie = info.years_exp === 0 ? ' (R)' : '';
+	   const rookie = info.years_exp === 0 ? ' (R)' : '';
 
-     const candidate = {
-       rank: rankVal,
-       nombre: `${getDisplayName(info)}${rookie}`,
-       position: pos,
-       team: info.team || top.player_team_id || 'FA',
-       matchup: top.matchup || 'N/D',
-       byeWeek: top.bye_week || info.bye_week || 'N/D',
-       injuryStatus: info.injury_status || '',
-       sleeperId
-     };
+	   const candidate = {
+	     rank: rankVal,
+	     nombre: `${getDisplayName(info)}${rookie}`,
+	     position: pos,
+	     team: info.team || top.player_team_id || 'FA',
+	     matchup: top.matchup || 'N/D',
+	     byeWeek: top.bye_week || info.bye_week || 'N/D',
+	     injuryStatus: info.injury_status || '',
+	     sleeperId
+	   };
 
      // --- Heurísticas / FAAB ---
      const { usageScore } = estimateUsageSignals(candidate);
