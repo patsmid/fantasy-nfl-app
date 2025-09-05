@@ -497,31 +497,37 @@ export async function getLineupData(
 }
 
 /**
- * Búsqueda fuzzy estricta que valida nombre + posición + equipo (si aplica)
+ * Búsqueda estricta por nombre + posición + equipo opcional
  */
-function fuzzySearchStrict(name, list, pos, team) {
-  if (!list || !list.length) return [];
-  const nameLower = name.toLowerCase();
+export function fuzzySearchStrict(name, list, pos = null, team = null, field = 'player_name') {
+  if (!name || !list || !Array.isArray(list)) return [];
 
-  return list
-    .filter(item => {
-      const itemName = (item.player_name || '').toLowerCase();
-      const nameMatch = namesLikelySame(nameLower, itemName);
+  const norm = (s) =>
+    typeof s === 'string'
+      ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      : '';
 
-      // Posición
-      const posMatch =
-        !pos ||
-        !item.player_positions ||
-        item.player_positions.some(p => String(p).toUpperCase() === pos);
+  const nameNorm = norm(name);
 
-      // Equipo (opcional, solo si se pasa)
-      const teamMatch = !team || !item.player_team_id || item.player_team_id === team;
+  return list.filter(player => {
+    const value = player?.[field];
+    if (!value) return false;
 
-      return nameMatch && posMatch && teamMatch;
-    })
-    .sort((a, b) => {
-      const rankA = Number(a.rank) || 9999;
-      const rankB = Number(b.rank) || 9999;
-      return rankA - rankB;
-    });
+    // Normalizar y verificar nombre exacto o parcial
+    const valueNorm = norm(value);
+
+    // Usar includes como fallback, pero solo si posiciones coinciden
+    const nameMatch = valueNorm.includes(nameNorm);
+
+    // Validar posición
+    const posMatch =
+      !pos ||
+      !player.player_positions ||
+      player.player_positions.some(p => String(p).toUpperCase() === pos);
+
+    // Validar equipo (solo si se pasa)
+    const teamMatch = !team || !player.player_team_id || player.player_team_id === team;
+
+    return nameMatch && posMatch && teamMatch;
+  }).sort((a, b) => (Number(a.rank) || 9999) - (Number(b.rank) || 9999));
 }
