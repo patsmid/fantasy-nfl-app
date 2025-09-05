@@ -55,7 +55,10 @@ export async function getLineupData(
       : 'STANDARD';
 
   const tipoLiga = await getConfigValue('dynasty');
-  const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+	const dynasty =
+	  leagueData.status === 'in_season'
+	    ? false
+	    : leagueData.settings.type === 2 && tipoLiga === 'LIGA';
   const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
   const season = await getConfigValue('season');
@@ -191,7 +194,10 @@ export async function getLineupData(
        : 'STANDARD';
 
    const tipoLiga = await getConfigValue('dynasty');
-   const dynasty = leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+	 const dynasty =
+ 	  leagueData.status === 'in_season'
+ 	    ? false
+ 	    : leagueData.settings.type === 2 && tipoLiga === 'LIGA';
    const season = await getConfigValue('season');
    const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
