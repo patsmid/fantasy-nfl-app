@@ -248,16 +248,19 @@ export async function getLineupData(
      if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
      // --- Búsquedas ---
-     const mainRanked = rankings.length ? fuzzySearch(getDisplayName(info), rankings) : [];
+		 let mainRanked = rankings.length
+		   ? fuzzySearchStrict(getDisplayName(info), rankings, pos)
+		   : [];
 
-     let dstRanked = [];
-     if (pos === 'DEF' && dstRankings.length) {
-       dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
-     }
+		 let dstRanked = [];
+		 if (pos === 'DEF' && dstRankings.length) {
+		   dstRanked = fuzzySearchStrict(getDisplayName(info), dstRankings, pos, info.team);
+		 }
 
-     const kRanked = (pos === 'K' && kickerRankings.length)
-       ? fuzzySearch(getDisplayName(info), kickerRankings)
-       : [];
+		 const kRanked =
+		   pos === 'K' && kickerRankings.length
+		     ? fuzzySearchStrict(getDisplayName(info), kickerRankings, pos)
+		     : [];
 
      // --- Selección ---
      let chosenTop = null;
@@ -491,4 +494,34 @@ export async function getLineupData(
   }
 
   return freeAgents;
+}
+
+/**
+ * Búsqueda fuzzy estricta que valida nombre + posición + equipo (si aplica)
+ */
+function fuzzySearchStrict(name, list, pos, team) {
+  if (!list || !list.length) return [];
+  const nameLower = name.toLowerCase();
+
+  return list
+    .filter(item => {
+      const itemName = (item.player_name || '').toLowerCase();
+      const nameMatch = namesLikelySame(nameLower, itemName);
+
+      // Posición
+      const posMatch =
+        !pos ||
+        !item.player_positions ||
+        item.player_positions.some(p => String(p).toUpperCase() === pos);
+
+      // Equipo (opcional, solo si se pasa)
+      const teamMatch = !team || !item.player_team_id || item.player_team_id === team;
+
+      return nameMatch && posMatch && teamMatch;
+    })
+    .sort((a, b) => {
+      const rankA = Number(a.rank) || 9999;
+      const rankB = Number(b.rank) || 9999;
+      return rankA - rankB;
+    });
 }
