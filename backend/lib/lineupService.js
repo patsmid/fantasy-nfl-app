@@ -159,7 +159,6 @@ export async function getLineupData(
   };
 }
 
-
 /**
  * Genera el listado de agentes libres (waivers) para una liga de Sleeper,
  * ordenados por ranking del experto seleccionado. Sigue la misma lógica y
