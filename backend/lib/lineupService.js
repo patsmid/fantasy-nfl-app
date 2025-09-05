@@ -194,16 +194,16 @@ export async function getLineupData(
        : 'STANDARD';
 
    const tipoLiga = await getConfigValue('dynasty');
-   const dynasty =
-     leagueData.status === 'in_season'
-       ? false
-       : leagueData.settings.type === 2 && tipoLiga === 'LIGA';
-
+	 const dynasty =
+ 	  leagueData.status === 'in_season'
+ 	    ? false
+ 	    : leagueData.settings.type === 2 && tipoLiga === 'LIGA';
    const season = await getConfigValue('season');
    const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
    // 2) Experto y rankings
    const expertData = await getExpertData(idExpert);
+
    const rankingsResponse = await getRankings({
      season,
      dynasty,
@@ -248,86 +248,60 @@ export async function getLineupData(
      if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
      // --- Búsquedas ---
-     let mainRanked = [];
+     const mainRanked = rankings.length ? fuzzySearch(getDisplayName(info), rankings) : [];
 
-     // 6.1) Buscar exacto por nombre
-     const exact = rankings.find(p =>
-       namesLikelySame(getDisplayName(info), p.player_name)
-     );
-     if (exact) {
-       mainRanked = [exact];
-     } else if (rankings.length) {
-       // 6.2) Fallback: fuzzySearch
-       mainRanked = fuzzySearch(getDisplayName(info), rankings);
-     }
-
-     // DST: usar directamente el campo team
      let dstRanked = [];
      if (pos === 'DEF' && dstRankings.length) {
        dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
      }
 
-     // K: fuzzySearch
-     const kRanked =
-       pos === 'K' && kickerRankings.length
-         ? fuzzySearch(getDisplayName(info), kickerRankings)
-         : [];
+     const kRanked = (pos === 'K' && kickerRankings.length)
+       ? fuzzySearch(getDisplayName(info), kickerRankings)
+       : [];
 
      // --- Selección ---
      let chosenTop = null;
      if (mainRanked.length > 0) {
        const top = mainRanked[0];
-       // Validar que la posición coincida estrictamente
-       if (
-         Array.isArray(top.player_positions) &&
-         top.player_positions.some(p => String(p).toUpperCase() === pos)
-       ) {
-         chosenTop = top;
+       if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
+         if (!top.player_name || namesLikelySame(getDisplayName(info), top.player_name)) {
+           chosenTop = top;
+         }
        }
      }
      if (!chosenTop && dstRanked.length > 0) chosenTop = dstRanked[0];
      if (!chosenTop && kRanked.length > 0) chosenTop = kRanked[0];
+     if (!chosenTop) continue;
 
-     // --- Construcción del candidato ---
+     const top = chosenTop;
+     const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
+     if (!Number.isFinite(rankVal)) continue;
+
      const rookie = info.years_exp === 0 ? ' (R)' : '';
-     const baseCandidate = {
+
+     const candidate = {
+       rank: rankVal,
        nombre: `${getDisplayName(info)}${rookie}`,
        position: pos,
-       team: info.team || chosenTop?.player_team_id || 'FA',
-       matchup: chosenTop?.matchup || 'N/D',
-       byeWeek: chosenTop?.bye_week || info.bye_week || 'N/D',
+       team: info.team || top.player_team_id || 'FA',
+       matchup: top.matchup || 'N/D',
+       byeWeek: top.bye_week || info.bye_week || 'N/D',
        injuryStatus: info.injury_status || '',
        sleeperId
      };
-
-     // Si no encontramos ranking usable → rank = 999 (últimos)
-     const rankVal = chosenTop
-       ? Number(chosenTop.rank)
-       : 999;
-
-     if (!Number.isFinite(rankVal)) continue;
-
-     const candidate = { ...baseCandidate, rank: rankVal };
 
      // --- Heurísticas / FAAB ---
      const { usageScore } = estimateUsageSignals(candidate);
      const { next3, playoffs } = estimateScheduleScore(candidate.team);
 
      const roleTag =
-       candidate.position === 'RB'
-         ? candidate.rank < 36 ? 'workhorse' : 'committee'
-         : candidate.position === 'WR'
-         ? candidate.rank < 48 ? 'starter' : 'stash'
-         : candidate.position === 'TE'
-         ? candidate.rank < 12 ? 'starter' : 'streamer'
-         : candidate.position === 'QB'
-         ? 'streamer'
-         : 'stash';
+       candidate.position === 'RB' ? (candidate.rank < 36 ? 'workhorse' : 'committee') :
+       candidate.position === 'WR' ? (candidate.rank < 48 ? 'starter' : 'stash') :
+       (candidate.position === 'TE' ? (candidate.rank < 12 ? 'starter' : 'streamer') :
+       (candidate.position === 'QB' ? 'streamer' : 'stash'));
 
      const superFlexQB = superFlex && candidate.position === 'QB';
-     const isContingentStud =
-       roleTag === 'workhorse' ||
-       (candidate.position === 'RB' && candidate.rank < 48);
+     const isContingentStud = roleTag === 'workhorse' || (candidate.position === 'RB' && candidate.rank < 48);
 
      const tier = classifyTier(candidate, usageScore);
      const [faabMin, faabMax] = faabRangeByTier(tier);
@@ -340,26 +314,19 @@ export async function getLineupData(
        superFlexQB
      });
 
-     const riskLevel =
-       leagueWinnerScore >= 75 ? 'low'
-       : leagueWinnerScore >= 55 ? 'med'
-       : 'high';
-
-     const startableNow =
-       (tier === 'A' || tier === 'B') && candidate.injuryStatus !== 'Out';
+     const riskLevel = leagueWinnerScore >= 75 ? 'low' : (leagueWinnerScore >= 55 ? 'med' : 'high');
+     const startableNow = (tier === 'A' || tier === 'B') && (candidate.injuryStatus !== 'Out');
 
      const bidReason = [
-       tier === 'A' ? 'Rol multi-semana / potencial rompeligas'
-       : tier === 'B' ? 'Uso en ascenso; upside real'
-       : tier === 'C' ? 'Streamer con opción de quedarse'
-       : 'Stash/Lottery',
+       tier === 'A' ? 'Rol multi-semana / potencial rompeligas' :
+       tier === 'B' ? 'Uso en ascenso; upside real' :
+       tier === 'C' ? 'Streamer con opción de quedarse' : 'Stash/Lottery',
        superFlexQB ? ' (SF boost QB)' : ''
      ].join('');
 
      Object.assign(candidate, {
        tier,
-       faabMin,
-       faabMax,
+       faabMin, faabMax,
        bidReason,
        startableNow,
        roleTag,
