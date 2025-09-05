@@ -437,6 +437,9 @@ export default async function renderWaiversView() {
       `Página ${currentPage} de ${totalPages || 1}`;
     document.getElementById('prev-page').disabled = currentPage <= 1;
     document.getElementById('next-page').disabled = currentPage >= totalPages;
+
+		const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+		popoverTriggerList.map(el => new bootstrap.Popover(el));
   }
 
   function renderTable(players) {
@@ -497,21 +500,21 @@ export default async function renderWaiversView() {
 	  const roleClass = (p.roleTag || 'stash').toLowerCase().replace(/\s+/g, '-');
 
 	  // badge blanco para bidReason (visibilidad sobre fondo oscuro)
-		const reasonBadge = p.bidReason
-		  ? `<div style="margin-top:4px; max-width:100%; overflow:hidden;">
-		       <span class="badge" style="
-		         background: linear-gradient(#fff, #f2f2f2);
-		         color:#111;
-		         border:1px solid var(--border);
-		         box-shadow:0 1px 3px rgba(0,0,0,0.25);
-		         font-weight:600;
-		         white-space:normal;
-		         word-break:break-word;
-		       ">
-		         <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
-		       </span>
-		     </div>`
-		  : '';
+	  const reasonBadge = p.bidReason
+	    ? `<div style="margin-top:4px; max-width:100%; overflow:hidden;">
+	         <span class="badge" style="
+	           background: linear-gradient(#fff, #f2f2f2);
+	           color:#111;
+	           border:1px solid var(--border);
+	           box-shadow:0 1px 3px rgba(0,0,0,0.25);
+	           font-weight:600;
+	           white-space:normal;
+	           word-break:break-word;
+	         ">
+	           <i class="bi bi-lightning-charge-fill me-1"></i>${p.bidReason}
+	         </span>
+	       </div>`
+	    : '';
 
 	  // --- Comparación: waiversRank vs todos los ranks de tu equipo (excluyendo K/DEF) ---
 	  const lineupFiltered = lineupPlayers.filter(lp => lp.position && !['K', 'DEF'].includes(lp.position));
@@ -519,12 +522,18 @@ export default async function renderWaiversView() {
 
 	  let betterBadge = '';
 	  if (!['K', 'DEF'].includes((p.position || '').toUpperCase()) && comparisonCount > 0) {
-			const samePos = lineupFiltered.filter(lp => lp.position === p.position);
-			const betterSamePos = samePos.filter(lp => rankNum < lp.rank).length;
+	    const samePos = lineupFiltered.filter(lp => lp.position === p.position);
+	    const betterSamePos = samePos.filter(lp => rankNum < lp.rank).length;
 
-			betterBadge = `<i class="bi bi-graph-up-arrow text-warning ms-2"
-			  title="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
-			</i>`;
+	    betterBadge = `
+	      <button type="button"
+	              class="btn btn-sm btn-link p-0 ms-2 text-warning"
+	              data-bs-toggle="popover"
+	              data-bs-trigger="focus"
+	              data-bs-placement="top"
+	              data-bs-content="Mejor que ${comparisonCount}/${lineupFiltered.length} de tu roster • ${betterSamePos}/${samePos.length} en ${p.position}">
+	        <i class="bi bi-graph-up-arrow"></i>
+	      </button>`;
 	  }
 
 	  return `
@@ -536,7 +545,9 @@ export default async function renderWaiversView() {
 	              ${p.position || ''}
 	            </div>
 	            <div class="waiver-name">${safeName}</div>
-	            <div class="waiver-pos text-muted">${safeTeam} • Bye ${bye}</div>
+	            <div class="waiver-pos" style="color:#dee2e6; font-size:0.85rem; font-weight:500;">
+	              ${safeTeam} • Bye ${bye}
+	            </div>
 	          </div>
 	          <div class="waiver-rank">${rankNum === 99999 ? '-' : rankNum}</div>
 	        </div>
