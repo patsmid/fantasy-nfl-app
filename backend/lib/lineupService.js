@@ -248,30 +248,46 @@ export async function getLineupData(
      if (!isAllowedPosition(pos, starterPositions, superFlex)) continue;
 
      // --- Búsquedas ---
-     const mainRanked = rankings.length ? fuzzySearch(getDisplayName(info), rankings) : [];
+		 let mainRanked = [];
 
-     let dstRanked = [];
-     if (pos === 'DEF' && dstRankings.length) {
-       dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
-     }
+		 // 6.1) Buscar exacto por nombre
+		 const exact = rankings.find(p =>
+		   namesLikelySame(getDisplayName(info), p.player_name)
+		 );
+		 if (exact) {
+		   mainRanked = [exact];
+		 } else if (rankings.length) {
+		   // 6.2) Fallback: fuzzySearch
+		   mainRanked = fuzzySearch(getDisplayName(info), rankings);
+		 }
 
-     const kRanked = (pos === 'K' && kickerRankings.length)
-       ? fuzzySearch(getDisplayName(info), kickerRankings)
-       : [];
+		 // DST: usar directamente el campo team
+		 let dstRanked = [];
+		 if (pos === 'DEF' && dstRankings.length) {
+		   dstRanked = dstRankings.filter(p => p.player_team_id === info.team);
+		 }
 
-     // --- Selección ---
-     let chosenTop = null;
-     if (mainRanked.length > 0) {
-       const top = mainRanked[0];
-       if (!top.player_positions || String(top.player_positions).toUpperCase() === pos) {
-         if (!top.player_name || namesLikelySame(getDisplayName(info), top.player_name)) {
-           chosenTop = top;
-         }
-       }
-     }
-     if (!chosenTop && dstRanked.length > 0) chosenTop = dstRanked[0];
-     if (!chosenTop && kRanked.length > 0) chosenTop = kRanked[0];
-     if (!chosenTop) continue;
+		 // K: fuzzySearch
+		 const kRanked =
+		   pos === 'K' && kickerRankings.length
+		     ? fuzzySearch(getDisplayName(info), kickerRankings)
+		     : [];
+
+		 // --- Selección ---
+		 let chosenTop = null;
+		 if (mainRanked.length > 0) {
+		   const top = mainRanked[0];
+		   // Validar que la posición coincida estrictamente
+		   if (
+		     Array.isArray(top.player_positions) &&
+		     top.player_positions.some(p => String(p).toUpperCase() === pos)
+		   ) {
+		     chosenTop = top;
+		   }
+		 }
+		 if (!chosenTop && dstRanked.length > 0) chosenTop = dstRanked[0];
+		 if (!chosenTop && kRanked.length > 0) chosenTop = kRanked[0];
+		 if (!chosenTop) continue;
 
      const top = chosenTop;
      const rankVal = typeof top.rank === 'number' ? top.rank : Number(top.rank);
