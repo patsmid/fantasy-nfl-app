@@ -118,6 +118,8 @@ router.get('/player-breakdown', async (req, res) => {
 							full_name: buildFullName(p),
 		          position: p.position ?? p.pos ?? null,
 		          team: p.team ?? p.team_abbr ?? null,
+							byeWeek: p.bye_week ?? 'N/D',
+							injuryStatus: p.injury_status || '',
 		          raw: p
 		        };
 		        return acc;
@@ -130,6 +132,8 @@ router.get('/player-breakdown', async (req, res) => {
 							full_name: buildFullName(p),
 		          position: v.position ?? v.pos ?? null,
 		          team: v.team ?? v.team_abbr ?? null,
+							byeWeek: v.bye_week ?? 'N/D',
+							injuryStatus: v.injury_status || '',
 		          raw: v
 		        };
 		      }
@@ -154,6 +158,8 @@ router.get('/player-breakdown', async (req, res) => {
 									full_name: buildFullName(p),
 		              position: p.position ?? null,
 		              team: p.team ?? null,
+									byeWeek: p.bye_week ?? 'N/D',
+									injuryStatus: p.injury_status || '',
 		              raw: p
 		            };
 		          }
@@ -173,6 +179,8 @@ router.get('/player-breakdown', async (req, res) => {
 		    name: meta.full_name || null,
 		    position: meta.position || null,
 		    team: meta.team || null,
+				byeWeek: meta.bye_week || 'N/D',
+				injuryStatus: meta.injury_status || '',
 		    total_count: p.total_count,
 		    leagues_count: p.league_ids.size,
 		    occurrences: p.occurrences
