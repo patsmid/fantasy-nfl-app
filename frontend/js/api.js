@@ -41,6 +41,23 @@ export async function fetchWaiversData(leagueId, idExpert, week) {
   }
 }
 
+export async function fetchPlayersMeta() {
+  const url = `${API_BASE}/api/player-breakdown`;
+
+  try {
+    const res = await fetchWithTimeout(url);
+
+    if (!res.success || !res.data) {
+      throw new Error(res.error || 'Error al obtener playersMetaMap');
+    }
+
+    return res.data; // <- contiene playersMetaMap
+  } catch (err) {
+    console.error('Error en fetchPlayersMeta:', err);
+    throw err;
+  }
+}
+
 export async function fetchDraftData(
   leagueId,
   position = 'TODAS',
