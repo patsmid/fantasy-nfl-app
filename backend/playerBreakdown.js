@@ -157,15 +157,18 @@ router.get('/player-breakdown', async (req, res) => {
 		}
 
     // Formatear salida
-    const players = Array.from(playerMap.values()).map(p => ({
-      player_id: p.player_id,
-      name: (playersMetaMap[p.player_id] && (playersMetaMap[p.player_id].full_name || playersMetaMap[p.player_id].name)) || null,
-      position: playersMetaMap[p.player_id]?.position || null,
-      team: playersMetaMap[p.player_id]?.team || null,
-      total_count: p.total_count, // cuantas veces aparece (cada liga cuenta como una aparición)
-      leagues_count: p.league_ids.size,
-      occurrences: p.occurrences
-    }));
+		const players = Array.from(playerMap.values()).map(p => {
+		  const meta = playersMetaMap[String(p.player_id)] || {};
+		  return {
+		    player_id: p.player_id,
+		    name: meta.full_name || null,
+		    position: meta.position || null,
+		    team: meta.team || null,
+		    total_count: p.total_count,
+		    leagues_count: p.league_ids.size,
+		    occurrences: p.occurrences
+		  };
+		});
 
     // Orden simple: primero por en cuántas ligas aparece, luego por total_count
     players.sort((a, b) => b.leagues_count - a.leagues_count || b.total_count - a.total_count);
