@@ -106,7 +106,7 @@ export async function getSleeperADP(req, res) {
   }
 }
 
-export async function getSleeperLeague(leagueId) {
+export async function getSleeperLeague(leagueId = '1219463653380599808') {
   const response = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
   if (!response.ok) {
     throw new Error(`Sleeper API error: ${response.statusText}`);
@@ -114,7 +114,7 @@ export async function getSleeperLeague(leagueId) {
   return await response.json();
 }
 
-export async function getRosters(leagueId = '997941325091647488') {
+export async function getRosters(leagueId = '1219463653380599808') {
   try {
     const url = `https://api.sleeper.app/v1/league/${leagueId}/rosters`;
     const res = await fetch(url);

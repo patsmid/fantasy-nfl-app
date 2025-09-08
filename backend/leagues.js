@@ -143,6 +143,25 @@ export async function getLeaguesFromDB(req, res) {
   }
 }
 
+export async function fetchLeaguesFromDB({ onlyNonBestball = true } = {}) {
+  try {
+    let query = supabase
+      .from('leagues')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (onlyNonBestball) query = query.eq('bestball', false);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('❌ fetchLeaguesFromDB error:', err);
+    throw err;
+  }
+}
+
+
 /* =====================================================
    Legacy single league
    ===================================================== */

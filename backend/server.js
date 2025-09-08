@@ -32,6 +32,7 @@ import {
 import draftRouter from './draft.js';
 import manualRouter from './manualRoutes.js';
 import lineupRouter from './lineup.js';
+import playerBreakdownRouter from './playerBreakdown.js';
 import projectionsRouter from './projections.js';
 import rankingsRouter from './rankings.js';
 import extrasRouter from './extras.js';
@@ -183,6 +184,7 @@ app.post('/adp/fantasypros/upload-all', async (req, res) => {
 // 📋 Rutas modulares
 app.use('/draft', draftRouter);
 app.use('/lineup', lineupRouter);
+app.use('/api', playerBreakdownRouter);
 app.use('/projections', projectionsRouter);
 app.use('/extras', extrasRouter);
 app.use('/rankings', rankingsRouter);
