@@ -1,7 +1,7 @@
 // src/routes/playerBreakdown.js
 import express from 'express';
 import { getRosters } from './utils/sleeper.js';
-import { getConfigValue, getPlayersData } './lib/draftUtils.js';
+import { getConfigValue, getPlayersData } from './lib/draftUtils.js';
 import { fetchLeaguesFromDB } from './leagues.js'; // helper anterior
 
 const router = express.Router();
