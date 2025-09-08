@@ -48,15 +48,16 @@ export async function fetchPlayersMeta() {
     const res = await fetchWithTimeout(url);
 
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Error al obtener playersMetaMap');
+      throw new Error(res.error || 'Error al obtener players breakdown');
     }
 
-    return res.data; // <- contiene playersMetaMap
+    return res.data.players;
   } catch (err) {
     console.error('Error en fetchPlayersMeta:', err);
     throw err;
   }
 }
+
 
 export async function fetchDraftData(
   leagueId,
