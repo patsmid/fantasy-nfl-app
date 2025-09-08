@@ -100,6 +100,7 @@ router.get('/player-breakdown', async (req, res) => {
       try {
         // getPlayersData se espera que reciba array de ids y devuelva { playerId: { ... } }
         playersMetaMap = await getPlayersData(playerIds);
+				console.log(playersMetaMap);
       } catch (err) {
         console.warn('getPlayersData falló, intentaremos fallback a Sleeper API:', err.message);
         // Fallback: descargar players desde Sleeper (mapa completo) y tomar lo que necesites.
