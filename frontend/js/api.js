@@ -51,7 +51,7 @@ export async function fetchPlayersMeta() {
       throw new Error(res.error || 'Error al obtener players breakdown');
     }
 
-    return res.data.players;
+    return res.data;
   } catch (err) {
     console.error('Error en fetchPlayersMeta:', err);
     throw err;

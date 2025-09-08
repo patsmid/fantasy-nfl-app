@@ -204,7 +204,7 @@ export default async function renderPlayersView() {
               <div class="small text-secondary">${p.team || ''} • ${p.position || ''}</div>
             </div>
             <div class="text-end">
-              <div class="waiver-rank mb-1">${p.ownership_pct}% Own</div>
+              <div class="waiver-rank mb-1">${p.ownership_pct}%</div>
               <div class="small text-secondary">${p.leagues_count} ligas</div>
             </div>
           </div>
