@@ -118,8 +118,8 @@ router.get('/player-breakdown', async (req, res) => {
 							full_name: buildFullName(p),
 		          position: p.position ?? p.pos ?? null,
 		          team: p.team ?? p.team_abbr ?? null,
-							byeWeek: p.bye_week ?? 'N/D',
-							injuryStatus: p.injury_status || '',
+							bye_week: p.bye_week ?? p.byeWeek ?? null,
+							injury_status: p.injury_status ?? p.injuryStatus ?? null,
 		          raw: p
 		        };
 		        return acc;
@@ -132,8 +132,8 @@ router.get('/player-breakdown', async (req, res) => {
 							full_name: buildFullName(p),
 		          position: v.position ?? v.pos ?? null,
 		          team: v.team ?? v.team_abbr ?? null,
-							byeWeek: v.bye_week ?? 'N/D',
-							injuryStatus: v.injury_status || '',
+							bye_week: v.bye_week ?? v.byeWeek ?? null,
+							injury_status: v.injury_status ?? v.injuryStatus ?? null,
 		          raw: v
 		        };
 		      }
@@ -158,8 +158,8 @@ router.get('/player-breakdown', async (req, res) => {
 									full_name: buildFullName(p),
 		              position: p.position ?? null,
 		              team: p.team ?? null,
-									byeWeek: p.bye_week ?? 'N/D',
-									injuryStatus: p.injury_status || '',
+									bye_week: p.bye_week ?? null,
+									injury_status: p.injury_status ?? null,
 		              raw: p
 		            };
 		          }
@@ -173,19 +173,19 @@ router.get('/player-breakdown', async (req, res) => {
 
     // Formatear salida
 		const players = Array.from(playerMap.values()).map(p => {
-		  const meta = playersMetaMap[String(p.player_id)] || {};
-		  return {
-		    player_id: p.player_id,
-		    name: meta.full_name || null,
-		    position: meta.position || null,
-		    team: meta.team || null,
-				byeWeek: meta.bye_week || 'N/D',
-				injuryStatus: meta.injury_status || '',
-		    total_count: p.total_count,
-		    leagues_count: p.league_ids.size,
-		    occurrences: p.occurrences
-		  };
-		});
+      const meta = playersMetaMap[String(p.player_id)] || {};
+      return {
+        player_id: p.player_id,
+        name: meta.full_name || null,
+        position: meta.position || null,
+        team: meta.team || null,
+        bye_week: meta.bye_week ?? null,
+        injury_status: meta.injury_status ?? null,
+        total_count: p.total_count,
+        leagues_count: p.league_ids.size,
+        occurrences: p.occurrences
+      };
+    });
 
     // Orden simple: primero por en cuántas ligas aparece, luego por total_count
     players.sort((a, b) => b.leagues_count - a.leagues_count || b.total_count - a.total_count);
