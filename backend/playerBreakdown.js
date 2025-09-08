@@ -18,6 +18,15 @@ function chunkedMap(items, chunkSize, handler) {
   })();
 }
 
+function buildFullName(obj) {
+  if (obj.full_name) return obj.full_name;
+  if (obj.name) return obj.name;
+  const fn = obj.first_name ?? '';
+  const ln = obj.last_name ?? '';
+  const combined = `${fn} ${ln}`.trim();
+  return combined || null;
+}
+
 router.get('/player-breakdown', async (req, res) => {
   try {
     const mainUserId = await getConfigValue('main_user_id'); // asegúrate del tipo
@@ -106,7 +115,7 @@ router.get('/player-breakdown', async (req, res) => {
 		      playersMetaMap = raw.reduce((acc, p) => {
 		        const key = String(p.player_id ?? p.playerId ?? p.id);
 		        acc[key] = {
-		          full_name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || null,
+							full_name: buildFullName(p),
 		          position: p.position ?? p.pos ?? null,
 		          team: p.team ?? p.team_abbr ?? null,
 		          raw: p
@@ -118,7 +127,7 @@ router.get('/player-breakdown', async (req, res) => {
 		      for (const [k, v] of Object.entries(raw)) {
 		        const key = String(k);
 		        playersMetaMap[key] = {
-		          full_name: v.full_name ?? v.name ?? (v.first_name || v.last_name ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : null),
+							full_name: buildFullName(p),
 		          position: v.position ?? v.pos ?? null,
 		          team: v.team ?? v.team_abbr ?? null,
 		          raw: v
@@ -142,7 +151,7 @@ router.get('/player-breakdown', async (req, res) => {
 		          const p = allPlayers[key] || allPlayers[Number(pid)];
 		          if (p) {
 		            playersMetaMap[key] = {
-		              full_name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || null,
+									full_name: buildFullName(p),
 		              position: p.position ?? null,
 		              team: p.team ?? null,
 		              raw: p
