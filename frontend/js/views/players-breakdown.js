@@ -1,5 +1,5 @@
 // src/views/players-breakdown.js
-import { fetchPlayersMeta } from '../api.js'; // devuelve { players, leagues }
+import { fetchPlayersMeta } from '../api.js';
 import { showError, showLoadingBar } from '../../components/alerts.js';
 
 function debounce(fn, wait = 250) {
@@ -29,11 +29,11 @@ export default async function renderPlayersView() {
 
         <!-- filtros -->
         <div class="row g-2 align-items-center mb-3">
-          <div class="col-sm-6 col-md-4">
+          <div class="col-sm-6 col-md-3">
             <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jugador...">
           </div>
 
-          <div class="col-sm-6 col-md-3">
+          <div class="col-sm-6 col-md-2">
             <select id="positionFilter" class="form-select">
               <option value="">Todas las posiciones</option>
               <option value="QB">QB</option>
@@ -45,9 +45,35 @@ export default async function renderPlayersView() {
             </select>
           </div>
 
-          <div class="col-sm-12 col-md-3">
+          <div class="col-sm-6 col-md-2">
+            <select id="injuryFilter" class="form-select">
+              <option value="">Todas las lesiones</option>
+              <option value="IR">IR</option>
+              <option value="O">O</option>
+              <option value="Q">Q</option>
+              <option value="PUP">PUP</option>
+              <option value="OUT">OUT</option>
+              <option value="SUS">SUS</option>
+            </select>
+          </div>
+
+          <div class="col-sm-6 col-md-2">
             <select id="leagueFilter" class="form-select">
               <option value="">Todas las ligas</option>
+            </select>
+          </div>
+
+          <div class="col-sm-12 col-md-3 d-flex align-items-center justify-content-end gap-1">
+            <label class="small mb-0" for="sortSelect">Ordenar por:</label>
+            <select id="sortSelect" class="form-select form-select-sm">
+              <option value="leagues_count_desc" selected>Ligas owned ↓</option>
+              <option value="leagues_count_asc">Ligas owned ↑</option>
+              <option value="bye_week_asc">Bye week ↑</option>
+              <option value="bye_week_desc">Bye week ↓</option>
+              <option value="team_asc">Equipo ↑</option>
+              <option value="team_desc">Equipo ↓</option>
+              <option value="position_asc">Posición ↑</option>
+              <option value="position_desc">Posición ↓</option>
             </select>
           </div>
 
@@ -65,7 +91,6 @@ export default async function renderPlayersView() {
         </div>
 
         <div id="playersGrid" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3" style="display:none;"></div>
-
       </div>
     </div>
   `;
@@ -73,7 +98,9 @@ export default async function renderPlayersView() {
   const btnRefresh = document.getElementById('btn-refresh-players');
   const searchInput = document.getElementById('playerSearch');
   const posSelect = document.getElementById('positionFilter');
+  const injSelect = document.getElementById('injuryFilter');
   const leagueSelect = document.getElementById('leagueFilter');
+  const sortSelect = document.getElementById('sortSelect');
   const loaderEl = document.getElementById('playersLoader');
   const gridEl = document.getElementById('playersGrid');
   const countEl = document.getElementById('playersCount');
@@ -148,21 +175,39 @@ export default async function renderPlayersView() {
     const search = (searchInput.value || '').trim().toLowerCase();
     const pos = posSelect.value;
     const leagueId = leagueSelect.value;
+    const injury = injSelect.value;
+    const sortVal = sortSelect.value;
 
     const items = players.filter(p => {
       const name = (p.name || '').toLowerCase();
       const matchesSearch = !search || name.includes(search) || (p.team || '').toLowerCase().includes(search);
       const matchesPos = !pos || (p.position === pos);
       const matchesLeague = !leagueId || (p.occurrences || []).some(o => (o.league_id ?? o.leagueId) === leagueId);
-      return matchesSearch && matchesPos && matchesLeague;
+      const matchesInjury = !injury || (p.injury_status ?? '').toUpperCase() === injury;
+      return matchesSearch && matchesPos && matchesLeague && matchesInjury;
     });
 
     filteredPlayers = items;
-    countEl.textContent = `${items.length} jugadores`;
+
+    // ordenamiento
+    filteredPlayers.sort((a,b) => {
+      switch(sortVal) {
+        case 'leagues_count_desc': return b.leagues_count - a.leagues_count;
+        case 'leagues_count_asc': return a.leagues_count - b.leagues_count;
+        case 'bye_week_asc': return (a.bye_week || 99) - (b.bye_week || 99);
+        case 'bye_week_desc': return (b.bye_week || 0) - (a.bye_week || 0);
+        case 'team_asc': return (a.team||'').localeCompare(b.team||'');
+        case 'team_desc': return (b.team||'').localeCompare(a.team||'');
+        case 'position_asc': return (a.position||'').localeCompare(b.position||'');
+        case 'position_desc': return (b.position||'').localeCompare(a.position||'');
+        default: return 0;
+      }
+    });
+
+    countEl.textContent = `${filteredPlayers.length} jugadores`;
 
     gridEl.innerHTML = '';
-
-    if (!items.length) {
+    if (!filteredPlayers.length) {
       gridEl.innerHTML = `
         <div class="col-12">
           <div class="card text-center" style="background:transparent; border:none;">
@@ -173,10 +218,9 @@ export default async function renderPlayersView() {
       return;
     }
 
-    items.forEach(p => {
+    filteredPlayers.forEach(p => {
       const displayName = p.name || 'Jugador desconocido';
 
-      // ligas + role
       const leaguesHTML = (p.occurrences || [])
         .map(o => {
           const lname = o.league_name ?? 'Liga';
@@ -226,7 +270,9 @@ export default async function renderPlayersView() {
   const debouncedRender = debounce(renderGrid, 180);
   searchInput.addEventListener('input', debouncedRender);
   posSelect.addEventListener('change', renderGrid);
+  injSelect.addEventListener('change', renderGrid);
   leagueSelect.addEventListener('change', renderGrid);
+  sortSelect.addEventListener('change', renderGrid);
   btnRefresh.addEventListener('click', async () => {
     await loadPlayers();
   });
