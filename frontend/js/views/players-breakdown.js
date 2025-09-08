@@ -34,7 +34,7 @@ export default async function renderPlayersView() {
 
   // Fetch inicial
 	const players = await fetchPlayersMeta();
-console.log(players);
+	console.log(players);
   // Rellenar ligas para el filtro
   const leagueSet = new Set();
   players.forEach(p => {
