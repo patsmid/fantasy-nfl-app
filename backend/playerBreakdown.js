@@ -94,35 +94,67 @@ router.get('/player-breakdown', async (req, res) => {
 
     const playerIds = Array.from(playerMap.keys());
 
-    // Obtener metadatos de jugadores (usa tu helper)
-    let playersMetaMap = {};
-    if (playerIds.length) {
-      try {
-        // getPlayersData se espera que reciba array de ids y devuelva { playerId: { ... } }
-        playersMetaMap = await getPlayersData(playerIds);
-				console.log(playersMetaMap);
-      } catch (err) {
-        console.warn('getPlayersData falló, intentaremos fallback a Sleeper API:', err.message);
-        // Fallback: descargar players desde Sleeper (mapa completo) y tomar lo que necesites.
-        try {
-          const r = await fetch('https://api.sleeper.app/v1/players/nfl');
-          if (r.ok) {
-            const allPlayers = await r.json();
-            playersMetaMap = {};
-            for (const pid of playerIds) {
-              const p = allPlayers[pid];
-              if (p) playersMetaMap[pid] = {
-                full_name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-                position: p.position,
-                team: p.team
-              };
-            }
-          }
-        } catch (err2) {
-          console.warn('Fallback a players/nfl falló:', err2.message);
-        }
-      }
-    }
+    // Obtener metadatos de jugadores (normalizar players meta (acepta array o map))
+		let playersMetaMap = {};
+
+		if (playerIds.length) {
+		  try {
+		    const raw = await getPlayersData(playerIds); // puede devolver Array o Map
+
+		    if (Array.isArray(raw)) {
+		      // convertir array -> mapa usando player_id como key
+		      playersMetaMap = raw.reduce((acc, p) => {
+		        const key = String(p.player_id ?? p.playerId ?? p.id);
+		        acc[key] = {
+		          full_name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || null,
+		          position: p.position ?? p.pos ?? null,
+		          team: p.team ?? p.team_abbr ?? null,
+		          raw: p
+		        };
+		        return acc;
+		      }, {});
+		    } else if (raw && typeof raw === 'object') {
+		      // ya es mapa: normalizar claves a string y campos principales
+		      for (const [k, v] of Object.entries(raw)) {
+		        const key = String(k);
+		        playersMetaMap[key] = {
+		          full_name: v.full_name ?? v.name ?? (v.first_name || v.last_name ? `${v.first_name || ''} ${v.last_name || ''}`.trim() : null),
+		          position: v.position ?? v.pos ?? null,
+		          team: v.team ?? v.team_abbr ?? null,
+		          raw: v
+		        };
+		      }
+		    }
+		  } catch (err) {
+		    console.warn('getPlayersData falló:', err?.message ?? err);
+		    playersMetaMap = {};
+		  }
+
+		  // Si hay jugadores sin metadata, intentar fallback a la API pública de Sleeper (/players/nfl)
+		  try {
+		    const missing = playerIds.filter(pid => !playersMetaMap[String(pid)]);
+		    if (missing.length) {
+		      const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+		      if (r.ok) {
+		        const allPlayers = await r.json(); // es un objeto { "11575": { ... }, ... }
+		        for (const pid of missing) {
+		          const key = String(pid);
+		          const p = allPlayers[key] || allPlayers[Number(pid)];
+		          if (p) {
+		            playersMetaMap[key] = {
+		              full_name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || null,
+		              position: p.position ?? null,
+		              team: p.team ?? null,
+		              raw: p
+		            };
+		          }
+		        }
+		      }
+		    }
+		  } catch (err2) {
+		    console.warn('Fallback players/nfl falló:', err2?.message ?? err2);
+		  }
+		}
 
     // Formatear salida
     const players = Array.from(playerMap.values()).map(p => ({
