@@ -41,7 +41,7 @@ export default async function renderPlayersView() {
               <option value="WR">WR</option>
               <option value="TE">TE</option>
               <option value="K">K</option>
-              <option value="DST">DST</option>
+              <option value="DEF">DST</option>
             </select>
           </div>
 
@@ -49,11 +49,10 @@ export default async function renderPlayersView() {
             <select id="injuryFilter" class="form-select">
               <option value="">Todas las lesiones</option>
               <option value="IR">IR</option>
-              <option value="O">O</option>
-              <option value="Q">Q</option>
               <option value="PUP">PUP</option>
               <option value="OUT">OUT</option>
               <option value="SUS">SUS</option>
+							<option value="NA">NA</option>
             </select>
           </div>
 
