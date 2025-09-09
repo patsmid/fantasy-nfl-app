@@ -64,10 +64,10 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   };
 }
 
-export async function getFlockRankings({ dynasty, superflex, expert = null, format = 'REDRAFT' }) {
-  if (dynasty) format = superflex ? 'SUPERFLEX' : 'ONEQB';
+export async function getFlockRankings({ dynasty, superflex, expert = null, type = 'REDRAFT' }) {
+  if (dynasty) type = superflex ? 'SUPERFLEX' : 'ONEQB';
 	console.log(format);
-  const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${format}&pickType=hybrid`;
+  const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${type}&pickType=hybrid`;
   console.log('📊 URL Flock Rankings:', url);
 
   try {
