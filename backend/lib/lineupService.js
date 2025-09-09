@@ -179,7 +179,7 @@ export async function getLineupData(
  */
  export async function getFreeAgentsData(
    leagueId,
-   { idExpert = null, position = 'TODAS', week = 1 } = {}
+   { idExpert = null, position = 'TODAS', week = null } = {}
  ) {
    // 1) Liga y configuración
    const leagueData = await getSleeperLeague(leagueId);

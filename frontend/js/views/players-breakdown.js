@@ -114,7 +114,7 @@ export default async function renderPlayersView() {
       gridEl.style.display = 'none';
       countEl.textContent = '';
 
-      showLoadingBar('Cargando jugadores', 'Consultando backend...');
+      showLoadingBar('Cargando jugadores', 'Consultando información...');
 
       const res = await fetchPlayersMeta();
       if (typeof Swal !== 'undefined') Swal.close();

@@ -21,8 +21,8 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
 
 	let type = expertData.source === 'flock' ? 'REDRAFT' : 'PRESEASON';
 
-	if (week > 0 && week < 30) type = 'WEEKLY';
-
+	if (week > 0 && week < 20) type = 'WEEKLY';
+	console.log(type);
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
     const { data, last_updated } = await getFlockRankings({
