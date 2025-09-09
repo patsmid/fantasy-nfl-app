@@ -66,7 +66,7 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
 
 export async function getFlockRankings({ dynasty, superflex, expert = null, type = 'REDRAFT' }) {
   if (dynasty) type = superflex ? 'SUPERFLEX' : 'ONEQB';
-	console.log(format);
+	console.log(type);
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${type}&pickType=hybrid`;
   console.log('📊 URL Flock Rankings:', url);
 
