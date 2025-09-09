@@ -13,12 +13,22 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
     return await getManualRankings(expertData.id);
   }
 
+	const nflState = await getNflState();
+  let week = nflState.season_type === 'pre' ? 0 : nflState.week;
+  if (weekStatic !== null && weekStatic !== '') {
+    week = parseInt(weekStatic, 10);
+  }
+
+	let type = 'REDRAFT';
+	if (week > 0) type = 'WEEKLY';
+
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
     const { data, last_updated } = await getFlockRankings({
       dynasty,
       superflex,
-      expert: expertData.experto
+      expert: expertData.experto,
+			type
     });
 
     return {
@@ -27,24 +37,18 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
       players: data
     };
   }
-  const nflState = await getNflState();
-  let week = nflState.season_type === 'pre' ? 0 : nflState.week;
-  if (weekStatic !== null && weekStatic !== '') {
-    week = parseInt(weekStatic, 10);
-  }
 
   let pos = position;
   if (position === 'TODAS' && (nflState.season_type === 'pre' || week === 0)) {
     pos = 'TODAS_PRE';
   }
-	console.log('position:' + pos);
 	pos = pos.toUpperCase().replace(/\s+/g, ' ').trim();
 
 	const posObj = positions.find(p => p.nombre.toUpperCase() === pos) || positions.find(p => p.nombre === 'TODAS');
 	const posValue = posObj.valor || pos;
 
-  let type = 'PRESEASON';
-  if (week > 0) type = 'WEEKLY';
+  type = 'PRESEASON';
+  // if (week > 0) type = 'WEEKLY';
   if (dynasty) type = 'DK';
 
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
@@ -60,8 +64,7 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   };
 }
 
-export async function getFlockRankings({ dynasty, superflex, expert = null }) {
-  let format = 'REDRAFT';
+export async function getFlockRankings({ dynasty, superflex, expert = null, format = 'REDRAFT' }) {
   if (dynasty) format = superflex ? 'SUPERFLEX' : 'ONEQB';
 
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${format}&pickType=hybrid`;

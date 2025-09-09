@@ -65,8 +65,8 @@ export default async function renderPlayersView() {
           <div class="col-sm-12 col-md-3 d-flex align-items-center justify-content-end gap-1">
             <label class="small mb-0" for="sortSelect">Ordenar por:</label>
             <select id="sortSelect" class="form-select form-select-sm">
-              <option value="leagues_count_desc" selected>Ligas owned ↓</option>
-              <option value="leagues_count_asc">Ligas owned ↑</option>
+              <option value="leagues_count_desc" selected>Rostered ↓</option>
+              <option value="leagues_count_asc">Rostered ↑</option>
               <option value="bye_week_asc">Bye week ↑</option>
               <option value="bye_week_desc">Bye week ↓</option>
               <option value="team_asc">Equipo ↑</option>
