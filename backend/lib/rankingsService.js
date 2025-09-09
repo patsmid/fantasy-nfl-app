@@ -18,9 +18,10 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
   if (weekStatic !== null && weekStatic !== '') {
     week = parseInt(weekStatic, 10);
   }
-	console.log(week);
-	let type = 'REDRAFT';
-	if (week > 0) type = 'WEEKLY';
+
+	let type = expertData.source === 'flock' ? 'REDRAFT' : 'PRESEASON';
+
+	if (week > 0 && week < 30) type = 'WEEKLY';
 
   if (expertData.source === 'flock') {
     const superflex = position === 'SUPER FLEX';
@@ -47,8 +48,6 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
 	const posObj = positions.find(p => p.nombre.toUpperCase() === pos) || positions.find(p => p.nombre === 'TODAS');
 	const posValue = posObj.valor || pos;
 
-  type = 'PRESEASON';
-  // if (week > 0) type = 'WEEKLY';
   if (dynasty) type = 'DK';
 
   const url = `https://partners.fantasypros.com/api/v1/expert-rankings.php?sport=NFL&year=${season}&week=${week}&id=${expertData.id_experto}&position=${posValue}&type=${type}&notes=false&scoring=${scoring}&export=json&host=ta`;
@@ -66,7 +65,6 @@ export async function getRankings({ season, dynasty, scoring, expertData, positi
 
 export async function getFlockRankings({ dynasty, superflex, expert = null, type = 'REDRAFT' }) {
   if (dynasty) type = superflex ? 'SUPERFLEX' : 'ONEQB';
-	console.log(type);
   const url = `https://ljcdtaj4i2.execute-api.us-east-2.amazonaws.com/rankings?format=${type}&pickType=hybrid`;
   console.log('📊 URL Flock Rankings:', url);
 
