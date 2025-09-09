@@ -13,13 +13,16 @@ router.get('/:source', async (req, res) => {
   try {
     let rankings;
 
-    switch (source) {
+    const { season, scoring, idExpert, position, week } = req.query;
+
+		switch (source) {
       case 'flock':
-        rankings = await getFlockRankings({ dynasty, superflex, expert });
+				let type = 'REDRAFT';
+				if (week > 0) type = 'WEEKLY';
+        rankings = await getFlockRankings({ dynasty, superflex, expert, type });
         break;
 
       case 'fantasypros': {
-        const { season, scoring, idExpert, position, week } = req.query;
         rankings = await getFantasyProsRankings({
           season,
           dynasty,
