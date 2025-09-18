@@ -609,4 +609,8 @@ export default async function renderWaiversView() {
   });
 
   if (savedLeague && savedExpert) loadWaiversData();
+	// 🔧 Fix: evitar que el offcanvas reduzca la pantalla principal
+	document.addEventListener('hidden.bs.offcanvas', () => {
+		document.body.style.removeProperty('padding-right');
+	});
 }
