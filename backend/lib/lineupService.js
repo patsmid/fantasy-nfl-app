@@ -55,10 +55,10 @@ export async function getLineupData(
       : 'STANDARD';
 
   const tipoLiga = await getConfigValue('dynasty');
-	const dynasty =
-	  leagueData.status === 'in_season'
-	    ? false
-	    : leagueData.settings.type === 2 && tipoLiga === 'LIGA';
+	const isSeasonActive = ['in_season', 'post_season'].includes(leagueData.status);
+	const dynasty = isSeasonActive
+		? false
+		: leagueData.settings.type === 2 && tipoLiga === 'LIGA';
   const finalPosition = superFlex && position === 'TODAS' ? 'SUPER FLEX' : position;
 
   const season = await getConfigValue('season');
